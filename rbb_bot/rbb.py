@@ -179,5 +179,7 @@ class RbbBot(commands.Bot):
         if ctx:
             if include_attachments and ctx.message.attachments:
                 msg += "\n".join(a.url for a in ctx.message.attachments)
+            if ctx.guild:
+                msg += f"Guild: {ctx.guild.name} ({ctx.guild.id})\n"
             msg += f"```\n{ctx.command.name=}\n{ctx.command.clean_params}```"
         self.logger.error(msg, exc_info=exc, stack_info=stack_info)

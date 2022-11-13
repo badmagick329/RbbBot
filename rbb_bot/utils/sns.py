@@ -82,6 +82,15 @@ class PostData:
             "chunked_file_paths": self.chunked_file_paths,
         }
 
+    @property
+    def is_empty(self) -> bool:
+        return (
+            not self.urls
+            and not self.chunked_file_paths
+            and not self.chunked_media
+            and not self.text
+        )
+
     @staticmethod
     def from_dict(data: dict) -> "PostData":
         return PostData(
@@ -756,6 +765,7 @@ class Sns:
         for chunk in post_data.chunked_media:
             messages.append(SnsMessage(content="", media=chunk))
 
+        messages = [x for x in messages if x.content or x.file_paths or x.media]
         return messages
 
     async def fetch_and_format(self, text: str) -> list[SnsMessage]:

@@ -12,6 +12,7 @@ from utils.sns import (
     Sns,
 )
 from utils.views import SnsMenu
+from discord.ext.menus import CannotSendMessages
 
 
 class SnsCog(Cog):
@@ -59,7 +60,7 @@ class SnsCog(Cog):
 
     def not_found_message(self, sns_name, url):
         if sns_name == "twitter":
-            return f"Could not find tweet at {url}"
+            return f"Could not find tweet at {url}. If the tweet is a retweet, try the original tweet."
         if sns_name == "instagram":
             return f"Could not find media at {url}. Instagram stories are not supported"
         if sns_name == "tiktok":
@@ -100,9 +101,8 @@ class SnsCog(Cog):
                 found_urls = sns.find_urls(urls)
                 messages = list()
                 for url in found_urls:
-
                     post_data = await sns.fetch(url)
-                    if not post_data:
+                    if not post_data or post_data.is_empty:
                         error_messages.append(self.not_found_message(sns_name, url))
                         continue
                     messages.extend(sns.format_post(post_data, with_text=with_text))
@@ -130,6 +130,13 @@ class SnsCog(Cog):
             ctx = await self.bot.get_context(message)
             if ctx.command:
                 return
+            if not (ctx.me.guild_permissions.add_reactions):
+                return
+            if not (
+                ctx.me.guild_permissions.embed_links
+                and ctx.me.guild_permissions.send_messages
+            ):
+                return
             found_urls = False
             for sns_name, sns in self.sns_dict.items():
                 if sns.find_urls(message.content):
@@ -145,6 +152,8 @@ class SnsCog(Cog):
                 await self.sns_cmd(ctx, with_text=False, urls=message.content)
             else:
                 await self.sns_cmd(ctx, with_text=True, urls=message.content)
+        except CannotSendMessages:
+            pass
         except Exception as e:
             await self.bot.send_error(
                 exc=e, comment=f"sns on_message\n{message.content}", stack_info=True
