@@ -32,8 +32,8 @@ class TagsList(ListView):
 
 
 class ResponsesList(ListView):
-    def create_embed(self, ids_and_responses: list[str], trigger: str) -> Embed:
-        header = f"{len(self.list_items)} {'Responses' if len(self.list_items) > 1 else 'Response'} found for {trigger}"
+    def create_embed(self, ids_and_responses: list[str]) -> Embed:
+        header = f"{len(self.list_items)} {'Responses' if len(self.list_items) > 1 else 'Response'} found"
         embed = Embed(
             title=f"Page {self.current_page + 1} of {len(self.view_chunks)}\n{header}"
         )
@@ -307,7 +307,7 @@ class TagsCog(Cog):
             )
 
         view = ResponsesList(ctx, response_list)
-        embed = view.create_embed(view.current_chunk, tag.trigger)
+        embed = view.create_embed(view.current_chunk)
         view.message = await ctx.send(embed=embed, view=view)
 
     @tag.command(
