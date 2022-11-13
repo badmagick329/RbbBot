@@ -1,0 +1,27 @@
+
+services:
+  db:
+    image: postgres:13
+    volumes:
+      - ./dbdata:/var/lib/postgresql/data
+    restart: always
+    environment:
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_NAME}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  rbb:
+    image: rbb:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
