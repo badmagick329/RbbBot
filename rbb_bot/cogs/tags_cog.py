@@ -225,8 +225,11 @@ class TagsCog(Cog):
                     .all()
                 )
                 await Tag.filter(id__in=[t.id for t in remove_tags]).delete()
+
         response_truncated = truncate(response_content, 300)
-        prompt = f"Are you sure you want to delete this response: {response_truncated}?"
+        prompt = (
+            f"Are you sure you want to delete this response: {response_truncated} ?"
+        )
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
         await remove(responses)

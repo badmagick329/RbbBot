@@ -146,8 +146,9 @@ class SnsCog(Cog):
             else:
                 await self.sns_cmd(ctx, with_text=True, urls=message.content)
         except Exception as e:
-            await self.bot.send_error(exc=e,
-                                      comment=f"sns on_message\n{message.content}", stack_info=True)
+            await self.bot.send_error(
+                exc=e, comment=f"sns on_message\n{message.content}", stack_info=True
+            )
 
 
 async def setup(bot):

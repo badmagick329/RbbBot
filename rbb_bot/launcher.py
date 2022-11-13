@@ -15,14 +15,18 @@ from logging.handlers import RotatingFileHandler
 LOG_LEVEL = logging.DEBUG
 
 
-
 async def main():
     config = get_config()
     creds = get_creds()
     logger = logging.getLogger(__name__)
     logger.setLevel(LOG_LEVEL)
-    handler = RotatingFileHandler(filename=FilePaths.LOG_FILE, encoding="utf-8", mode="a"
-                                  , maxBytes=10 * 1024 * 1024, backupCount=5)
+    handler = RotatingFileHandler(
+        filename=FilePaths.LOG_FILE,
+        encoding="utf-8",
+        mode="a",
+        maxBytes=10 * 1024 * 1024,
+        backupCount=5,
+    )
     handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
