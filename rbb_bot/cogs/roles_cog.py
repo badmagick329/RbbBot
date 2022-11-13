@@ -141,8 +141,10 @@ class RolesCog(Cog):
                         f"Error deleting role {role.mention}. I may not have permission to remove it"
                     )
                     break
-
-        await ctx.send("\n".join(final_message))
+        if final_message:
+            await ctx.send("\n".join(final_message))
+        else:
+            await ctx.send("No unused roles found")
 
     @roles.command(brief="Clear all unique roles belonging to users")
     @commands.cooldown(2, 5, commands.BucketType.user)
