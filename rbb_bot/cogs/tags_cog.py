@@ -217,7 +217,6 @@ class TagsCog(Cog):
             deleted_responses = await Response.filter(
                 id__in=[r.id for r in responses]
             ).delete()
-            self.logger.debug(f"Deleted {deleted_responses} responses")
             if deleted_responses:
                 remove_tags = (
                     await Tag.filter(guild=guild)
@@ -226,11 +225,10 @@ class TagsCog(Cog):
                     .all()
                 )
                 await Tag.filter(id__in=[t.id for t in remove_tags]).delete()
-
-        prompt = f"Are you sure you want to delete the response `{response_truncated}`?"
+        response_truncated = truncate(response_content, 300)
+        prompt = f"Are you sure you want to delete this response: {response_truncated}?"
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
-
         await remove(responses)
         await ctx.send(f"{BotEmojis.TICK} Response`{response_truncated}` removed")
 
