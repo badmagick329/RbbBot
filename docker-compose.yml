@@ -20,6 +20,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
+    volumes:
+      - ./rbb_bot:/app/rbb_bot
     depends_on:
       db:
         condition: service_healthy
