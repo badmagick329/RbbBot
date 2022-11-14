@@ -20,13 +20,16 @@ async def main():
     creds = get_creds()
     logger = logging.getLogger(__name__)
     logger.setLevel(LOG_LEVEL)
-    handler = RotatingFileHandler(
-        filename=FilePaths.LOG_FILE,
-        encoding="utf-8",
-        mode="a",
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,
-    )
+    if config.debug:
+        handler = logging.StreamHandler(stream=sys.stdout)
+    else:
+        handler = RotatingFileHandler(
+            filename=FilePaths.LOG_FILE,
+            encoding="utf-8",
+            mode="a",
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+        )
     handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )

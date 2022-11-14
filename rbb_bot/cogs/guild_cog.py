@@ -8,6 +8,7 @@ from settings.const import DISCORD_MAX_MESSAGE
 from settings.ids import IRENE_CORD_ID, WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID
 from pathlib import Path
 import random
+from datetime import datetime, timedelta
 
 
 class GuildCog(Cog):
@@ -18,6 +19,9 @@ class GuildCog(Cog):
         self.bot = bot
         self.irene_waves = list()
         gfycat_url_base = "https://gfycat.com/{gfy_name}"
+        # Cooldown bucket to avoid greeting spam
+        # List of tuples ("[member_id]_[guild_id]", datetime)
+        self.cooldown_bucket = list()
         with open(self.irenewaves_file, "r") as f:
             for line in f.read().splitlines():
                 self.irene_waves.append(gfycat_url_base.format(gfy_name=line.strip()))
@@ -181,10 +185,19 @@ class GuildCog(Cog):
         await channel.send(message)
         await ctx.send("Message sent")
 
+    def is_on_cooldown(self, id_key: str):
+        self.cooldown_bucket = [entry for entry in self.cooldown_bucket if entry[1] > datetime.utcnow()]
+        if id_key in [entry[0] for entry in self.cooldown_bucket]:
+            return True
+
     @Cog.listener()
     async def on_member_join(self, member: Member):
         guild = await Guild.get_or_none(id=member.guild.id)
         if not guild or not guild.greet_channel_id:
+            return
+        # Fix for this being called multiple times on join for some guilds
+        key = f"{member.guild.id}_{member.id}"
+        if self.is_on_cooldown(key):
             return
         greeting = await Greeting.get_or_none(guild=guild)
         if not greeting:
@@ -192,6 +205,8 @@ class GuildCog(Cog):
         channel = guild.greet_channel
         if not channel:
             return
+        cooldown_dt = datetime.utcnow() + timedelta(minutes=1)
+        self.cooldown_bucket.append((key, cooldown_dt))
         await channel.send(embed=greeting.create_embed(member))
 
         if guild.id in [IRENE_CORD_ID, WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID]:
