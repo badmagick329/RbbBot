@@ -409,7 +409,7 @@ class InstagramFetcher(Fetcher):
 
 class TikTokFetcher(Fetcher):
     DL_URL = re.compile(r"https?://(?:www\.)?tiktok\.com/([^/]+)/video/(\d+)")
-    SHORT_URL = re.compile(r"https?://vm\.tiktok\.com/t/([^/]+)")
+    SHORT_URL = re.compile(r"https?://www\.tiktok\.com/t/([^/]+)")
 
     def __init__(
         self, web_client: ClientSession, download_location: Path, *args, **kwargs
