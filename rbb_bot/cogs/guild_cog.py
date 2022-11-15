@@ -205,6 +205,7 @@ class GuildCog(Cog):
         channel = guild.greet_channel
         if not channel:
             return
+        self.bot.logger.info(f"Sending welcome message to {member} in {channel} in {member.guild}")
         cooldown_dt = datetime.utcnow() + timedelta(minutes=1)
         self.cooldown_bucket.append((key, cooldown_dt))
         await channel.send(embed=greeting.create_embed(member))
