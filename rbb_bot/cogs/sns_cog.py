@@ -103,6 +103,7 @@ class SnsCog(Cog):
                 for url in found_urls:
                     post_data = await sns.fetch(url)
                     if not post_data or post_data.is_empty:
+                        self.bot.logger.info(f"Could not find {sns_name} post at {url}")
                         error_messages.append(self.not_found_message(sns_name, url))
                         continue
                     messages.extend(sns.format_post(post_data, with_text=with_text))
@@ -112,6 +113,8 @@ class SnsCog(Cog):
                 if error_messages:
                     await ctx.send("\n".join(error_messages))
                 else:
+                    url_str = "\n".join(found_urls.split())
+                    self.bot.logger.info(f"No posts found at {url_str}")
                     return await ctx.send("No posts found")
 
             try:

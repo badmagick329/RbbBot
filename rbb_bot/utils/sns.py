@@ -764,7 +764,7 @@ class Sns:
         for chunk in post_data.chunked_media:
             messages.append(SnsMessage(content="", media=chunk))
 
-        messages = [x for x in messages if x.content or x.file_paths or x.media]
+        messages = [x for x in messages if x.content or x.file_paths or x.media or x.url_str]
         return messages
 
     async def fetch_and_format(self, text: str) -> list[SnsMessage]:
