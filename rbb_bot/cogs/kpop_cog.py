@@ -18,7 +18,7 @@ from utils.scraper import Scraper
 from utils.views import ListView, SearchResultsView, SearchResult
 
 
-class YoutubeList(ListView):
+class VideoList(ListView):
     def create_message(self, results: tuple[str, Release]) -> str:
         header = f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
         body = list()
@@ -31,6 +31,15 @@ class YoutubeList(ListView):
             else:
                 date_or_time = f"**{release.release_date}**"
             body.append(f"{date_or_time}\n{artist_name} - {title}\n{video}")
+        return header + "\n".join(body)
+
+
+class YoutubeList(ListView):
+    def create_message(self, results: list[str]) -> str:
+        header = f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
+        body = list()
+        for result in results:
+            body.append(result)
         return header + "\n".join(body)
 
 
@@ -173,7 +182,7 @@ class KpopCog(Cog):
             for url in release.urls:
                 formatted_results.append((url, release))
 
-        view = YoutubeList(ctx, formatted_results, chunk_size=2)
+        view = VideoList(ctx, formatted_results, chunk_size=2)
         init_message = view.create_message(view.current_chunk)
         view.message = await ctx.send(init_message, view=view)
 
@@ -196,13 +205,11 @@ class KpopCog(Cog):
             as_text=True,
         )
         results = self.YT_ID.findall(html)
-
         video_urls = list()
         for r in results:
             url = f"https://www.youtube.com/watch?v={r}"
             if url not in video_urls:
                 video_urls.append(url)
-
         if not video_urls:
             return await ctx.send("No results found.")
 
