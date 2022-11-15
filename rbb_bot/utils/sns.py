@@ -409,7 +409,7 @@ class InstagramFetcher(Fetcher):
 
 class TikTokFetcher(Fetcher):
     DL_URL = re.compile(r"https?://(?:www\.)?tiktok\.com/([^/]+)/video/(\d+)")
-    SHORT_URL = re.compile(r"https?://(?:www|vm)\.tiktok\.com/(?:t/)?([^/]+)")
+    SHORT_URL = re.compile(r"https?://vm\.tiktok\.com/t/([^/]+)")
 
     def __init__(
         self, web_client: ClientSession, download_location: Path, *args, **kwargs
@@ -455,7 +455,6 @@ class TikTokFetcher(Fetcher):
         for match in short_matches:
             if (url := match.group(0).split("?")[0]) not in found_urls:
                 found_urls.append(url)
-
         return found_urls
 
     async def get_download_url(self, url: str) -> str | None:
@@ -691,7 +690,7 @@ class Sns:
             return PostData.from_dict(saved_data.value)
 
         # Not cached. Fetch data
-        self.logger.debug(f"Fetching data for {source_url}")
+        self.logger.debug(f"Not cached. Fetching data for {source_url}")
         post_data = await self.fetcher.fetch(source_url)
         if not post_data:
             self.logger.debug(f"No data found. Skipping caching for {source_url}")
