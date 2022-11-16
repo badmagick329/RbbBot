@@ -52,11 +52,13 @@ class GuildCog(Cog):
             return await ctx.send(
                 f"Prefix must be less than {Guild.MAX_PREFIX} characters"
             )
+        if guild.prefix == new_prefix:
+            return await ctx.send(f"Prefix is already set to {new_prefix}")
 
         guild.prefix = new_prefix
         await guild.save()
         self.bot.guild_prefixes[ctx.guild.id] = new_prefix
-        await ctx.send(f"Prefix prefix to {new_prefix}")
+        await ctx.send(f"Setting prefix to {new_prefix}")
 
     @commands.hybrid_group(brief="Set a welcome message for new members")
     @commands.has_permissions(manage_guild=True)
