@@ -2,6 +2,7 @@ import asyncio
 import re
 import urllib.parse
 from typing import List, Optional
+import dateparser
 
 import pendulum
 from bs4 import BeautifulSoup
@@ -238,7 +239,7 @@ class KpopCog(Cog):
         view.message = await ctx.send(embed=view.embed, view=view)
 
     @commands.hybrid_command(
-        brief="Show upcoming releases", alias=["cbs", "cb", "comeback"]
+        brief="Show recent and upcoming releases", alias=["cbs", "cb", "comeback"]
     )
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def comebacks(
@@ -247,8 +248,8 @@ class KpopCog(Cog):
         artist: Optional[str] = None,
         release_name: Optional[str] = None,
         release_type: Optional[str] = None,
-        show_all: Optional[bool] = False,
-    ) -> None:
+        start_date: Optional[str] = None,
+    ):
         """
         Shows upcoming releases
 
@@ -260,8 +261,8 @@ class KpopCog(Cog):
             Filter by releases or albums containing this name (Optional) - Partial match
         release_type: str
             Filter by this release type (Optional) - Partial match
-        show_all: bool
-            Include past releases (Optional)
+        start_date: str
+             Show comebacks from this date onwards. Earliest=2018-01-01 (Optional)
         """
         waited = 0
         async with ctx.typing():
@@ -274,51 +275,69 @@ class KpopCog(Cog):
                     )
                 break
 
+        self.bot.logger.debug("Adding filters")
         filters = list()
         if artist:
+            self.bot.logger.debug(f"Artist filter {artist}")
             filters.append(Q(artist__name__icontains=artist))
         if release_name:
+            self.bot.logger.debug(f"Release filter {release_name}")
             filters.append(
                 Q(title__icontains=release_name)
                 | Q(album_title__icontains=release_name)
             )
         if release_type:
+            self.bot.logger.debug(f"Release type filter {release_type}")
             filters.append(Q(release_type__name__icontains=release_type))
 
-        if not show_all:
-            filters.append(Q(release_date__gte=pendulum.today().add(days=-2)))
-            releases = (
-                await Release.filter(*filters, join_type="AND")
-                .order_by("release_date")
-                .prefetch_related("artist", "release_type")
-            )
-            if not releases:
-                filters[-1] = Q(release_date__lt=pendulum.today())
-                releases = (
-                    await Release.filter(*filters, join_type="AND")
-                    .order_by("-release_date")
-                    .prefetch_related("artist", "release_type")
+        parsed_date = None
+        if start_date:
+            self.bot.logger.debug(f"Start date filter {start_date}")
+            parsed_date = dateparser.parse(start_date)
+            self.bot.logger.debug(f"Parsed date: {parsed_date}")
+            if not parsed_date:
+                await ctx.send(
+                    f"Sorry I could not understand start date: {start_date}. "
+                    "Looking for releases from 2 days ago"
                 )
-                if not releases:
-                    await ctx.send("No releases found")
-                    return
-                else:
-                    await ctx.send(
-                        "No upcoming releases found, but here are some past releases"
-                    )
-        else:
-            releases = (
-                await Release.filter(*filters, join_type="AND")
-                .order_by("-release_date")
-                .prefetch_related("artist", "release_type")
-            )
-            if not releases:
-                await ctx.send("No releases found")
-                return
 
-        view = ReleasesView(ctx, releases)
-        embed = view.create_embed(view.current_chunk)
-        view.message = await ctx.send(embed=embed, view=view)
+        if parsed_date:
+            filters.append(Q(release_date__gte=parsed_date))
+        else:
+            filters.append(Q(release_date__gte=pendulum.today().add(days=-2)))
+
+        releases = (
+            await Release.filter(*filters, join_type="AND")
+            .order_by("release_date")
+            .prefetch_related("artist", "release_type")
+        )
+
+        async def send_releases(ctx, releases):
+            view = ReleasesView(ctx, releases)
+            embed = view.create_embed(view.current_chunk)
+            view.message = await ctx.send(embed=embed, view=view)
+            return view.message
+
+        if start_date:
+            if releases:
+                return await send_releases(ctx, releases)
+            else:
+                return await ctx.send("No releases found.")
+
+        if releases:
+            return await send_releases(ctx, releases)
+
+        filters[-1] = Q(release_date__lt=pendulum.today())
+        releases = (
+            await Release.filter(*filters, join_type="AND")
+            .order_by("-release_date")
+            .prefetch_related("artist", "release_type")
+        )
+        if not releases:
+            return await ctx.send("No releases found")
+        else:
+            await ctx.send(f"No recent releases found. Showing older releases")
+            return await send_releases(ctx, releases)
 
     @commands.hybrid_command(
         brief="Post a random YouTube comment from a kpop music video",
