@@ -509,7 +509,7 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
 
     top_y = 0
     bottom_y = height
-    threshold = 10
+    threshold = 15
     GRAD_STEP = 20
 
     def is_close(pixel1: list[int], pixel2: list[int], threshold: int):
