@@ -65,7 +65,7 @@ class MiscCog(Cog):
         for result in results:
             type_ = f'{result["type"]} ' if result["type"] else ""
             string = f'{result["str"]} ' if result["str"] else ""
-            created_at = f'created at {format_dt(result["created_at"])}'
+            created_at = f'created at {format_dt(result["created"])}'
             msg.append(f"{type_}{string}{created_at}")
 
         await ctx.send("\n".join(msg))
