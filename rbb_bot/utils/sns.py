@@ -208,9 +208,6 @@ class TwitterFetcher(Fetcher):
             )
         except exceptions.StatusNotFound:
             self.logger.info(f"Tweet {source_url} not found")
-        except Exception as e:
-            self.logger.error(f"Error fetching tweet {source_url}: {e}", exc_info=e)
-            return None
         tweet: PeonyResponse
         tweet.user: JSONData
 

@@ -13,6 +13,7 @@ from utils.sns import (
 )
 from utils.views import SnsMenu
 from discord.ext.menus import CannotSendMessages
+from peony.exceptions import ProtectedTweet
 
 
 class SnsCog(Cog):
@@ -101,7 +102,13 @@ class SnsCog(Cog):
                 found_urls = sns.find_urls(urls)
                 messages = list()
                 for url in found_urls:
-                    post_data = await sns.fetch(url)
+                    try:
+                        post_data = await sns.fetch(url)
+                    except ProtectedTweet:
+                        error_messages.append(
+                            f"Tweet at {url} is protected and cannot be fetched"
+                        )
+                        continue
                     if not post_data or post_data.is_empty:
                         self.bot.logger.info(f"Could not find {sns_name} post at {url}")
                         error_messages.append(self.not_found_message(sns_name, url))
