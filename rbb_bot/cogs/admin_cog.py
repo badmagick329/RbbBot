@@ -205,7 +205,18 @@ class AdminCog(Cog):
             if isinstance(error.original, Forbidden):
                 await ctx.send(f"{BotEmojis.CROSS} {error.original}")
 
-        self.bot.logger.error(error_message, exc_info=error, stack_info=True)
+        params = list()
+
+        args = ",".join([str(a) for a in ctx.args])
+        if args:
+            params.append(f"args={args}")
+        kwargs = ",".join(f"{k}:{v}." for k, v in ctx.kwargs.items())
+        if kwargs:
+            params.append(f"kwargs={kwargs}")
+        params = ", ".join(params)
+        self.bot.logger.error(f"Command: {ctx.command.qualified_name}\n"
+                              f"{params}\n",
+                              exc_info=error)
 
 
 async def setup(bot):

@@ -271,7 +271,6 @@ def get_snowflake_data(string: str, bot: commands.Bot) -> Optional[dict]:
             if e.id == int(match.group(3)):
                 result["str"] = string
                 return result
-                break
         result["str"] = emoji_url(match.group(3), match.group(1) == "a")
         return result
     elif match := user_regex.search(string):
