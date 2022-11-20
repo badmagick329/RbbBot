@@ -181,5 +181,15 @@ class RbbBot(commands.Bot):
                 msg += "\n".join(a.url for a in ctx.message.attachments)
             if ctx.guild:
                 msg += f"Guild: {ctx.guild.name} ({ctx.guild.id})\n"
-            msg += f"```\n{ctx.command.name=}\n{ctx.command.clean_params}```"
+            if ctx.command:
+                msg += f"\n{ctx.command.qualified_name=}"
+                params = list()
+                args = ",".join([str(a) for a in ctx.args])
+                if args:
+                    params.append(f"args={args}")
+                kwargs = ",".join(f"{k}:{v}." for k, v in ctx.kwargs.items())
+                if kwargs:
+                    params.append(f"kwargs={kwargs}")
+                params = ", ".join(params)
+                msg += f"\n{params}\n"
         self.logger.error(msg, exc_info=exc, stack_info=stack_info)
