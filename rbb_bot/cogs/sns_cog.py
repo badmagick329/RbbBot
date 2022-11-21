@@ -13,7 +13,7 @@ from utils.sns import (
 )
 from utils.views import SnsMenu
 from discord.ext.menus import CannotSendMessages
-from peony.exceptions import ProtectedTweet
+from peony.exceptions import ProtectedTweet, DoesNotExist
 
 
 class SnsCog(Cog):
@@ -107,6 +107,11 @@ class SnsCog(Cog):
                     except ProtectedTweet:
                         error_messages.append(
                             f"Tweet at {url} is protected and cannot be fetched"
+                        )
+                        continue
+                    except DoesNotExist:
+                        error_messages.append(
+                            "Tweet not found. It may have been deleted or it might be age-restricted"
                         )
                         continue
                     if not post_data or post_data.is_empty:
