@@ -120,7 +120,7 @@ class SnsCog(Cog):
                 if error_messages:
                     await ctx.send("\n".join(error_messages))
                 else:
-                    url_str = "\n".join(found_urls.split())
+                    url_str = "\n".join(found_urls)
                     self.bot.logger.info(f"No posts found at {url_str}")
                     return await ctx.send("No posts found")
 
