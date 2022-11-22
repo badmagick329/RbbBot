@@ -139,7 +139,7 @@ class MiscCog(Cog):
             avatar = user.avatar
 
         if download_avatar:
-            avatar_bytes = await http_get(self.web_client, avatar.url)
+            avatar_bytes = await http_get(self.bot.web_client, avatar.url)
             avatar_bytes = BytesIO(avatar_bytes)
             filename = f"{user.name}{'.gif' if avatar.is_animated() else '.png'}"
             return await ctx.send(file=discord.File(avatar_bytes, filename=filename))
@@ -203,7 +203,7 @@ class MiscCog(Cog):
         if download_icon:
             if not guild.icon:
                 return await ctx.send("This server has no icon.")
-            icon_bytes = await http_get(self.web_client, guild.icon.url)
+            icon_bytes = await http_get(self.bot.web_client, guild.icon.url)
             icon_bytes = BytesIO(icon_bytes)
             filename = f"{guild.name}{'.gif' if guild.icon.is_animated() else '.png'}"
             return await ctx.send(file=discord.File(icon_bytes, filename=filename))
