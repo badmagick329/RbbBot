@@ -8,7 +8,7 @@ class DiskCache(Model):
     value = fields.JSONField(null=True)
     accessed_at = fields.DatetimeField(auto_now_add=True)
 
-    MAX_SIZE = 128
+    MAX_SIZE = 512
 
     class Meta:
         unique_together = ["key"]
