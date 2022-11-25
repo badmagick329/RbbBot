@@ -421,11 +421,17 @@ class TikTokFetcher(Fetcher):
             return None
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
-
         text_task = subprocess_run(f'yt-dlp {url} -O "%(title)s"')
         self.logger.debug(f"Downloading {url} to {filename}")
         download_task = subprocess_run(f'yt-dlp -S vcodec:h264 {url} -o "{filename}"')
-        results = await asyncio.gather(text_task, download_task)
+
+        try:
+            gathered_task = asyncio.gather(text_task, download_task)
+            results = await asyncio.wait_for(gathered_task, timeout=10)
+        except asyncio.TimeoutError:
+            self.logger.error(f"Failed to download {url}")
+            return None
+
         text = results[0][1]
 
         file_path = Path(filename)
@@ -563,7 +569,6 @@ class Sns:
     def __init__(
         self,
         fetcher: Fetcher,
-        logger,
         web_client: ClientSession = None,
         cache_files=True,
         timestamped_urls=False,
@@ -687,6 +692,12 @@ class Sns:
             return PostData.from_dict(saved_data.value)
 
         # Not cached. Fetch data
+
+        # yt-dlp not working with tiktok urls at the moment
+        # TODO - Remove when TikTok is fixed
+        if isinstance(self.fetcher, TikTokFetcher):
+            return None
+
         self.logger.debug(f"Not cached. Fetching data for {source_url}")
         post_data = await self.fetcher.fetch(source_url)
         if not post_data:

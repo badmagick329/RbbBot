@@ -46,10 +46,10 @@ class SnsCog(Cog):
             logger=self.bot.logger,
         )
         self.sns_dict = {
-            "twitter": Sns(twitter_fetcher, self.bot.logger),
-            "instagram": Sns(instagram_fetcher, self.bot.logger, timestamped_urls=True),
-            "tiktok": Sns(tiktok_fetcher, self.bot.logger),
-            "reddit": Sns(reddit_fetcher, self.bot.logger, cache_files=False),
+            "twitter": Sns(twitter_fetcher),
+            "instagram": Sns(instagram_fetcher, timestamped_urls=True),
+            "tiktok": Sns(tiktok_fetcher),
+            "reddit": Sns(reddit_fetcher, cache_files=False),
         }
 
     async def cog_load(self):
@@ -65,10 +65,12 @@ class SnsCog(Cog):
         if sns_name == "instagram":
             return f"Could not find media at {url}. Instagram stories are not supported"
         if sns_name == "tiktok":
-            return (
-                f"Could not find video at {url}. Photos and Stories are not supported. "
-                f"If the video is above discord size limit ({DISCORD_MAX_FILE_SIZE/1024/1024}MB), it will not be posted"
-            )
+            # return (
+            #     f"Could not find video at {url}. Photos and Stories are not supported. "
+            #     f"If the video is above discord size limit ({DISCORD_MAX_FILE_SIZE/1024/1024}MB), it will not be posted"
+            # )
+            # TODO - Remove when TikTok is fixed
+            return "TikTok downloads are temporarily disabled"
         if sns_name == "reddit":
             return f"Could not find post at {url}"
 
@@ -154,6 +156,10 @@ class SnsCog(Cog):
                 return
             found_urls = False
             for sns_name, sns in self.sns_dict.items():
+                # TODO - Remove when TikTok is fixed
+                if sns_name == "tiktok":
+                    continue
+
                 if sns.find_urls(message.content):
                     found_urls = True
                     break
