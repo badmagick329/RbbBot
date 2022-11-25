@@ -21,12 +21,12 @@ from discord.utils import format_dt
 from models import DiskCache
 from peony import PeonyClient, exceptions
 from peony.data_processing import PeonyResponse, JSONData
+from peony.exceptions import ProtectedTweet, DoesNotExist, HTTPNotFound
 from settings.const import DISCORD_MAX_MESSAGE, DISCORD_MAX_FILE_SIZE
 from settings.const import FilePaths
+from utils.exceptions import DownloadedVideoNotFound
 from utils.helpers import chunker, truncate, http_get, subprocess_run, url_to_filename
 from yarl import URL
-from utils.exceptions import DownloadedVideoNotFound
-from peony.exceptions import ProtectedTweet, DoesNotExist, HTTPNotFound
 
 
 @dataclass
@@ -140,16 +140,20 @@ class SnsMessage:
                 allowed_mentions=AllowedMentions.none(),
             )
 
+
 @dataclass
 class FetchResult:
     post_data: PostData = None
     exception = None
     error_message: str = None
 
-    def __init__(self, post_data: PostData = None, exception = None, error_message: str = None):
+    def __init__(
+        self, post_data: PostData = None, exception=None, error_message: str = None
+    ):
         self.post_data = post_data
         self.exception = exception
         self.error_message = error_message
+
 
 class Fetcher(ABC):
     def __init__(self, logger=None):
@@ -220,13 +224,17 @@ class TwitterFetcher(Fetcher):
             )
         except exceptions.StatusNotFound:
             self.logger.info(f"Tweet {source_url} not found")
-            return FetchResult(error_message="Tweet not found. It may have been deleted or age restricted")
+            return FetchResult(
+                error_message="Tweet not found. It may have been deleted or age restricted"
+            )
         except ProtectedTweet:
             self.logger.info(f"Tweet {source_url} is protected")
             return FetchResult(error_message="Tweet is protected")
         except DoesNotExist:
             self.logger.info(f"Tweet {source_url} does not exist")
-            return FetchResult(error_message="Tweet not found. It may have been deleted or age restricted")
+            return FetchResult(
+                error_message="Tweet not found. It may have been deleted or age restricted"
+            )
         except HTTPNotFound:
             self.logger.info(f"Tweet {source_url} not found")
             return FetchResult(error_message="Tweet not found. Is the URL correct?")
@@ -242,7 +250,9 @@ class TwitterFetcher(Fetcher):
         urls = self.urls_in(tweet)
 
         text = await self.process_urls(tweet.full_text, tweet_id)
-        return FetchResult(post_data=PostData(source_url, poster, created_at, text, urls))
+        return FetchResult(
+            post_data=PostData(source_url, poster, created_at, text, urls)
+        )
 
     async def process_urls(self, text: str, source_id: int) -> str:
         """
@@ -381,8 +391,10 @@ class InstagramFetcher(Fetcher):
                 data = await response.json()
             except aiohttp.ContentTypeError as e:
                 self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
-                return FetchResult(exception=aiohttp.ContentTypeError,
-                                   error_message="Failed to fetch instagram post")
+                return FetchResult(
+                    exception=aiohttp.ContentTypeError,
+                    error_message="Failed to fetch instagram post",
+                )
 
             if "spam" in data:
                 return FetchResult(error_message="Instagram post not found")
@@ -459,8 +471,10 @@ class TikTokFetcher(Fetcher):
 
         file_path = Path(filename)
         if not file_path.exists():
-            return FetchResult(exception=DownloadedVideoNotFound(f"Video not found at {file_path}"),
-                               error_message="Download failed")
+            return FetchResult(
+                exception=DownloadedVideoNotFound(f"Video not found at {file_path}"),
+                error_message="Download failed",
+            )
         if file_path.stat().st_size > DISCORD_MAX_FILE_SIZE:
             file_path.unlink()
             return FetchResult(error_message="Downloaded video too large")
@@ -803,5 +817,7 @@ class Sns:
         for chunk in post_data.chunked_media:
             messages.append(SnsMessage(content="", media=chunk))
 
-        messages = [x for x in messages if x.content or x.file_paths or x.media or x.url_str]
+        messages = [
+            x for x in messages if x.content or x.file_paths or x.media or x.url_str
+        ]
         return messages

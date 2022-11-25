@@ -217,9 +217,9 @@ class AdminCog(Cog):
         if kwargs:
             params.append(f"kwargs={kwargs}")
         params = ", ".join(params)
-        self.bot.logger.error(f"Command: {ctx.command.qualified_name}\n"
-                              f"{params}\n",
-                              exc_info=error)
+        self.bot.logger.error(
+            f"Command: {ctx.command.qualified_name}\n" f"{params}\n", exc_info=error
+        )
 
 
 async def setup(bot):

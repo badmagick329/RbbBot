@@ -1,3 +1,6 @@
+import random
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 from discord import TextChannel, Member
@@ -6,9 +9,6 @@ from discord.ext.commands import Cog, Context
 from models import Guild, Greeting
 from settings.const import DISCORD_MAX_MESSAGE
 from settings.ids import IRENE_CORD_ID, WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID
-from pathlib import Path
-import random
-from datetime import datetime, timedelta
 
 
 class GuildCog(Cog):
@@ -188,7 +188,9 @@ class GuildCog(Cog):
         await ctx.send("Message sent")
 
     def is_on_cooldown(self, id_key: str):
-        self.cooldown_bucket = [entry for entry in self.cooldown_bucket if entry[1] > datetime.utcnow()]
+        self.cooldown_bucket = [
+            entry for entry in self.cooldown_bucket if entry[1] > datetime.utcnow()
+        ]
         if id_key in [entry[0] for entry in self.cooldown_bucket]:
             return True
 
@@ -207,7 +209,9 @@ class GuildCog(Cog):
         channel = guild.greet_channel
         if not channel:
             return
-        self.bot.logger.info(f"Sending welcome message to {member} in {channel} in {member.guild}")
+        self.bot.logger.info(
+            f"Sending welcome message to {member} in {channel} in {member.guild}"
+        )
         cooldown_dt = datetime.utcnow() + timedelta(minutes=1)
         self.cooldown_bucket.append((key, cooldown_dt))
         await channel.send(embed=greeting.create_embed(member))

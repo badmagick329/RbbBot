@@ -3,17 +3,16 @@ from typing import Optional
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from settings.const import FilePaths, DISCORD_MAX_FILE_SIZE
+from discord.ext.menus import CannotSendMessages
+from settings.const import FilePaths
 from utils.sns import (
     TwitterFetcher,
     InstagramFetcher,
     TikTokFetcher,
     RedditFetcher,
     Sns,
-    FetchResult,
 )
 from utils.views import SnsMenu
-from discord.ext.menus import CannotSendMessages
 
 
 class SnsCog(Cog):

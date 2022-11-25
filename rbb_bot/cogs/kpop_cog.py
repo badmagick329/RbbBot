@@ -2,8 +2,8 @@ import asyncio
 import re
 import urllib.parse
 from typing import List, Optional
-import dateparser
 
+import dateparser
 import pendulum
 from bs4 import BeautifulSoup
 from discord import Embed

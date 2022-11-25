@@ -5,5 +5,6 @@ class NotOk(Exception):
 class TimeoutError(Exception):
     pass
 
+
 class DownloadedVideoNotFound(Exception):
     pass

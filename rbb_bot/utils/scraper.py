@@ -148,7 +148,7 @@ class Scraper:
             )
             self.logger.addHandler(handler)
 
-    async def scrape(self, urls: list[str]=None, from_json: bool = False):
+    async def scrape(self, urls: list[str] = None, from_json: bool = False):
         if not urls:
             urls = self.generate_urls()[-1:]
 
