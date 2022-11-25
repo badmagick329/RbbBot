@@ -148,8 +148,9 @@ class Scraper:
             )
             self.logger.addHandler(handler)
 
-    async def scrape(self, from_json: bool = False):
-        urls = self.generate_urls()[-1:]
+    async def scrape(self, urls: list[str]=None, from_json: bool = False):
+        if not urls:
+            urls = self.generate_urls()[-1:]
 
         if from_json:
             saved_cbs = self.cbs_from_json(self.JSON_FILE)

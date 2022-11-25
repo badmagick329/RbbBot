@@ -125,9 +125,13 @@ class KpopCog(Cog):
 
     @commands.hybrid_command(brief="Update the comebacks database")
     @commands.is_owner()
-    async def update_comebacks(self, ctx: Context) -> None:
+    async def update_comebacks(self, ctx: Context, urls: Optional[str] = None) -> None:
+        if not urls:
+            urls = None
+        else:
+            urls = [u.strip() for u in urls.split(" ") if u.strip()]
         await ctx.send("Starting update...")
-        await self.scraper.scrape()
+        await self.scraper.scrape(urls=urls)
         await ctx.send("Done!")
 
     @commands.hybrid_command(

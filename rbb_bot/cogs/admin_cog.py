@@ -140,7 +140,7 @@ class AdminCog(Cog):
         Admin Commands
 
         clear cache
-        update comebacks
+        update comebacks [optional list of urls separated by spaces]
         presence [activity] [status]
         """
         clean_text = cmd_text.strip().lower()
@@ -149,10 +149,13 @@ class AdminCog(Cog):
         if clean_text == "clear cache":
             out = await DiskCache.all().delete()
             return await ctx.send(out)
-        if clean_text == "update comebacks":
+        if clean_text.startswith("update comebacks"):
+            urls = clean_text.split("update comebacks")[-1].strip()
+            if not urls:
+                urls = None
+
             kpop_cog = self.bot.get_cog("KpopCog")
-            update_cmd = kpop_cog.get_command("update_comebacks")
-            return await ctx.invoke(update_cmd)
+            return await kpop_cog.update_comebacks(ctx, urls=urls)
         if clean_text.startswith("presence"):
             activity_options = {
                 "playing": discord.ActivityType.playing,
