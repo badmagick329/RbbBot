@@ -10,10 +10,10 @@ from utils.sns import (
     TikTokFetcher,
     RedditFetcher,
     Sns,
+    FetchResult,
 )
 from utils.views import SnsMenu
 from discord.ext.menus import CannotSendMessages
-from peony.exceptions import ProtectedTweet, DoesNotExist
 
 
 class SnsCog(Cog):
@@ -59,21 +59,6 @@ class SnsCog(Cog):
         self.bot.logger.debug("SnsCog unloaded!")
         self.instagram_fetcher.web_client.close()
 
-    def not_found_message(self, sns_name, url):
-        if sns_name == "twitter":
-            return f"Could not find tweet at {url}. If the tweet is a retweet, try the original tweet."
-        if sns_name == "instagram":
-            return f"Could not find media at {url}. Instagram stories are not supported"
-        if sns_name == "tiktok":
-            # return (
-            #     f"Could not find video at {url}. Photos and Stories are not supported. "
-            #     f"If the video is above discord size limit ({DISCORD_MAX_FILE_SIZE/1024/1024}MB), it will not be posted"
-            # )
-            # TODO - Remove when TikTok is fixed
-            return "TikTok downloads are temporarily disabled"
-        if sns_name == "reddit":
-            return f"Could not find post at {url}"
-
     @commands.hybrid_command(
         name="sns", brief="Get posts from twitter, ig, tiktok or reddit"
     )
@@ -104,21 +89,10 @@ class SnsCog(Cog):
                 found_urls = sns.find_urls(urls)
                 messages = list()
                 for url in found_urls:
-                    try:
-                        post_data = await sns.fetch(url)
-                    except ProtectedTweet:
-                        error_messages.append(
-                            f"Tweet at {url} is protected and cannot be fetched"
-                        )
-                        continue
-                    except DoesNotExist:
-                        error_messages.append(
-                            "Tweet not found. It may have been deleted or it might be age-restricted"
-                        )
-                        continue
+                    fetch_result = await sns.fetch(url)
+                    post_data = fetch_result.post_data
                     if not post_data or post_data.is_empty:
-                        self.bot.logger.info(f"Could not find {sns_name} post at {url}")
-                        error_messages.append(self.not_found_message(sns_name, url))
+                        error_messages.append(fetch_result.error_message)
                         continue
                     messages.extend(sns.format_post(post_data, with_text=with_text))
                 sns_messages.extend(messages)

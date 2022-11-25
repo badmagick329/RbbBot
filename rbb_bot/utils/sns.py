@@ -25,6 +25,8 @@ from settings.const import DISCORD_MAX_MESSAGE, DISCORD_MAX_FILE_SIZE
 from settings.const import FilePaths
 from utils.helpers import chunker, truncate, http_get, subprocess_run, url_to_filename
 from yarl import URL
+from utils.exceptions import DownloadedVideoNotFound
+from peony.exceptions import ProtectedTweet, DoesNotExist, HTTPNotFound
 
 
 @dataclass
@@ -138,6 +140,16 @@ class SnsMessage:
                 allowed_mentions=AllowedMentions.none(),
             )
 
+@dataclass
+class FetchResult:
+    post_data: PostData = None
+    exception = None
+    error_message: str = None
+
+    def __init__(self, post_data: PostData = None, exception = None, error_message: str = None):
+        self.post_data = post_data
+        self.exception = exception
+        self.error_message = error_message
 
 class Fetcher(ABC):
     def __init__(self, logger=None):
@@ -155,7 +167,7 @@ class Fetcher(ABC):
             self.logger.addHandler(handler)
 
     @abstractmethod
-    async def fetch(self, source_url: str) -> PostData | None:
+    async def fetch(self, source_url: str) -> FetchResult:
         """
         Fetch the post data from the source url
         """
@@ -200,7 +212,7 @@ class TwitterFetcher(Fetcher):
         self.web_client = web_client
         super().__init__(*args, **kwargs)
 
-    async def fetch(self, source_url: str) -> PostData | None:
+    async def fetch(self, source_url: str) -> FetchResult:
         tweet_id = self.get_tweet_id(source_url)
         try:
             tweet = await self.client.api.statuses.show.get(
@@ -208,6 +220,17 @@ class TwitterFetcher(Fetcher):
             )
         except exceptions.StatusNotFound:
             self.logger.info(f"Tweet {source_url} not found")
+            return FetchResult(error_message="Tweet not found. It may have been deleted or age restricted")
+        except ProtectedTweet:
+            self.logger.info(f"Tweet {source_url} is protected")
+            return FetchResult(error_message="Tweet is protected")
+        except DoesNotExist:
+            self.logger.info(f"Tweet {source_url} does not exist")
+            return FetchResult(error_message="Tweet not found. It may have been deleted or age restricted")
+        except HTTPNotFound:
+            self.logger.info(f"Tweet {source_url} not found")
+            return FetchResult(error_message="Tweet not found. Is the URL correct?")
+
         tweet: PeonyResponse
         tweet.user: JSONData
 
@@ -219,8 +242,7 @@ class TwitterFetcher(Fetcher):
         urls = self.urls_in(tweet)
 
         text = await self.process_urls(tweet.full_text, tweet_id)
-
-        return PostData(source_url, poster, created_at, text, urls)
+        return FetchResult(post_data=PostData(source_url, poster, created_at, text, urls))
 
     async def process_urls(self, text: str, source_id: int) -> str:
         """
@@ -348,7 +370,7 @@ class InstagramFetcher(Fetcher):
 
         return result
 
-    async def fetch(self, source_url: str) -> PostData | None:
+    async def fetch(self, source_url: str) -> FetchResult:
         shortcode = source_url.strip("/").split("/")[-1]
         url = self.INSTAGRAM_API_URL.format(
             media_id=self.shortcode_to_media_id(shortcode)
@@ -359,12 +381,13 @@ class InstagramFetcher(Fetcher):
                 data = await response.json()
             except aiohttp.ContentTypeError as e:
                 self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
-                return None
+                return FetchResult(exception=aiohttp.ContentTypeError,
+                                   error_message="Failed to fetch instagram post")
 
             if "spam" in data:
-                return None
+                return FetchResult(error_message="Instagram post not found")
             elif "items" not in data:
-                return None
+                return FetchResult(error_message="Instagram post not found")
 
             data = data["items"][0]
             post_data = PostData(source_url)
@@ -393,7 +416,7 @@ class InstagramFetcher(Fetcher):
             elif media_entry["media_type"] == 2 and "video_versions" in media_entry:
                 media["url"] = media_entry["video_versions"][0]["url"]
                 post_data.urls.append(media["url"])
-        return post_data
+        return FetchResult(post_data=post_data)
 
     def find_urls(self, text: str) -> list[str]:
         matches = re.finditer(self.URL_REGEX, text)
@@ -415,10 +438,10 @@ class TikTokFetcher(Fetcher):
         self.download_location = download_location
         super().__init__(*args, **kwargs)
 
-    async def fetch(self, source_url: str) -> PostData | None:
+    async def fetch(self, source_url: str) -> FetchResult:
         url = await self.get_download_url(source_url)
         if not url:
-            return None
+            return FetchResult(error_message="Failed to get download url")
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
         text_task = subprocess_run(f'yt-dlp {url} -O "%(title)s"')
@@ -430,23 +453,24 @@ class TikTokFetcher(Fetcher):
             results = await asyncio.wait_for(gathered_task, timeout=10)
         except asyncio.TimeoutError:
             self.logger.error(f"Failed to download {url}")
-            return None
+            return FetchResult(error_message="Download timed out")
 
         text = results[0][1]
 
         file_path = Path(filename)
         if not file_path.exists():
-            return None
+            return FetchResult(exception=DownloadedVideoNotFound(f"Video not found at {file_path}"),
+                               error_message="Download failed")
         if file_path.stat().st_size > DISCORD_MAX_FILE_SIZE:
             file_path.unlink()
-            return None
-
-        return PostData(
+            return FetchResult(error_message="Downloaded video too large")
+        post_data = PostData(
             source_url,
             text=text,
             poster=self.url_to_username(url),
             chunked_file_paths=[[filename]],
         )
+        return FetchResult(post_data=post_data)
 
     def find_urls(self, text: str) -> list[str]:
         dl_matches = self.DL_URL.finditer(text)
@@ -547,7 +571,7 @@ class RedditFetcher(Fetcher):
                 )
         return links
 
-    async def fetch(self, source_url: str) -> PostData | None:
+    async def fetch(self, source_url: str) -> FetchResult:
         post_id = self.REDDIT_URL.search(source_url).group(1)
         post = await self.reddit.submission(post_id)
         poster = post.author.name
@@ -556,7 +580,8 @@ class RedditFetcher(Fetcher):
         urls = list()
         if not post.is_self:
             urls = self.get_reddit_post_urls(post)
-        return PostData(source_url, poster, created_at, text, urls)
+        post_data = PostData(source_url, poster, created_at, text, urls)
+        return FetchResult(post_data=post_data)
 
     def find_urls(self, text: str) -> list[str]:
         matches = self.REDDIT_URL.finditer(text)
@@ -670,7 +695,7 @@ class Sns:
                 new_data.chunked_file_paths.extend(post_data.chunked_file_paths)
             return new_data
 
-    async def fetch(self, source_url: str) -> PostData | None:
+    async def fetch(self, source_url: str) -> FetchResult:
         """
         Fetch the post data from the source url
 
@@ -689,20 +714,24 @@ class Sns:
             self.logger.debug(f"Found cached data for {source_url}")
             saved_data.accessed_at = datetime.utcnow()
             await saved_data.save()
-            return PostData.from_dict(saved_data.value)
+            return FetchResult(
+                post_data=PostData.from_dict(saved_data.data),
+            )
 
         # Not cached. Fetch data
 
         # yt-dlp not working with tiktok urls at the moment
         # TODO - Remove when TikTok is fixed
         if isinstance(self.fetcher, TikTokFetcher):
-            return None
+            return FetchResult(error_message="TikTok downloads are currently disabled")
 
         self.logger.debug(f"Not cached. Fetching data for {source_url}")
-        post_data = await self.fetcher.fetch(source_url)
+        fetch_result = await self.fetcher.fetch(source_url)
+        post_data = fetch_result.post_data
+
         if not post_data:
             self.logger.debug(f"No data found. Skipping caching for {source_url}")
-            return None
+            return fetch_result
         self.logger.debug(f"Got data: {post_data}")
 
         # Download files and get modified post_data
@@ -726,7 +755,9 @@ class Sns:
                 await oldest.delete()
         else:
             self.logger.debug(f"Skipping caching for {source_url}")
-        return post_data
+
+        fetch_result.post_data = post_data
+        return fetch_result
 
     def format_post(
         self, post_data: PostData, with_text: bool = False
@@ -773,18 +804,4 @@ class Sns:
             messages.append(SnsMessage(content="", media=chunk))
 
         messages = [x for x in messages if x.content or x.file_paths or x.media or x.url_str]
-        return messages
-
-    async def fetch_and_format(self, text: str) -> list[SnsMessage]:
-        """
-        A shorthand for finding all urls in the text, fetching them,
-        caching them, and formatting them into a list of SnsMessages
-        """
-        urls = self.find_urls(text)
-        messages = list()
-        for url in urls:
-            post_data = await self.fetch(url)
-            if not post_data:
-                continue
-            messages.extend(self.format_post(post_data))
         return messages
