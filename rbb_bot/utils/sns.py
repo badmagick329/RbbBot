@@ -729,7 +729,7 @@ class Sns:
             saved_data.accessed_at = datetime.utcnow()
             await saved_data.save()
             return FetchResult(
-                post_data=PostData.from_dict(saved_data.data),
+                post_data=PostData.from_dict(saved_data.value),
             )
 
         # Not cached. Fetch data
