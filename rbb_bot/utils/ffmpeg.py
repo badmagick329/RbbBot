@@ -37,11 +37,10 @@ class FFmpeg:
         file_size : int
             The file size in KB to compress the file to
         """
-        file_size *= 1.024
         file_path = str(file_path)
         output_path = str(output_path)
         duration = await FFmpeg.get_duration(file_path)
-        video_bitrate = int((file_size / duration) * 8 * 0.92)
+        video_bitrate = int((file_size / duration) * 8 * 0.91)
         audio_bitrate = int((file_size / duration) * 8 * 0.08)
 
         compress_cmd = [
