@@ -495,7 +495,7 @@ class TikTokFetcher(Fetcher):
                 await self.user_send("Video size too big for discord. Compressing video")
             compressed_file_path = str(self.download_location / f"{video_id}_compressed.mp4")
             try:
-                compressed_file_path = await FFmpeg.compress(file_path, compressed_file_path, 8*1024, 20)
+                compressed_file_path = await FFmpeg.compress(file_path, compressed_file_path, 8*1024, 60)
                 file_path.unlink()
                 file_path = compressed_file_path
             except (FFmpegError, TimeoutError) as e:
