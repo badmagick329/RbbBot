@@ -57,7 +57,7 @@ def truncate(string: str, max_length: int = DISCORD_MAX_MESSAGE) -> str:
 
 
 def chunker(seq: Iterable, size: int):
-    return (seq[pos : pos + size] for pos in range(0, len(seq), size))
+    return (seq[pos: pos + size] for pos in range(0, len(seq), size))
 
 
 async def large_send(channel: TextChannel, msg: str):
@@ -70,11 +70,11 @@ async def large_send(channel: TextChannel, msg: str):
 
 
 async def http_get(
-    web_client: ClientSession,
-    url: str,
-    timeout: float = 5.0,
-    as_text=False,
-    as_json=False,
+        web_client: ClientSession,
+        url: str,
+        timeout: float = 5.0,
+        as_text=False,
+        as_json=False,
 ) -> bytes | str:
     async def _get(u):
         async with web_client.get(u) as resp:
@@ -92,12 +92,25 @@ async def http_get(
         raise TimeoutError
 
 
-async def subprocess_run(cmd) -> tuple[int | None, str, str]:
+async def subprocess_run(cmd: list[str], timeout: int = 10) -> tuple[int | None, str, str]:
     """
     Runs a subprocess asynchronously and returns the returncode, stdout, and stderr.
     """
-    proc = await asyncio.create_subprocess_shell(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    prog = cmd.pop(0)
+    args = cmd
+    proc = await asyncio.create_subprocess_exec(
+        prog, *args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
-    stdout, stderr = await proc.communicate()
-    return proc.returncode, stdout.decode(), stderr.decode()
+
+    async def _wait() -> tuple[str, str]:
+        out, err = await proc.communicate()
+        return out.decode(), err.decode()
+
+    try:
+        stdout, stderr = await asyncio.wait_for(_wait(), timeout=timeout)
+        return proc.returncode, stdout, stderr
+    except asyncio.TimeoutError:
+        proc.kill()
+        raise TimeoutError
+    finally:
+        proc._transport.close()

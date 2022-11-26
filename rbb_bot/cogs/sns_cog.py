@@ -87,6 +87,9 @@ class SnsCog(Cog):
             for sns_name, sns in self.sns_dict.items():
                 found_urls = sns.find_urls(urls)
                 messages = list()
+                sns.fetcher.user_send = ctx.send
+                self.bot.logger.debug("Setting user_send to ctx.send")
+
                 for url in found_urls:
                     fetch_result = await sns.fetch(url)
                     post_data = fetch_result.post_data
@@ -129,10 +132,6 @@ class SnsCog(Cog):
                 return
             found_urls = False
             for sns_name, sns in self.sns_dict.items():
-                # TODO - Remove when TikTok is fixed
-                if sns_name == "tiktok":
-                    continue
-
                 if sns.find_urls(message.content):
                     found_urls = True
                     break

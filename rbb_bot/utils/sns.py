@@ -24,9 +24,11 @@ from peony.data_processing import PeonyResponse, JSONData
 from peony.exceptions import ProtectedTweet, DoesNotExist, HTTPNotFound
 from settings.const import DISCORD_MAX_MESSAGE, DISCORD_MAX_FILE_SIZE
 from settings.const import FilePaths
-from utils.exceptions import DownloadedVideoNotFound
+from utils.exceptions import DownloadedVideoNotFound, FFmpegError, TimeoutError
 from utils.helpers import chunker, truncate, http_get, subprocess_run, url_to_filename
 from yarl import URL
+from utils.ffmpeg import FFmpeg
+from typing import Callable
 
 
 @dataclass
@@ -156,7 +158,7 @@ class FetchResult:
 
 
 class Fetcher(ABC):
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, user_send: Callable = None):
         if logger:
             self.logger = logger
         else:
@@ -169,6 +171,7 @@ class Fetcher(ABC):
                 )
             )
             self.logger.addHandler(handler)
+        self.user_send = user_send
 
     @abstractmethod
     async def fetch(self, source_url: str) -> FetchResult:
@@ -456,33 +459,50 @@ class TikTokFetcher(Fetcher):
             return FetchResult(error_message="Failed to get download url")
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
-        text_task = subprocess_run(f'yt-dlp {url} -O "%(title)s"')
-        self.logger.debug(f"Downloading {url} to {filename}")
-        download_task = subprocess_run(f'yt-dlp -S vcodec:h264 {url} -o "{filename}"')
+        text_task = subprocess_run(
+            ["yt-dlp", url, "-O", "%(title)s"], timeout=10
+        )
+        download_task = subprocess_run(
+            ["yt-dlp", "-S", "vcodec:h264", url, "-o", filename], timeout=10
+        )
 
         try:
-            gathered_task = asyncio.gather(text_task, download_task)
-            results = await asyncio.wait_for(gathered_task, timeout=10)
-        except asyncio.TimeoutError:
+            results = await asyncio.gather(text_task, download_task)
+        except TimeoutError:
             self.logger.error(f"Failed to download {url}")
             return FetchResult(error_message="Download timed out")
 
         text = results[0][1]
 
         file_path = Path(filename)
+
         if not file_path.exists():
             return FetchResult(
                 exception=DownloadedVideoNotFound(f"Video not found at {file_path}"),
                 error_message="Download failed",
             )
+
         if file_path.stat().st_size > DISCORD_MAX_FILE_SIZE:
-            file_path.unlink()
-            return FetchResult(error_message="Downloaded video too large")
+            if self.user_send:
+                await self.user_send("Video size too big for discord. Compressing video")
+            compressed_file_path = str(self.download_location / f"{video_id}_compressed.mp4")
+            try:
+                compressed_file_path = await FFmpeg.compress(file_path, compressed_file_path, 8*1024, 20)
+                file_path.unlink()
+                file_path = compressed_file_path
+            except (FFmpegError, TimeoutError) as e:
+                self.logger.error(f"Failed to compress {file_path}", exc_info=e)
+                file_path.unlink()
+                return FetchResult(
+                    exception=FFmpegError,
+                    error_message="Failed to compress video",
+                )
+
         post_data = PostData(
             source_url,
             text=text,
             poster=self.url_to_username(url),
-            chunked_file_paths=[[filename]],
+            chunked_file_paths=[[str(file_path)]],
         )
         return FetchResult(post_data=post_data)
 
@@ -733,12 +753,6 @@ class Sns:
             )
 
         # Not cached. Fetch data
-
-        # yt-dlp not working with tiktok urls at the moment
-        # TODO - Remove when TikTok is fixed
-        if isinstance(self.fetcher, TikTokFetcher):
-            return FetchResult(error_message="TikTok downloads are currently disabled")
-
         self.logger.debug(f"Not cached. Fetching data for {source_url}")
         fetch_result = await self.fetcher.fetch(source_url)
         post_data = fetch_result.post_data
