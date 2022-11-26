@@ -88,7 +88,6 @@ class SnsCog(Cog):
                 found_urls = sns.find_urls(urls)
                 messages = list()
                 sns.fetcher.user_send = ctx.send
-                self.bot.logger.debug("Setting user_send to ctx.send")
 
                 for url in found_urls:
                     fetch_result = await sns.fetch(url)

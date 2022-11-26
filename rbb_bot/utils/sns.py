@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from settings.config import get_config
 
 import aiohttp
 import asyncpraw
@@ -451,23 +452,30 @@ class TikTokFetcher(Fetcher):
     ):
         self.web_client = web_client
         self.download_location = download_location
+        self.headers = get_config().headers
         super().__init__(*args, **kwargs)
 
     async def fetch(self, source_url: str) -> FetchResult:
-        url = await self.get_download_url(source_url)
-        if not url:
-            return FetchResult(error_message="Failed to get download url")
+        if re.match(self.DL_URL, url):
+            url = url.split("?")[0]
+        elif re.match(self.SHORT_URL, url):
+            return FetchResult(error_message="Shortened URLs are currently not supported. "
+                                             "Try using the video URL instead.")
+        else:
+            return FetchResult(error_message="Invalid TikTok URL")
+        # TODO Find another way to get the video URL
+        # url = await self.get_download_url(source_url)
+        # if not url:
+        #     return FetchResult(error_message="Failed to get download url")
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
-        text_task = subprocess_run(
-            ["yt-dlp", url, "-O", "%(title)s"], timeout=10
-        )
-        download_task = subprocess_run(
-            ["yt-dlp", "-S", "vcodec:h264", url, "-o", filename], timeout=10
-        )
-
+        text_task = subprocess_run(["yt-dlp", url, "-O", "%(title)s"])
+        download_task = subprocess_run(["yt-dlp", "-S", "vcodec:h264", url, "-o", filename])
         try:
-            results = await asyncio.gather(text_task, download_task)
+            self.logger.debug("Downloading tiktok video")
+            gathered_tasks = asyncio.gather(text_task, download_task)
+            results = await asyncio.wait_for(gathered_tasks, timeout=10)
+
         except TimeoutError:
             self.logger.error(f"Failed to download {url}")
             return FetchResult(error_message="Download timed out")
@@ -523,9 +531,13 @@ class TikTokFetcher(Fetcher):
         if re.match(self.DL_URL, url):
             return url.split("?")[0]
         elif re.match(self.SHORT_URL, url):
+            async def _get(u):
+                async with self.web_client.get(u, headers=self.headers) as response:
+                    return response
             try:
-                async with self.web_client.get(url) as response:
-                    return str(response.url).split("?")[0]
+                self.logger.debug("Fetching download url")
+                response = await asyncio.wait_for(_get(url), timeout=4)
+                return str(response.url).split("?")[0]
             except aiohttp.ClientError:
                 self.logger.error(
                     f"Failed to fetch tiktok post. {url}. {e}", exc_info=e
