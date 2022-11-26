@@ -457,7 +457,7 @@ class TikTokFetcher(Fetcher):
 
     async def fetch(self, source_url: str) -> FetchResult:
         if re.match(self.DL_URL, source_url):
-            source_url = source_url.split("?")[0]
+            url = source_url.split("?")[0]
         elif re.match(self.SHORT_URL, source_url):
             return FetchResult(error_message="Shortened URLs are currently not supported. "
                                              "Try using the video URL instead.")
