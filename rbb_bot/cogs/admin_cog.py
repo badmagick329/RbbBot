@@ -120,7 +120,7 @@ class AdminCog(Cog):
 
         await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 
-    @commands.hybrid_command(brief="Purge messages")
+    @commands.command(brief="Purge messages")
     @commands.guild_only()
     @commands.is_owner()
     async def purge(
@@ -133,7 +133,7 @@ class AdminCog(Cog):
         deleted = await channel.purge(limit=amount)
         return await ctx.send(f"Purged {len(deleted)} messages.", delete_after=5)
 
-    @commands.hybrid_command(brief="Admin commands")
+    @commands.command(brief="Admin commands")
     @commands.is_owner()
     async def cmd(self, ctx, *, cmd_text: Optional[str] = ""):
         """

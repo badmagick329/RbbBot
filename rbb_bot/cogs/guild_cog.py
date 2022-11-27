@@ -163,6 +163,7 @@ class GuildCog(Cog):
         await ctx.send(embed=greeting.create_embed(ctx.author))
 
     @commands.hybrid_command(brief="Tell me to send a message in a channel")
+    @commands.guild_only()
     @commands.has_permissions(manage_messages=True)
     async def say(self, ctx: Context, channel: TextChannel, *, message: str):
         """

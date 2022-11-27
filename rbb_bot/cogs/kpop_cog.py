@@ -123,8 +123,6 @@ class KpopCog(Cog):
         self.update_comebacks_task.cancel()
         self.bot.logger.debug("kpop Cog unloaded!")
 
-    @commands.hybrid_command(brief="Update the comebacks database")
-    @commands.is_owner()
     async def update_comebacks(self, ctx: Context, urls: Optional[str] = None) -> None:
         if not urls:
             urls = None
