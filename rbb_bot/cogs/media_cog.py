@@ -12,6 +12,7 @@ from discord.ui import View, Button
 from utils.exceptions import TimeoutError
 from utils.helpers import http_get, url_to_filename
 from utils.sns import InstagramFetcher
+from PIL import Image
 
 SMALL = 5
 MEDIUM = 10
@@ -326,7 +327,7 @@ class MediaCog(Cog):
         view.message = await ctx.send(init_text, view=view, file=discord_file)
         view.image = image
 
-    async def get_image(self, url: str):
+    async def get_image(self, url: str) -> Image.Image | None:
         try:
             img = Image.open(BytesIO(await http_get(self.bot.web_client, url)))
             return img
@@ -485,6 +486,55 @@ class MediaCog(Cog):
                 await self.bot.send_error(
                     ctx, e, include_attachments=True, comment="Error while sending"
                 )
+
+    @edit_image.command(name="webp", brief="Convert images from webp to gif or png")
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def convert_webp(
+        self,
+        ctx: Context,
+        name: str,
+        format: Literal["gif", "png"],
+        *,
+        url: Optional[str] = "",
+    ):
+        """
+        Convert images from webp to gif or png
+
+        Parameters
+        ----------
+        format : List
+            The format to convert to (gif or png) (Required)
+        name : str
+            The name for the output file (Required)
+        url : str
+            The url of image or an attachment (Required)
+        """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        if not format:
+            return await ctx.send("No format specified")
+
+        if not url and not ctx.message.attachments:
+            return await ctx.send("No image source found")
+
+        image_url = url if url else ctx.message.attachments[0].url
+        image = await self.get_image(image_url)
+        if not image:
+            return await ctx.send("No images found")
+
+        arr = BytesIO()
+        output_name = f"{name}.{format}"
+        image.save(arr, format, save_all=True, optimize=True, quality=100, background=0)
+        arr.seek(0)
+
+        try:
+            await ctx.send(file=discord.File(arr, filename=output_name))
+        except Exception as e:
+            await ctx.send(f"Could not send image {output_name}")
+            await self.bot.send_error(
+                ctx, e, include_attachments=True, comment="Error while sending"
+            )
 
 
 async def setup(bot):
