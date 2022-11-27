@@ -219,7 +219,7 @@ class MediaCog(Cog):
         Parameters
         ----------
         urls : str
-            The urls of images (Required)
+            The urls of images, instagram post or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -352,7 +352,7 @@ class MediaCog(Cog):
         rotate_by : List
             The number of degrees to rotate by counter-clockwise (Required)
         urls : str
-            The urls of images (Required)
+            The urls of images, instagram post or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -370,7 +370,7 @@ class MediaCog(Cog):
         elif rotate_by == 270:
             rotate_by = Image.ROTATE_270
 
-        images_and_names = await self.get_images_and_names(ctx, urls)
+        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
 
         if not images_and_names:
             return await ctx.send("No images found")
@@ -412,7 +412,7 @@ class MediaCog(Cog):
         flip_direction : List
             The direction to flip by (h or v) (Required)
         urls : str
-            The urls of images (Required)
+            The urls of images, instagram post or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -421,7 +421,7 @@ class MediaCog(Cog):
         if not urls and not ctx.message.attachments:
             return await ctx.send("No image source found")
 
-        images_and_names = await self.get_images_and_names(ctx, urls)
+        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
 
         if not images_and_names:
             return await ctx.send("No images found")
