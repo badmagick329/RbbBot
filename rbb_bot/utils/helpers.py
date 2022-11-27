@@ -48,6 +48,10 @@ def emoji_url(emoji_id: int, animated: bool) -> str:
 
 def url_to_filename(url: str) -> str:
     """Returns a filename from a url"""
+    twt_re = r"https?://pbs\.twimg\.com/media/([^?]+)\?format=(\w+)"
+    match = re.match(twt_re, url)
+    if match:
+        return f"{match.group(1)}.{match.group(2)}"
     return Path(unquote_plus(urlparse(url).path)).name
 
 
