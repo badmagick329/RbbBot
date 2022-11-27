@@ -88,6 +88,14 @@ class PostData:
         }
 
     @property
+    def media_list(self) -> list[PostMedia]:
+        return [media for media_list in self.chunked_media for media in media_list]
+
+    @property
+    def file_path_list(self) -> list[str]:
+        return [file_path for file_path_list in self.chunked_file_paths for file_path in file_path_list]
+
+    @property
     def is_empty(self) -> bool:
         return (
             not self.urls

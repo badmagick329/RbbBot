@@ -11,8 +11,12 @@ from discord.ext.commands import Cog, Context
 from discord.ui import View, Button
 from utils.exceptions import TimeoutError
 from utils.helpers import http_get, url_to_filename
-from utils.sns import InstagramFetcher
+from utils.sns import (
+    InstagramFetcher,
+    Sns,
+)
 from PIL import Image
+from pathlib import Path
 
 SMALL = 5
 MEDIUM = 10
@@ -173,17 +177,18 @@ class CropView(View):
 class MediaCog(Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.instagram_fetcher = InstagramFetcher(
+        instagram_fetcher = InstagramFetcher(
             self.bot.config.ig_headers,
             self.bot.creds.ig_cookies,
             logger=self.bot.logger,
         )
+        self.sns_instagram = Sns(instagram_fetcher, timestamped_urls=True)
 
     async def cog_load(self):
         self.bot.logger.debug("MediaCog loaded!")
 
     async def cog_unload(self):
-        await self.instagram_fetcher.web_client.close()
+        await self.sns_instagram.fetcher.web_client.close()
         self.bot.logger.debug("MediaCog unloaded!")
 
     @commands.hybrid_group(
@@ -219,26 +224,7 @@ class MediaCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        image_urls = list()
-        for url in urls.split(" "):
-            if not url.strip():
-                continue
-
-            if ig_urls := self.instagram_fetcher.find_urls(url):
-                post_data = await self.instagram_fetcher.fetch(ig_urls[0])
-                image_urls.extend(post_data.urls)
-                continue
-
-            image_urls.append(url)
-
-        image_urls.extend([attachment.url for attachment in ctx.message.attachments])
-
-        images_and_names = list()
-        for url in image_urls:
-            img = await self.get_image(url)
-            if not img:
-                continue
-            images_and_names.append((img, url_to_filename(url)))
+        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
 
         if not images_and_names:
             return await ctx.send("No images found")
@@ -348,6 +334,7 @@ class MediaCog(Cog):
         """
         await ctx.send_help(ctx.command)
 
+
     @edit_image.command(name="rotate", brief="Rotate images counter-clockwise")
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def rotate_image(
@@ -383,19 +370,7 @@ class MediaCog(Cog):
         elif rotate_by == 270:
             rotate_by = Image.ROTATE_270
 
-        image_urls = list()
-        for url in urls.split(" "):
-            if not url.strip():
-                continue
-            image_urls.append(url)
-        image_urls.extend([attachment.url for attachment in ctx.message.attachments])
-
-        images_and_names = list()
-        for url in image_urls:
-            img = await self.get_image(url)
-            if not img:
-                continue
-            images_and_names.append((img, url_to_filename(url)))
+        images_and_names = await self.get_images_and_names(ctx, urls)
 
         if not images_and_names:
             return await ctx.send("No images found")
@@ -446,19 +421,7 @@ class MediaCog(Cog):
         if not urls and not ctx.message.attachments:
             return await ctx.send("No image source found")
 
-        image_urls = list()
-        for url in urls.split(" "):
-            if not url.strip():
-                continue
-            image_urls.append(url)
-        image_urls.extend([attachment.url for attachment in ctx.message.attachments])
-
-        images_and_names = list()
-        for url in image_urls:
-            img = await self.get_image(url)
-            if not img:
-                continue
-            images_and_names.append((img, url_to_filename(url)))
+        images_and_names = await self.get_images_and_names(ctx, urls)
 
         if not images_and_names:
             return await ctx.send("No images found")
@@ -487,55 +450,79 @@ class MediaCog(Cog):
                     ctx, e, include_attachments=True, comment="Error while sending"
                 )
 
-    @edit_image.command(name="webp", brief="Convert images from webp to gif or png")
+    @edit_image.command(name="webp", brief="Convert images from webp to png")
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def convert_webp(
         self,
         ctx: Context,
-        name: str,
-        format: Literal["gif", "png"],
         *,
-        url: Optional[str] = "",
+        urls: Optional[str] = "",
     ):
         """
-        Convert images from webp to gif or png
+        Convert images from webp to png
 
         Parameters
         ----------
-        format : List
-            The format to convert to (gif or png) (Required)
-        name : str
-            The name for the output file (Required)
-        url : str
-            The url of image or an attachment (Required)
+        urls : str
+            The urls of images, instagram post or an attachment (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        if not format:
-            return await ctx.send("No format specified")
-
-        if not url and not ctx.message.attachments:
+        if not urls and not ctx.message.attachments:
             return await ctx.send("No image source found")
 
-        image_url = url if url else ctx.message.attachments[0].url
-        image = await self.get_image(image_url)
-        if not image:
+        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
+
+        if not images_and_names:
             return await ctx.send("No images found")
 
-        arr = BytesIO()
-        output_name = f"{name}.{format}"
-        image.save(arr, format, save_all=True, optimize=True, quality=100, background=0)
-        arr.seek(0)
+        for image, filename in images_and_names:
+            arr = BytesIO()
+            output_name = Path(filename).stem + ".png"
+            image.save(arr, format="PNG", save_all=True, optimize=True, background=0)
+            arr.seek(0)
+            discord_file = discord.File(arr, filename=output_name)
+            try:
+                await ctx.send(file=discord_file)
+            except Exception as e:
+                await ctx.send(f"Could not send image {filename}")
+                await self.bot.send_error(
+                    ctx, e, include_attachments=True, comment="Error while sending"
+                )
+                continue
 
-        try:
-            await ctx.send(file=discord.File(arr, filename=output_name))
-        except Exception as e:
-            await ctx.send(f"Could not send image {output_name}")
-            await self.bot.send_error(
-                ctx, e, include_attachments=True, comment="Error while sending"
-            )
+    async def get_images_and_names(self, ctx: Context, urls: str, check_ig=False) -> list[tuple[Image.Image, str]]:
+        """
+        Get images and their filenames from urls or attachments
+        """
+        image_urls = [url.strip() for url in urls.split(" ") if url.strip()]
+        instagram_urls = list()
+        images_and_names = list()
 
+        if check_ig and (ig_urls := self.sns_instagram.fetcher.find_urls(urls)):
+            instagram_urls.extend(ig_urls)
+            fetch_result = await self.sns_instagram.fetch(ig_urls[0])
+            if fetch_result.post_data:
+                post_data = fetch_result.post_data
+                image_urls.extend(post_data.urls)
+                for post_media in post_data.media_list:
+                    image = Image.open(post_media.bytes_io)
+                    images_and_names.append((image, post_media.filename))
+                for file_path in post_data.file_path_list:
+                    image = Image.open(file_path)
+                    images_and_names.append((image, file_path))
+
+        image_urls.extend([attachment.url for attachment in ctx.message.attachments])
+        image_urls = [url for url in image_urls if url not in instagram_urls]
+
+        for url in image_urls:
+            img = await self.get_image(url)
+            if not img:
+                continue
+            images_and_names.append((img, url_to_filename(url)))
+
+        return images_and_names
 
 async def setup(bot):
     await bot.add_cog(MediaCog(bot))
@@ -632,3 +619,4 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
     left_x = calc_left_x(img_data, width, GRAD_STEP)
     right_x = calc_right_x(img_data, width, GRAD_STEP)
     return Image.fromarray(img_data[top_y:bottom_y, left_x:right_x, :])
+
