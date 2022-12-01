@@ -93,7 +93,11 @@ class PostData:
 
     @property
     def file_path_list(self) -> list[str]:
-        return [file_path for file_path_list in self.chunked_file_paths for file_path in file_path_list]
+        return [
+            file_path
+            for file_path_list in self.chunked_file_paths
+            for file_path in file_path_list
+        ]
 
     @property
     def is_empty(self) -> bool:
@@ -366,7 +370,7 @@ class OneTimeCookieJar(aiohttp.CookieJar):
 
 
 class InstagramFetcher(Fetcher):
-    URL_REGEX = r"https?://(www.)?instagram.com/(p|tv|reel)/([^/]+)"
+    URL_REGEX = r"https?://(www.)?instagram.com/(p|tv|reel)/(\w+)"
     INSTAGRAM_API_URL = "https://i.instagram.com/api/v1/media/{media_id}/info/"
 
     def __init__(
@@ -401,6 +405,9 @@ class InstagramFetcher(Fetcher):
         async with self.web_client.get(url, headers=self.headers) as response:
             try:
                 data = await response.json()
+                # self.logger.debug(f"Data received: {data}")
+                # for k, v in data.items():
+                #     self.logger.debug(f"{k}: {v}")
             except aiohttp.ContentTypeError as e:
                 self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
                 return FetchResult(
@@ -412,6 +419,11 @@ class InstagramFetcher(Fetcher):
                 return FetchResult(error_message="Instagram post not found")
             elif "items" not in data:
                 return FetchResult(error_message="Instagram post not found")
+            if data.get("message", None) == "checkpoint_required":
+                self.logger.error("Instagram checkpoint required")
+                return FetchResult(
+                    error_message="Instagram command currently not working"
+                )
 
             data = data["items"][0]
             post_data = PostData(source_url)
@@ -467,8 +479,10 @@ class TikTokFetcher(Fetcher):
         if re.match(self.DL_URL, source_url):
             url = source_url.split("?")[0]
         elif re.match(self.SHORT_URL, source_url):
-            return FetchResult(error_message="Shortened URLs are currently not supported. "
-                                             "Try using the video URL instead.")
+            return FetchResult(
+                error_message="Shortened URLs are currently not supported. "
+                "Try using the video URL instead."
+            )
         else:
             return FetchResult(error_message="Invalid TikTok URL")
         # TODO Find another way to get the video URL
@@ -478,11 +492,18 @@ class TikTokFetcher(Fetcher):
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
         text_task = subprocess_run(["yt-dlp", url, "-O", "%(title)s"])
-        download_task = subprocess_run(["yt-dlp", "-S", "vcodec:h264", url, "-o", filename])
+        download_task = subprocess_run(
+            ["yt-dlp", "-S", "vcodec:h264", url, "-o", filename]
+        )
         try:
             self.logger.debug("Downloading tiktok video")
             gathered_tasks = asyncio.gather(text_task, download_task)
             results = await asyncio.wait_for(gathered_tasks, timeout=10)
+            for result in results:
+                returncode, stdout, stderr = result
+                if returncode != 0:
+                    self.logger.error(f"Download failed\n{stdout}\n{stderr}")
+                    return FetchResult(error_message="Download failed")
 
         except TimeoutError:
             self.logger.error(f"Failed to download {url}")
@@ -493,6 +514,7 @@ class TikTokFetcher(Fetcher):
         file_path = Path(filename)
 
         if not file_path.exists():
+            self.logger.error(f"Failed to download {url}")
             return FetchResult(
                 exception=DownloadedVideoNotFound(f"Video not found at {file_path}"),
                 error_message="Download failed",
@@ -500,10 +522,16 @@ class TikTokFetcher(Fetcher):
 
         if file_path.stat().st_size > DISCORD_MAX_FILE_SIZE:
             if self.user_send:
-                await self.user_send("Video size too big for discord. Compressing video")
-            compressed_file_path = str(self.download_location / f"{video_id}_compressed.mp4")
+                await self.user_send(
+                    "Video size too big for discord. Compressing video"
+                )
+            compressed_file_path = str(
+                self.download_location / f"{video_id}_compressed.mp4"
+            )
             try:
-                compressed_file_path = await FFmpeg.compress(file_path, compressed_file_path, 8*1024, 120)
+                compressed_file_path = await FFmpeg.compress(
+                    file_path, compressed_file_path, 8 * 1024, 120
+                )
                 file_path.unlink()
                 file_path = compressed_file_path
             except (FFmpegError, TimeoutError) as e:
@@ -539,9 +567,11 @@ class TikTokFetcher(Fetcher):
         if re.match(self.DL_URL, url):
             return url.split("?")[0]
         elif re.match(self.SHORT_URL, url):
+
             async def _get(u):
                 async with self.web_client.get(u, headers=self.headers) as response:
                     return response
+
             try:
                 self.logger.debug("Fetching download url")
                 response = await asyncio.wait_for(_get(url), timeout=4)
@@ -663,7 +693,11 @@ class Sns:
         assert self.web_client, "No web client provided"
 
     def find_urls(self, text: str) -> list[str]:
-        return self.fetcher.find_urls(text)
+        found_urls = self.fetcher.find_urls(text)
+        for url in found_urls:
+            self.logger.debug(f"[SNS] Found url {url}")
+        # return self.fetcher.find_urls(text)
+        return found_urls
 
     async def download_files(
         self, post_data: PostData, timestamped_urls: bool = False
@@ -759,6 +793,7 @@ class Sns:
         source_url: str
             The url to fetch the post data from
         """
+        self.logger.debug(f"fetch recieved {source_url}")
         if not self.cache_files:
             return await self.fetcher.fetch(source_url)
 

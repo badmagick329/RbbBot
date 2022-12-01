@@ -58,18 +58,16 @@ class SnsCog(Cog):
         self.bot.logger.debug("SnsCog unloaded!")
         self.instagram_fetcher.web_client.close()
 
-    @commands.hybrid_command(
-        name="sns", brief="Get posts from twitter, ig, tiktok or reddit"
-    )
+    @commands.hybrid_command(name="sns", brief="Get posts from twitter, ig or reddit")
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def sns_cmd(
         self, ctx: Context, with_text: Optional[bool] = False, *, urls: str
     ):
         """
-        Get posts from twitter, ig, tiktok or reddit
+        Get posts from twitter, ig or reddit
 
-        Not supported: ig stories, tiktok photos, reddit videos with sound
+        Not supported: ig stories, reddit videos with sound
 
         Parameters
         ----------
@@ -85,7 +83,16 @@ class SnsCog(Cog):
             sns_messages = list()
             error_messages = list()
             for sns_name, sns in self.sns_dict.items():
+                if sns_name == "tiktok":
+                    if (
+                        msg := "TikTok is currently not supported"
+                    ) not in error_messages:
+                        error_messages.append(msg)
+                    continue
+
                 found_urls = sns.find_urls(urls)
+                if found_urls:
+                    self.bot.logger.debug(f"Found {sns_name} urls: {found_urls}")
                 messages = list()
                 sns.fetcher.user_send = ctx.send
 
@@ -131,6 +138,8 @@ class SnsCog(Cog):
                 return
             found_urls = False
             for sns_name, sns in self.sns_dict.items():
+                if sns_name == "tiktok":
+                    continue
                 if sns.find_urls(message.content):
                     found_urls = True
                     break
