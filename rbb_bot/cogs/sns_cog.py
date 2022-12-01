@@ -83,13 +83,6 @@ class SnsCog(Cog):
             sns_messages = list()
             error_messages = list()
             for sns_name, sns in self.sns_dict.items():
-                if sns_name == "tiktok":
-                    if (
-                        msg := "TikTok is currently not supported"
-                    ) not in error_messages:
-                        error_messages.append(msg)
-                    continue
-
                 found_urls = sns.find_urls(urls)
                 if found_urls:
                     self.bot.logger.debug(f"Found {sns_name} urls: {found_urls}")
@@ -138,8 +131,6 @@ class SnsCog(Cog):
                 return
             found_urls = False
             for sns_name, sns in self.sns_dict.items():
-                if sns_name == "tiktok":
-                    continue
                 if sns.find_urls(message.content):
                     found_urls = True
                     break

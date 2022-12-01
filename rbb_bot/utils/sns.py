@@ -485,32 +485,80 @@ class TikTokFetcher(Fetcher):
             )
         else:
             return FetchResult(error_message="Invalid TikTok URL")
+
         # TODO Find another way to get the video URL
         # url = await self.get_download_url(source_url)
         # if not url:
         #     return FetchResult(error_message="Failed to get download url")
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
-        text_task = subprocess_run(["yt-dlp", url, "-O", "%(title)s"])
-        download_task = subprocess_run(
-            ["yt-dlp", "-S", "vcodec:h264", url, "-o", filename]
-        )
-        try:
-            self.logger.debug("Downloading tiktok video")
-            gathered_tasks = asyncio.gather(text_task, download_task)
-            results = await asyncio.wait_for(gathered_tasks, timeout=10)
-            for result in results:
-                returncode, stdout, stderr = result
-                if returncode != 0:
-                    self.logger.error(f"Download failed\n{stdout}\n{stderr}")
-                    return FetchResult(error_message="Download failed")
 
+        # Switching to TikTokApi for now
+        async def yt_dlp(
+            video_id: int = video_id, filename: str = filename
+        ) -> tuple[str, str]:
+            """
+            Download the video using yt-dlp
+
+            Parameters
+            ----------
+            video_id : int
+                The video ID
+            Returns
+            -------
+            tuple[str,str]
+                Video text and filename
+
+            """
+            text_task = subprocess_run(["yt-dlp", url, "-O", "%(title)s"])
+            download_task = subprocess_run(
+                ["yt-dlp", "-S", "vcodec:h264", url, "-o", filename]
+            )
+            try:
+                self.logger.debug("Downloading tiktok video")
+                gathered_tasks = asyncio.gather(text_task, download_task)
+                results = await asyncio.wait_for(gathered_tasks, timeout=10)
+                for result in results:
+                    returncode, stdout, stderr = result
+                    if returncode != 0:
+                        self.logger.error(f"Download failed\n{stdout}\n{stderr}")
+                        return FetchResult(error_message="Download failed")
+
+            except TimeoutError:
+                self.logger.error(f"Failed to download {url}")
+                return FetchResult(error_message="Download timed out")
+            return results[0][1], filename
+
+        async def tiktok_api_download(
+            video_id: int = video_id, filename: str = filename
+        ) -> tuple[str, str]:
+            """
+            Download the video using TikTokApi
+
+            Parameters
+            ----------
+            video_id : int
+                The video ID
+            Returns
+            -------
+            tuple[str,str]
+                Video text and filename
+
+            """
+            cmd = ["py", "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
+            returncode, stdout, stderr = await subprocess_run(cmd)
+            if returncode != 0:
+                self.logger.error(f"Failed to download TikTok video. {stderr}")
+                return FetchResult(error_message="Download Failed")
+            return "", filename
+
+        try:
+            text, filename = await tiktok_api_download(video_id, filename)
         except TimeoutError:
-            self.logger.error(f"Failed to download {url}")
+            self.logger.error(f"Failed to download {url}. Timed out")
             return FetchResult(error_message="Download timed out")
 
-        text = results[0][1]
-
+        text, filename = await tiktok_api_download(video_id, filename)
         file_path = Path(filename)
 
         if not file_path.exists():
