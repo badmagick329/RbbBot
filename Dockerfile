@@ -7,5 +7,6 @@ RUN pip install poetry
 RUN poetry config virtualenvs.create false
 RUN poetry install --without dev
 RUN pip install yt-dlp
+RUN pip install TikTokApi
 RUN python -m playwright install
 CMD ["python", "./rbb_bot/launcher.py"]
