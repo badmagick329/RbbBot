@@ -554,24 +554,18 @@ class TikTokFetcher(Fetcher):
             returncode, stdout, stderr = await subprocess_run(cmd, timeout=20)
             if returncode != 0:
                 self.logger.error(f"Failed to download TikTok video. {stderr}")
-                return FetchResult(error_message="Download Failed")
-            if Path(filename).st_size < 1000:
-                self.logger.error(f"Downloaded file is too small for {url}")
-                return FetchResult(error_message="Could not fetch video from {url}")
+                return FetchResult(error_message="Could not fetch video")
             return "", filename
 
         try:
-            text, filename = await tiktok_api_download(
-                video_id, filename, url=source_url
-            )
+            result = await tiktok_api_download(video_id, filename, url=source_url)
+            if isinstance(result, FetchResult):
+                return result
+            text, filename = result
         except TimeoutError:
             self.logger.error(f"Failed to download {url}. Timed out")
             return FetchResult(error_message="Download timed out")
 
-        result = await tiktok_api_download(video_id, filename)
-        if isinstance(result, FetchResult):
-            return result
-        text, filename = result
         file_path = Path(filename)
 
         if not file_path.exists():
