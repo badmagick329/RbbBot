@@ -7,5 +7,6 @@ RUN pip install poetry
 RUN poetry config virtualenvs.create false
 RUN poetry install --without dev
 RUN pip install yt-dlp
-RUN python -m playwright install
+RUN echo 'alias py=python3' >> ~/.bashrc
+RUN py -m playwright install
 CMD ["python", "./rbb_bot/launcher.py"]

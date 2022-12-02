@@ -30,7 +30,6 @@ from utils.helpers import chunker, truncate, http_get, subprocess_run, url_to_fi
 from yarl import URL
 from utils.ffmpeg import FFmpeg
 from typing import Callable
-from settings.config import get_config
 
 
 @dataclass
@@ -474,7 +473,6 @@ class TikTokFetcher(Fetcher):
         self.web_client = web_client
         self.download_location = download_location
         self.headers = get_config().headers
-        self.debug = get_config().debug
         super().__init__(*args, **kwargs)
 
     async def fetch(self, source_url: str) -> FetchResult:
@@ -547,9 +545,8 @@ class TikTokFetcher(Fetcher):
                 Video text and filename
 
             """
-            py = "py" if self.debug else "python"
-            cmd = [py, "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
-            returncode, stdout, stderr = await subprocess_run(cmd)
+            cmd = ["py", "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
+            returncode, stdout, stderr = await subprocess_run(cmd, timeout=20)
             if returncode != 0:
                 self.logger.error(f"Failed to download TikTok video. {stderr}")
                 return FetchResult(error_message="Download Failed")
