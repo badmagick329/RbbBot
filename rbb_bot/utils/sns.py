@@ -584,7 +584,8 @@ class TikTokFetcher(Fetcher):
                 self.download_location / f"{video_id}_compressed.mp4"
             )
             try:
-                compressed_file_path = await FFmpeg.compress(
+                ffmpeg = FFmpeg(self.logger)
+                compressed_file_path = await ffmpeg.compress(
                     file_path, compressed_file_path, 8 * 1024, 120
                 )
                 file_path.unlink()
