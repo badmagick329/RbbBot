@@ -370,7 +370,7 @@ class OneTimeCookieJar(aiohttp.CookieJar):
 
 
 class InstagramFetcher(Fetcher):
-    URL_REGEX = r"https?://(www.)?instagram.com/(p|tv|reel)/(\w+)"
+    URL_REGEX = r"https?://(www.)?instagram.com/(p|tv|reel)/((\w|-)+)/?"
     INSTAGRAM_API_URL = "https://i.instagram.com/api/v1/media/{media_id}/info/"
 
     def __init__(
@@ -405,9 +405,9 @@ class InstagramFetcher(Fetcher):
         async with self.web_client.get(url, headers=self.headers) as response:
             try:
                 data = await response.json()
-                # self.logger.debug(f"Data received: {data}")
-                # for k, v in data.items():
-                #     self.logger.debug(f"{k}: {v}")
+                self.logger.debug(f"Data received: {data}")
+                for k, v in data.items():
+                    self.logger.debug(f"{k}: {v}")
             except aiohttp.ContentTypeError as e:
                 self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
                 return FetchResult(
