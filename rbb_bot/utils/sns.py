@@ -545,7 +545,8 @@ class TikTokFetcher(Fetcher):
                 Video text and filename
 
             """
-            cmd = ["py", "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
+            py = "py" if sys.platform == "win32" else "python"
+            cmd = [py, "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
             returncode, stdout, stderr = await subprocess_run(cmd, timeout=20)
             if returncode != 0:
                 self.logger.error(f"Failed to download TikTok video. {stderr}")
