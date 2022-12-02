@@ -530,8 +530,8 @@ class TikTokFetcher(Fetcher):
             return results[0][1], filename
 
         async def tiktok_api_download(
-            video_id: int = video_id, filename: str = filename
-        ) -> tuple[str, str]:
+            video_id: int = video_id, filename: str = filename, url: str = url
+        ) -> tuple[str, str] | FetchResult:
             """
             Download the video using TikTokApi
 
@@ -539,6 +539,10 @@ class TikTokFetcher(Fetcher):
             ----------
             video_id : int
                 The video ID
+            filename : str
+                The filename to save the video to
+            url : str
+                The video URL
             Returns
             -------
             tuple[str,str]
@@ -551,15 +555,23 @@ class TikTokFetcher(Fetcher):
             if returncode != 0:
                 self.logger.error(f"Failed to download TikTok video. {stderr}")
                 return FetchResult(error_message="Download Failed")
+            if Path(filename).st_size < 1000:
+                self.logger.error(f"Downloaded file is too small for {url}")
+                return FetchResult(error_message="Could not fetch video from {url}")
             return "", filename
 
         try:
-            text, filename = await tiktok_api_download(video_id, filename)
+            text, filename = await tiktok_api_download(
+                video_id, filename, url=source_url
+            )
         except TimeoutError:
             self.logger.error(f"Failed to download {url}. Timed out")
             return FetchResult(error_message="Download timed out")
 
-        text, filename = await tiktok_api_download(video_id, filename)
+        result = await tiktok_api_download(video_id, filename)
+        if isinstance(result, FetchResult):
+            return result
+        text, filename = result
         file_path = Path(filename)
 
         if not file_path.exists():
