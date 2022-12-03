@@ -58,16 +58,18 @@ class SnsCog(Cog):
         self.bot.logger.debug("SnsCog unloaded!")
         self.instagram_fetcher.web_client.close()
 
-    @commands.hybrid_command(name="sns", brief="Get posts from twitter, ig or reddit")
+    @commands.hybrid_command(
+        name="sns", brief="Get posts from twitter, ig, tiktok or reddit"
+    )
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def sns_cmd(
         self, ctx: Context, with_text: Optional[bool] = False, *, urls: str
     ):
         """
-        Get posts from twitter, ig or reddit
+        Get posts from twitter, ig, tiktok or reddit
 
-        Not supported: ig stories, reddit videos with sound
+        Not supported: ig stories, tiktok photos, reddit videos with sound
 
         Parameters
         ----------

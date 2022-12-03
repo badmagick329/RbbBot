@@ -416,8 +416,10 @@ class InstagramFetcher(Fetcher):
                 )
 
             if "spam" in data:
+                self.logger.info(f"Instagram post is spam. {source_url}\n{data}")
                 return FetchResult(error_message="Instagram post not found")
             elif "items" not in data:
+                self.logger.info(f"Instagram post not found. {source_url}\n{data}")
                 return FetchResult(error_message="Instagram post not found")
             if data.get("message", None) == "checkpoint_required":
                 self.logger.error("Instagram checkpoint required")
@@ -484,6 +486,7 @@ class TikTokFetcher(Fetcher):
                 "Try using the video URL instead."
             )
         else:
+            self.logger.info(f"Invalid TikTok URL: {source_url}")
             return FetchResult(error_message="Invalid TikTok URL")
 
         # TODO Find another way to get the video URL
