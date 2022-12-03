@@ -459,13 +459,14 @@ class Scraper:
         """
         Generate urls to scrape from january 2018 to current month (inclusive)
         """
-        next_month = self.month_strings[pendulum.now().month]
+        current_month = self.month_strings[pendulum.now().month - 1]
         years = [y for y in range(2018, pendulum.now().year + 2)]
 
         urls = []
         for year in years:
             for month in self.month_strings:
-                if year == pendulum.now().year and month == next_month:
+                if year == pendulum.now().year and month == current_month:
+                    urls.append(self.reddit_wiki_base.format(year=year, month=month))
                     return urls
                 urls.append(self.reddit_wiki_base.format(year=year, month=month))
 
