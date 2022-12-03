@@ -3,7 +3,7 @@ import re
 from typing import Literal
 
 import discord
-from discord import Embed, Role
+from discord import Embed, Role, Color
 from discord.errors import Forbidden
 from discord.ext import commands
 from discord.ext.commands import Context, Cog
