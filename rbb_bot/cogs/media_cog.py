@@ -1,22 +1,18 @@
 from io import BytesIO
-from typing import Optional, List, Literal
+from pathlib import Path
+from typing import List, Literal, Optional
 
 import discord
 import numpy as np
-from PIL import Image, UnidentifiedImageError
 from aiohttp.client_exceptions import InvalidURL
-from discord import Interaction, ButtonStyle
+from discord import ButtonStyle, Interaction
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from discord.ui import View, Button
+from discord.ui import Button, View
+from PIL import Image, UnidentifiedImageError
 from utils.exceptions import TimeoutError
 from utils.helpers import http_get, url_to_filename
-from utils.sns import (
-    InstagramFetcher,
-    Sns,
-)
-from PIL import Image
-from pathlib import Path
+from utils.sns import InstagramFetcher, Sns
 
 SMALL = 5
 MEDIUM = 10
@@ -334,7 +330,6 @@ class MediaCog(Cog):
         """
         await ctx.send_help(ctx.command)
 
-
     @edit_image.command(name="rotate", brief="Rotate images counter-clockwise")
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def rotate_image(
@@ -492,7 +487,9 @@ class MediaCog(Cog):
                 )
                 continue
 
-    async def get_images_and_names(self, ctx: Context, urls: str, check_ig=False) -> list[tuple[Image.Image, str]]:
+    async def get_images_and_names(
+        self, ctx: Context, urls: str, check_ig=False
+    ) -> list[tuple[Image.Image, str]]:
         """
         Get images and their filenames from urls or attachments
         """
@@ -510,7 +507,10 @@ class MediaCog(Cog):
                     image = Image.open(post_media.bytes_io)
                     images_and_names.append((image, post_media.filename))
                 for file_path in post_data.file_path_list:
-                    image = Image.open(file_path)
+                    try:
+                        image = Image.open(file_path)
+                    except UnidentifiedImageError:
+                        continue
                     images_and_names.append((image, file_path))
 
         image_urls.extend([attachment.url for attachment in ctx.message.attachments])
@@ -523,6 +523,7 @@ class MediaCog(Cog):
             images_and_names.append((img, url_to_filename(url)))
 
         return images_and_names
+
 
 async def setup(bot):
     await bot.add_cog(MediaCog(bot))
@@ -619,4 +620,3 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
     left_x = calc_left_x(img_data, width, GRAD_STEP)
     right_x = calc_right_x(img_data, width, GRAD_STEP)
     return Image.fromarray(img_data[top_y:bottom_y, left_x:right_x, :])
-
