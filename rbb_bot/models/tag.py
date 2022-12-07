@@ -1,8 +1,10 @@
+from typing import Optional
+
 from tortoise import Model, fields
+
+from rbb_bot.models import Guild
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
 from rbb_bot.utils.helpers import truncate
-from typing import Optional
-from rbb_bot.models import Guild
 
 
 class Response(Model):

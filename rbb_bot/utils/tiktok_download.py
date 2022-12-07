@@ -1,5 +1,6 @@
-from TikTokApi import TikTokApi
 from argparse import ArgumentParser
+
+from TikTokApi import TikTokApi
 
 
 def main():

@@ -3,19 +3,18 @@ import logging
 from pathlib import Path
 
 import discord
-from discord import Activity, ActivityType
-from discord import Message
+from discord import Activity, ActivityType, Message
 from discord.ext import commands
 from discord.ext.commands import Context
-from tortoise import Tortoise
-
 from models import Guild
-from rbb_bot.settings.config import Config, Creds
-from rbb_bot.settings.ids import MY_ID, LOGGER_CHANNEL_ID
-from rbb_bot.utils.mixins import ClientMixin
+from tortoise import Tortoise
 from utils.help_command import EmbedHelpCommand
 from utils.helpers import large_send
 from utils.views import ConfirmView
+
+from rbb_bot.settings.config import Config, Creds
+from rbb_bot.settings.ids import LOGGER_CHANNEL_ID, MY_ID
+from rbb_bot.utils.mixins import ClientMixin
 
 
 class DiscordHandler(logging.Handler):

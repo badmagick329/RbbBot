@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 import discord
-from discord import Interaction, ButtonStyle, Embed
+from discord import ButtonStyle, Embed, Interaction
 from discord.ext import menus
 from discord.ext.commands import Context
 from discord.ui import Button, View

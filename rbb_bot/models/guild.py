@@ -1,7 +1,9 @@
+from discord import Embed, Member, TextChannel
 from tortoise import Model, fields
+
 from rbb_bot.settings.config import get_config
-from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, EMBED_MAX_TITLE, EMBED_MAX_DESC
-from discord import TextChannel, Embed, Member
+from rbb_bot.settings.const import (DISCORD_MAX_MESSAGE, EMBED_MAX_DESC,
+                                    EMBED_MAX_TITLE)
 from rbb_bot.utils.mixins import ClientMixin
 
 default_prefix = get_config().default_prefix

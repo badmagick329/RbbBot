@@ -2,8 +2,8 @@ import random
 
 from discord import ButtonStyle, Interaction
 from discord.ext import commands
-from discord.ext.commands import Context, Cog
-from discord.ui import View, Button
+from discord.ext.commands import Cog, Context
+from discord.ui import Button, View
 
 from rbb_bot.settings.const import FilePaths
 

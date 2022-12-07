@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from discord import Embed
 from discord.ext import commands
-from discord.ext.commands import Context, Cog
+from discord.ext.commands import Cog, Context
 from utils.helpers import http_get
 from utils.views import ListView
 

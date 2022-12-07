@@ -1,5 +1,5 @@
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 
 DISCORD_MAX_MESSAGE = 2000
 EMBED_MAX_TITLE = 255

@@ -4,7 +4,7 @@ from asyncio import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urlparse, unquote_plus
+from urllib.parse import unquote_plus, urlparse
 
 import pendulum
 from aiohttp import ClientSession
@@ -61,7 +61,7 @@ def truncate(string: str, max_length: int = DISCORD_MAX_MESSAGE) -> str:
 
 
 def chunker(seq: Iterable, size: int):
-    return (seq[pos: pos + size] for pos in range(0, len(seq), size))
+    return (seq[pos : pos + size] for pos in range(0, len(seq), size))
 
 
 async def large_send(channel: TextChannel, msg: str):
@@ -74,11 +74,11 @@ async def large_send(channel: TextChannel, msg: str):
 
 
 async def http_get(
-        web_client: ClientSession,
-        url: str,
-        timeout: float = 5.0,
-        as_text=False,
-        as_json=False,
+    web_client: ClientSession,
+    url: str,
+    timeout: float = 5.0,
+    as_text=False,
+    as_json=False,
 ) -> bytes | str:
     async def _get(u):
         async with web_client.get(u) as resp:
@@ -96,7 +96,9 @@ async def http_get(
         raise TimeoutError
 
 
-async def subprocess_run(cmd: list[str], timeout: int = 10) -> tuple[int | None, str, str]:
+async def subprocess_run(
+    cmd: list[str], timeout: int = 10
+) -> tuple[int | None, str, str]:
     """
     Runs a subprocess asynchronously and returns the returncode, stdout, and stderr.
     """

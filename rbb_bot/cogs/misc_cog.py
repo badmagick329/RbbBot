@@ -9,16 +9,9 @@ from discord import User
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
-from utils.helpers import (
-    emoji_regex,
-    user_regex,
-    channel_regex,
-    role_regex,
-    emoji_url,
-    http_get,
-)
-from utils.helpers import truncate
-from utils.views import SearchResultsView, SearchResult
+from utils.helpers import (channel_regex, emoji_regex, emoji_url, http_get,
+                           role_regex, truncate, user_regex)
+from utils.views import SearchResult, SearchResultsView
 
 
 class MiscCog(Cog):

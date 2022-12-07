@@ -9,7 +9,7 @@ from discord import TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
-from models import Reminder, DiscordUser, Guild
+from models import DiscordUser, Guild, Reminder
 
 from rbb_bot.utils.helpers import truncate
 from rbb_bot.utils.views import ListView

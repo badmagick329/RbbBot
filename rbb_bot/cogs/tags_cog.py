@@ -4,15 +4,14 @@ from typing import Optional
 
 from discord import Embed, Message
 from discord.ext import commands
-from discord.ext.commands import Context, Cog
-from models import Guild, Tag, Response
+from discord.ext.commands import Cog, Context
+from models import Guild, Response, Tag
 from tortoise.functions import Count
 from tortoise.transactions import atomic
 from utils.helpers import truncate
 from utils.views import ListView
 
-from rbb_bot.settings.const import BotEmojis
-from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
+from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, BotEmojis
 
 
 class TagsList(ListView):

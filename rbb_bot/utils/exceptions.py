@@ -9,5 +9,6 @@ class TimeoutError(Exception):
 class DownloadedVideoNotFound(Exception):
     pass
 
+
 class FFmpegError(Exception):
     pass

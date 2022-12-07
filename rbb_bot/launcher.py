@@ -5,12 +5,13 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
+from logging.handlers import RotatingFileHandler
+
 import aiohttp
 
 from rbb_bot.rbb import RbbBot
 from rbb_bot.settings.config import get_config, get_creds
 from rbb_bot.settings.const import FilePaths
-from logging.handlers import RotatingFileHandler
 
 LOG_LEVEL = logging.DEBUG
 

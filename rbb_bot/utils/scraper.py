@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup as bs
 from pydantic import BaseModel
 from tortoise import Tortoise
 
-from rbb_bot.settings.config import get_creds, get_config
+from rbb_bot.settings.config import get_config, get_creds
 
 
 class PyArtist(BaseModel):
@@ -496,8 +496,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    from rbb_bot.models import Release, ReleaseType, Artist
+    from rbb_bot.models import Artist, Release, ReleaseType
 
     asyncio.run(main())
 else:
-    from models import Release, ReleaseType, Artist
+    from models import Artist, Release, ReleaseType

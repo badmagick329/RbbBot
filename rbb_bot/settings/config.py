@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import yaml
 from pydantic import BaseModel
-from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent / "config.yaml"
 CREDS_FILE = Path(__file__).parent / "creds.yaml"

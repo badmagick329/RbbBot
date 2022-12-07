@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from settings.config import get_config
+from typing import Callable
 
 import aiohttp
 import asyncpraw
@@ -16,20 +16,21 @@ from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectorError
 from aiohttp.typedefs import LooseCookies
 from asyncpraw import reddit
-from discord import File, AllowedMentions
+from discord import AllowedMentions, File
 from discord.ext.commands import Context
 from discord.utils import format_dt
 from models import DiskCache
 from peony import PeonyClient, exceptions
-from peony.data_processing import PeonyResponse, JSONData
-from peony.exceptions import ProtectedTweet, DoesNotExist, HTTPNotFound
-from settings.const import DISCORD_MAX_MESSAGE, DISCORD_MAX_FILE_SIZE
-from settings.const import FilePaths
+from peony.data_processing import JSONData, PeonyResponse
+from peony.exceptions import DoesNotExist, HTTPNotFound, ProtectedTweet
+from settings.config import get_config
+from settings.const import (DISCORD_MAX_FILE_SIZE, DISCORD_MAX_MESSAGE,
+                            FilePaths)
 from utils.exceptions import DownloadedVideoNotFound, FFmpegError, TimeoutError
-from utils.helpers import chunker, truncate, http_get, subprocess_run, url_to_filename
-from yarl import URL
 from utils.ffmpeg import FFmpeg
-from typing import Callable
+from utils.helpers import (chunker, http_get, subprocess_run, truncate,
+                           url_to_filename)
+from yarl import URL
 
 
 @dataclass

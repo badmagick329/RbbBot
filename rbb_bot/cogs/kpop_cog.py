@@ -7,16 +7,14 @@ import dateparser
 import pendulum
 from bs4 import BeautifulSoup
 from discord import Embed
-from discord.ext import commands
-from discord.ext import tasks
-from discord.ext.commands import Context, Cog
+from discord.ext import commands, tasks
+from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
 from models import Release
 from tortoise.expressions import Q
-from utils.helpers import http_get
-from utils.helpers import truncate
+from utils.helpers import http_get, truncate
 from utils.scraper import Scraper
-from utils.views import ListView, SearchResultsView, SearchResult
+from utils.views import ListView, SearchResult, SearchResultsView
 
 
 class VideoList(ListView):

@@ -5,13 +5,8 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.ext.menus import CannotSendMessages
 from settings.const import FilePaths
-from utils.sns import (
-    TwitterFetcher,
-    InstagramFetcher,
-    TikTokFetcher,
-    RedditFetcher,
-    Sns,
-)
+from utils.sns import (InstagramFetcher, RedditFetcher, Sns, TikTokFetcher,
+                       TwitterFetcher)
 from utils.views import SnsMenu
 
 

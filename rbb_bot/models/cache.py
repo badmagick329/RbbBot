@@ -1,5 +1,6 @@
-from tortoise import Model, fields
 from datetime import datetime
+
+from tortoise import Model, fields
 
 
 class DiskCache(Model):
