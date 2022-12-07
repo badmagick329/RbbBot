@@ -557,7 +557,7 @@ class TikTokFetcher(Fetcher):
             cmd = [py, "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
             returncode, stdout, stderr = await subprocess_run(cmd, timeout=20)
             if returncode != 0:
-                self.logger.error(f"Failed to download TikTok video. {stderr}")
+                self.logger.error(f"Failed to download TikTok video.\n{url}\n{stderr}")
                 return FetchResult(error_message="Could not fetch video")
             return "", filename
 
