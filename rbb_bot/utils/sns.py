@@ -491,7 +491,7 @@ class TikTokFetcher(Fetcher):
             return FetchResult(error_message="Invalid TikTok URL")
 
         # TODO Find another way to get the video URL
-        # url = await self.get_download_url(source_url)
+        # url = await self.get_download_url(url)
         # if not url:
         #     return FetchResult(error_message="Failed to get download url")
         video_id = self.url_to_id(url)
@@ -562,7 +562,7 @@ class TikTokFetcher(Fetcher):
             return "", filename
 
         try:
-            result = await tiktok_api_download(video_id, filename, url=source_url)
+            result = await tiktok_api_download(video_id, filename, url=url)
             if isinstance(result, FetchResult):
                 return result
             text, filename = result
@@ -603,7 +603,7 @@ class TikTokFetcher(Fetcher):
                 )
 
         post_data = PostData(
-            source_url,
+            url,
             text=text,
             poster=self.url_to_username(url),
             chunked_file_paths=[[str(file_path)]],
