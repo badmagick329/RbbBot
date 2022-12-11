@@ -529,13 +529,13 @@ async def setup(bot):
     await bot.add_cog(MediaCog(bot))
 
 
-def crop_image(img: Image, threshold: int = 10) -> Image:
+def crop_image(img: Image.Image, threshold: int = 10) -> Image.Image:
     """
     Take an image and crop the solid line borders around it
 
     Parameters
     ----------
-    img : Image
+    img : Image.Image
         The image to crop
     threshold : int
         The threshold for considering 2 pixels to be the same color
@@ -556,7 +556,7 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
                 return False
         return True
 
-    def calc_top_y(img_data: np.array, mid_height: int, additional_crop: int = 5):
+    def calc_top_y(img_data: np.ndarray, mid_height: int, additional_crop: int = 5):
         """
         Additional crop is to account for the noise in images esp jpg
         """
@@ -570,7 +570,7 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
                 break
         return top_y
 
-    def calc_bottom_y(img_data: np.array, mid_height: int, additional_crop: int = 5):
+    def calc_bottom_y(img_data: np.ndarray, mid_height: int, additional_crop: int = 5):
         bottom_y = height
         for y in range(mid_height, height):
             bottom_y = y - additional_crop
@@ -582,7 +582,7 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
         return bottom_y
 
     def calc_left_x(
-        img_data: np.array, width: int, step: int, additional_crop: int = 5
+        img_data: np.ndarray, width: int, step: int, additional_crop: int = 5
     ):
         left_x = width - 2
         for y in range(top_y, bottom_y, step):
@@ -598,7 +598,7 @@ def crop_image(img: Image, threshold: int = 10) -> Image:
         return 0 if left_x == width - 2 else left_x + additional_crop
 
     def calc_right_x(
-        img_data: np.array, width: int, step: int, additional_crop: int = 5
+        img_data: np.ndarray, width: int, step: int, additional_crop: int = 5
     ):
         right_x = 0
         for y in range(top_y, bottom_y, step):
