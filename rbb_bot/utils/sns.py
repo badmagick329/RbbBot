@@ -499,14 +499,14 @@ class TikTokFetcher(Fetcher):
 
         # Switching to TikTokApi for now
         async def yt_dlp(
-            video_id: int = video_id, filename: str = filename
-        ) -> tuple[str, str]:
+            video_id: str = video_id, filename: str = filename
+        ) -> tuple[str, str] | FetchResult:
             """
             Download the video using yt-dlp
 
             Parameters
             ----------
-            video_id : int
+            video_id : str
                 The video ID
             Returns
             -------
@@ -534,14 +534,14 @@ class TikTokFetcher(Fetcher):
             return results[0][1], filename
 
         async def tiktok_api_download(
-            video_id: int = video_id, filename: str = filename, url: str = url
+            video_id: str = video_id, filename: str = filename, url: str = url
         ) -> tuple[str, str] | FetchResult:
             """
             Download the video using TikTokApi
 
             Parameters
             ----------
-            video_id : int
+            video_id : str
                 The video ID
             filename : str
                 The filename to save the video to
@@ -555,16 +555,18 @@ class TikTokFetcher(Fetcher):
             """
             py = "py" if sys.platform == "win32" else "python"
             cmd = [py, "rbb_bot/utils/tiktok_download.py", video_id, "-o", filename]
-            returncode, stdout, stderr = await subprocess_run(cmd, timeout=20)
+            returncode, _, stderr = await subprocess_run(cmd, timeout=20)
             if returncode != 0:
                 self.logger.error(f"Failed to download TikTok video.\n{url}\n{stderr}")
                 return FetchResult(error_message="Could not fetch video")
             return "", filename
 
         try:
-            result = await tiktok_api_download(video_id, filename, url=url)
+            result = await yt_dlp(video_id, filename)
             if isinstance(result, FetchResult):
-                return result
+                result = await tiktok_api_download(video_id, filename, url=url)
+                if isinstance(result, FetchResult):
+                    return result
             text, filename = result
         except TimeoutError:
             self.logger.error(f"Failed to download {url}. Timed out")
