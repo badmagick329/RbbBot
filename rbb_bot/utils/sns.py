@@ -416,17 +416,20 @@ class InstagramFetcher(Fetcher):
                     error_message="Failed to fetch instagram post",
                 )
 
+            if data.get("message", None) == "checkpoint_required":
+                self.logger.error("Instagram checkpoint required. {source_url}\n{data}")
+                return FetchResult(
+                    error_message=(
+                        "Instagram command currently not working. "
+                        "Bot owner has been notified."
+                    )
+                )
             if "spam" in data:
                 self.logger.info(f"Instagram post is spam. {source_url}\n{data}")
                 return FetchResult(error_message="Instagram post not found")
             elif "items" not in data:
                 self.logger.info(f"Instagram post not found. {source_url}\n{data}")
                 return FetchResult(error_message="Instagram post not found")
-            if data.get("message", None) == "checkpoint_required":
-                self.logger.error("Instagram checkpoint required")
-                return FetchResult(
-                    error_message="Instagram command currently not working"
-                )
 
             data = data["items"][0]
             post_data = PostData(source_url)
