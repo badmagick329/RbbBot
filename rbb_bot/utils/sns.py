@@ -417,7 +417,7 @@ class InstagramFetcher(Fetcher):
                 )
 
             if data.get("message", None) == "checkpoint_required":
-                self.logger.error("Instagram checkpoint required. {source_url}\n{data}")
+                self.logger.error(f"Instagram checkpoint required. {source_url}\n{data}")
                 return FetchResult(
                     error_message=(
                         "Instagram command currently not working. "
