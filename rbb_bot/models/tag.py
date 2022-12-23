@@ -1,10 +1,10 @@
 from typing import Optional
 
-from tortoise import Model, fields
+from tortoise import fields
+from tortoise.models import Model
 
 from rbb_bot.models import Guild
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
-from rbb_bot.utils.helpers import truncate
 
 
 class Response(Model):
@@ -12,7 +12,7 @@ class Response(Model):
     content = fields.CharField(max_length=DISCORD_MAX_MESSAGE)
     guild = fields.ForeignKeyField("models.Guild", related_name="responses")
 
-    class Meta:
+    class Meta:  # type: ignore
         ordering = ["id"]
 
     def __repr__(self):
@@ -43,7 +43,7 @@ class Tag(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     use_count = fields.IntField(default=0)
 
-    class Meta:
+    class Meta:  # type: ignore
         unique_together = ["trigger", "guild"]
         ordering = ["id"]
 

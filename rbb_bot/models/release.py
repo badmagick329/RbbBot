@@ -1,5 +1,6 @@
 import pendulum
-from tortoise import Model, fields
+from tortoise import fields
+from tortoise.models import Model
 
 
 class Artist(Model):

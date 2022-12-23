@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import sys
 from copy import deepcopy
 from logging import Logger
 from pathlib import Path
@@ -10,6 +11,7 @@ import aiohttp
 import asyncpraw
 import pendulum
 from aiohttp import ClientSession
+from asyncprawcore.exceptions import BadRequest
 from bs4 import BeautifulSoup as bs
 from pydantic import BaseModel
 from tortoise import Tortoise
@@ -139,7 +141,7 @@ class Scraper:
             self.logger = logger
         else:
             self.logger = logging.getLogger(__name__)
-            self.logger.setLevel(LOG_LEVEL)
+            self.logger.setLevel(logging.LOG_LEVEL)
             handler = logging.StreamHandler(stream=sys.stdout)
             handler.setFormatter(
                 logging.Formatter(
@@ -177,9 +179,9 @@ class Scraper:
         self.updating = True
         try:
             if from_json:
-                self.save_to_json(merged_cbs, self.JSON_FILE)
+                self.save_to_json(merged_cbs, self.JSON_FILE)  # type: ignore
             else:
-                await self.save_to_db(merged_cbs)
+                await self.save_to_db(merged_cbs)  # type: ignore
         except Exception as e:
             self.logger.error(f"Error saving {e}", exc_info=e, stack_info=True)
             return
@@ -311,7 +313,7 @@ class Scraper:
                     post_id = url_to_id(reddit_url)
                     try:
                         post = await self.reddit.submission(post_id)
-                    except NotFound:
+                    except BadRequest:
                         invalid_urls.append(reddit_url)
                         continue
                     youtube_urls.append(post.url)

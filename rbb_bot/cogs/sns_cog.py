@@ -79,6 +79,7 @@ class SnsCog(Cog):
         async with ctx.typing():
             sns_messages = list()
             error_messages = list()
+            all_found_urls = list()
             for sns_name, sns in self.sns_dict.items():
                 found_urls = sns.find_urls(urls)
                 if found_urls:
@@ -94,12 +95,13 @@ class SnsCog(Cog):
                         continue
                     messages.extend(sns.format_post(post_data, with_text=with_text))
                 sns_messages.extend(messages)
+                all_found_urls.extend(found_urls)
 
             if not sns_messages:
                 if error_messages:
                     await ctx.send("\n".join(error_messages))
                 else:
-                    url_str = "\n".join(found_urls)
+                    url_str = "\n".join(all_found_urls)
                     self.bot.logger.info(f"No posts found at {url_str}")
                     return await ctx.send("No posts found")
 
@@ -127,7 +129,7 @@ class SnsCog(Cog):
             ):
                 return
             found_urls = False
-            for sns_name, sns in self.sns_dict.items():
+            for _, sns in self.sns_dict.items():
                 if sns.find_urls(message.content):
                     found_urls = True
                     break

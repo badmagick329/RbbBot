@@ -1,4 +1,4 @@
-from tortoise import BaseDBAsyncClient
+from tortoise import BaseDBAsyncClient  # type: ignore
 
 
 async def upgrade(db: BaseDBAsyncClient) -> str:

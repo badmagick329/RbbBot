@@ -207,7 +207,7 @@ class GuildCog(Cog):
         greeting = await Greeting.get_or_none(guild=guild)
         if not greeting:
             return
-        channel = guild.greet_channel
+        channel = await guild.greet_channel()
         if not channel:
             return
         self.bot.logger.info(

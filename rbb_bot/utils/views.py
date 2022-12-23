@@ -1,5 +1,6 @@
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import List
+from typing import Any, List
 
 import discord
 from discord import ButtonStyle, Embed, Interaction
@@ -141,7 +142,8 @@ class ListView(View):
                 self.add_item(JumpButton(-1))
                 self.add_item(JumpButton(1))
 
-    def create_embed(self, current_chunk) -> Embed:
+    @abstractmethod
+    def create_embed(self, current_chunk: list[Any]) -> Embed:
         """
         Override this method to create an embed for the current chunk of items
 
@@ -151,7 +153,8 @@ class ListView(View):
         """
         pass
 
-    def create_message(self, current_chunk) -> str:
+    @abstractmethod
+    def create_message(self, current_chunk: list[Any]) -> str:
         """
         Override this method to create a message for the current chunk of items
 
@@ -162,7 +165,7 @@ class ListView(View):
         pass
 
     @discord.ui.button(label="Close", style=ButtonStyle.red, row=1)
-    async def close(self, interaction: Interaction, button: Button):
+    async def close(self, interaction: Interaction, button: Button):  # type: ignore
         while self.children:
             self.remove_item(self.children[0])
         await interaction.response.edit_message(
@@ -175,12 +178,13 @@ class ListView(View):
     async def on_timeout(self) -> None:
         while self.children:
             self.remove_item(self.children[0])
-        await self.message.edit(
-            content=self.create_message(self.current_chunk), view=self
-        )
+        if self.message:
+            await self.message.edit(
+                content=self.create_message(self.current_chunk), view=self
+            )
 
     async def on_error(
-        self, interaction: Interaction, error: Exception, item: Button
+        self, interaction: Interaction, error: Exception, item: Any
     ) -> None:
         await self.ctx.bot.send_error(
             exc=error, ctx=self.ctx, comment="Error in ListView", stack_info=True

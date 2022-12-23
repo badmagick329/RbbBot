@@ -1,6 +1,5 @@
-from datetime import datetime
-
-from tortoise import Model, fields
+from tortoise import fields
+from tortoise.models import Model
 
 
 class DiskCache(Model):
@@ -11,7 +10,7 @@ class DiskCache(Model):
 
     MAX_SIZE = 512
 
-    class Meta:
+    class Meta: # type: ignore
         unique_together = ["key"]
 
     def __repr__(self):

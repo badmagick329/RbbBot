@@ -18,11 +18,11 @@ from utils.views import ListView, SearchResult, SearchResultsView
 
 
 class VideoList(ListView):
-    def create_message(self, results: tuple[str, Release]) -> str:
+    def create_message(self, current_chunk: list[tuple[str, Release]]) -> str:
         header = f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
         body = list()
-        for result in results:
-            video, release = result
+        for chunk in current_chunk:
+            video, release = chunk
             artist_name = truncate(release.artist.name, 30)
             title = truncate(release.title, 30)
             if release.release_time:
@@ -34,10 +34,10 @@ class VideoList(ListView):
 
 
 class YoutubeList(ListView):
-    def create_message(self, results: list[str]) -> str:
+    def create_message(self, current_chunk: list[str]) -> str:
         header = f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
         body = list()
-        for result in results:
+        for result in current_chunk:
             body.append(result)
         return header + "\n".join(body)
 

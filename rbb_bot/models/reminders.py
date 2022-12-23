@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 
 import discord
-from discord import Embed, Forbidden, TextChannel
+from discord import Embed, TextChannel
 from discord.utils import format_dt
-from tortoise import Model, fields
+from tortoise import fields
+from tortoise.models import Model
 
-from rbb_bot.models import Guild
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, BotEmojis
 from rbb_bot.utils.helpers import truncate
 from rbb_bot.utils.mixins import ClientMixin

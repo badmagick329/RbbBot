@@ -1,6 +1,6 @@
 from io import BytesIO
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Literal, Optional
 
 import discord
 import numpy as np

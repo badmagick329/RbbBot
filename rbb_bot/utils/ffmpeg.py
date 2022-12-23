@@ -1,9 +1,8 @@
-import asyncio
 import logging
 import sys
 from pathlib import Path
 
-from rbb_bot.utils.exceptions import FFmpegError, TimeoutError
+from rbb_bot.utils.exceptions import FFmpegError
 from rbb_bot.utils.helpers import subprocess_run
 
 
@@ -83,9 +82,7 @@ class FFmpeg:
         ]
 
         self.logger.debug(f"Running command: {' '.join(compress_cmd)}")
-        return_code, stdout, stderr = await subprocess_run(
-            compress_cmd, timeout=timeout
-        )
+        return_code, _, stderr = await subprocess_run(compress_cmd, timeout=timeout)
         self.logger.debug(f"New file size is {Path(output_path).stat().st_size}")
 
         if return_code != 0:

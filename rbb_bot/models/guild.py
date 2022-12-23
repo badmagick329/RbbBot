@@ -1,5 +1,6 @@
 from discord import Embed, Member, TextChannel
-from tortoise import Model, fields
+from tortoise import fields
+from tortoise.models import Model
 
 from rbb_bot.settings.config import get_config
 from rbb_bot.settings.const import (DISCORD_MAX_MESSAGE, EMBED_MAX_DESC,
@@ -32,13 +33,12 @@ class Guild(Model, ClientMixin):
         if self.emojis_channel_id and self.client:
             return self.client.get_channel(self.emojis_channel_id)
 
-    @property
-    def greet_channel(self) -> TextChannel | None:
+    async def greet_channel(self) -> TextChannel | None:
         if self.greet_channel_id and self.client:
             channel = self.client.get_channel(self.greet_channel_id)
             if channel is None:
                 self.greet_channel_id = None
-                self.save()
+                await self.save()
             return channel
 
     def __repr__(self):

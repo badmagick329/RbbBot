@@ -31,7 +31,7 @@ class RolesCog(Cog):
 
         # Maps color names to hex codes
         self.colors_map = dict()
-        for main_color, color in self.colors_dict.items():
+        for _, color in self.colors_dict.items():
             for name, hex_code in color.items():
                 self.colors_map[name] = hex_code
 
@@ -316,7 +316,7 @@ class RolesCog(Cog):
 
     @Cog.listener()
     async def on_member_leave(self, member):
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=member.guild.id)
         if not guild.custom_roles_enabled:
             return
 

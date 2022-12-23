@@ -358,15 +358,16 @@ class OneTimeCookieJar(aiohttp.CookieJar):
         super().__init__(unsafe=unsafe, loop=loop)
         self._initial_cookies_loaded = False
 
-    def update_cookies(self, cookies: LooseCookies, response_url: URL = URL()) -> None:
+    def update_cookies(self, cookies: LooseCookies, response_url: URL = URL()) -> None:  # type: ignore
         if not self._initial_cookies_loaded:
             super().update_cookies(cookies, response_url)
 
         self._initial_cookies_loaded = True
 
     def force_update_cookies(
-        self, cookies: LooseCookies, response_url: URL = URL()
+        self, cookies: LooseCookies, response_url: URL = URL()  # type: ignore
     ) -> None:
+
         super().update_cookies(cookies, response_url)
 
 
@@ -417,7 +418,9 @@ class InstagramFetcher(Fetcher):
                 )
 
             if data.get("message", None) == "checkpoint_required":
-                self.logger.error(f"Instagram checkpoint required. {source_url}\n{data}")
+                self.logger.error(
+                    f"Instagram checkpoint required. {source_url}\n{data}"
+                )
                 return FetchResult(
                     error_message=(
                         "Instagram command currently not working. "
@@ -641,7 +644,7 @@ class TikTokFetcher(Fetcher):
                 self.logger.debug("Fetching download url")
                 response = await asyncio.wait_for(_get(url), timeout=4)
                 return str(response.url).split("?")[0]
-            except aiohttp.ClientError:
+            except aiohttp.ClientError as e:
                 self.logger.error(
                     f"Failed to fetch tiktok post. {url}. {e}", exc_info=e
                 )

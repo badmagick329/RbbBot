@@ -304,7 +304,7 @@ class RemindersCog(Cog):
             try:
                 send_to = reminder.channel
             except Exception as e:
-                if isinstance(e, Forbidden):
+                if isinstance(e, discord.Forbidden):
                     message_content = (
                         f"{message_content}"
                         f"Could not send reminder in {reminder.channel}. "

@@ -134,12 +134,6 @@ class RbbBot(commands.Bot):
         await Tortoise.close_connections()
         await super().close()
 
-    async def on_message(self, message: Message):
-        self.logger.debug(f"Message received: {message.content}")
-        if message.author.bot:
-            return
-        await self.process_commands(message)
-
     async def process_commands(self, message: Message, /) -> None:
         if message.author.bot:
             return
@@ -166,8 +160,8 @@ class RbbBot(commands.Bot):
 
     async def send_error(
         self,
-        ctx: Context = None,
-        exc: Exception = None,
+        ctx: Context | None = None,
+        exc: Exception | None = None,
         stack_info=False,
         include_attachments=False,
         comment="",
