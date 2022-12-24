@@ -21,11 +21,11 @@ class SnsCog(Cog):
             self.bot.web_client,
             logger=self.bot.logger,
         )
-        instagram_fetcher = InstagramFetcher(
-            self.bot.config.ig_headers,
-            self.bot.creds.ig_cookies,
-            logger=self.bot.logger,
-        )
+        # instagram_fetcher = InstagramFetcher(
+        #     self.bot.config.ig_headers,
+        #     self.bot.creds.ig_cookies,
+        #     logger=self.bot.logger,
+        # )
         tiktok_fetcher = TikTokFetcher(
             self.bot.web_client,
             FilePaths.CACHE_DIR,
@@ -41,7 +41,8 @@ class SnsCog(Cog):
         )
         self.sns_dict = {
             "twitter": Sns(twitter_fetcher),
-            "instagram": Sns(instagram_fetcher, timestamped_urls=True),
+            # TODO Currently disabled
+            # "instagram": Sns(instagram_fetcher, timestamped_urls=True),
             "tiktok": Sns(tiktok_fetcher),
             "reddit": Sns(reddit_fetcher, cache_files=False),
         }
