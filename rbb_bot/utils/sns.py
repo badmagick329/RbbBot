@@ -286,7 +286,7 @@ class TwitterFetcher(Fetcher):
         for url in urls:
             try:
                 redirected_url = await asyncio.wait_for(
-                    self.get_redirect(url), timeout=3
+                    self.get_redirect(url), timeout=5
                 )
                 redirected_urls.append(redirected_url)
             except asyncio.TimeoutError:
