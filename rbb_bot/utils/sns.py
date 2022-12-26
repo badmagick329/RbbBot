@@ -13,7 +13,7 @@ from typing import Callable
 import aiohttp
 import asyncpraw
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import ClientConnectorError
+from aiohttp.client_exceptions import ClientConnectorError, TooManyRedirects
 from aiohttp.typedefs import LooseCookies
 from asyncpraw import reddit
 from discord import AllowedMentions, File
@@ -267,6 +267,7 @@ class TwitterFetcher(Fetcher):
         urls = self.urls_in(tweet)
 
         text = await self.process_urls(tweet.full_text, tweet_id)
+
         return FetchResult(
             post_data=PostData(source_url, poster, created_at, text, urls)
         )
@@ -275,15 +276,22 @@ class TwitterFetcher(Fetcher):
         """
         Get redirected urls from the tweet and exclude tweet url
         """
+        self.logger.debug(f"About to process text: {text}")
         urls = re.findall(self.TCO_REGEX, text)
+        self.logger.debug(f"Tco urls: {urls}")
         if not urls:
             return text
 
-        redirect_tasks = list()
+        redirected_urls = list()
         for url in urls:
-            redirect_tasks.append(self.get_redirect(url))
-
-        redirected_urls = await asyncio.gather(*redirect_tasks)
+            try:
+                redirected_url = await asyncio.wait_for(
+                    self.get_redirect(url), timeout=3
+                )
+                redirected_urls.append(redirected_url)
+            except asyncio.TimeoutError:
+                self.logger.info(f"Timeout getting redirect for {url}")
+                redirected_urls.append(url)
 
         for url, redirected_url in zip(urls, redirected_urls):
             text = text.replace(url, redirected_url)
@@ -293,6 +301,7 @@ class TwitterFetcher(Fetcher):
             if int(match.group(4)) == source_id:
                 text = text.replace(match.group(0), "")
 
+        self.logger.debug(f"Returning {text}")
         return text
 
     async def get_redirect(self, url: str) -> str:
@@ -300,11 +309,16 @@ class TwitterFetcher(Fetcher):
         Get the real url str from a t.co url. If this fails an empty string is
         returned for the url to be replaced with
         """
+        self.logger.debug(f"Getting redirect for {url}")
         try:
             async with self.web_client.get(url) as resp:
                 return str(resp.real_url)
         except ClientConnectorError:
+            self.logger.debug("ClientConnectorError")
             return ""
+        except TooManyRedirects:
+            self.logger.debug(f"Too many redirects for {url}")
+            return url
 
     def urls_in(self, tweet: PeonyResponse) -> list[str]:
         urls = list()
