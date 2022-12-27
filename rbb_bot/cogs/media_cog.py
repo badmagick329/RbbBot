@@ -14,6 +14,8 @@ from utils.exceptions import TimeoutError
 from utils.helpers import http_get, url_to_filename
 from utils.sns import InstagramFetcher, Sns
 
+from rbb_bot.utils.decorators import log_command
+
 SMALL = 5
 MEDIUM = 10
 LARGE = 25
@@ -205,6 +207,7 @@ class MediaCog(Cog):
 
     @crop.command(name="images", brief="Crop solid lines around images")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="crop images")
     async def crop_images(self, ctx: Context, *, urls: Optional[str] = ""):
         """
         Crop solid lines around images
@@ -277,6 +280,7 @@ class MediaCog(Cog):
 
     @crop.command(name="adjust", brief="Make adjustments to a cropped image")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="crop adjust")
     async def crop_adjust(self, ctx: Context, url: Optional[str] = ""):
         """
         Make adjustments to a cropped image
@@ -332,6 +336,7 @@ class MediaCog(Cog):
 
     @edit_image.command(name="rotate", brief="Rotate images counter-clockwise")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="edit image rotate")
     async def rotate_image(
         self,
         ctx: Context,
@@ -392,6 +397,7 @@ class MediaCog(Cog):
 
     @edit_image.command(name="flip", brief="Flip images horizontally or vertically")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="edit image flip")
     async def flip_image(
         self,
         ctx: Context,
@@ -447,6 +453,7 @@ class MediaCog(Cog):
 
     @edit_image.command(name="webp", brief="Convert images from webp to png")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="convert webp")
     async def convert_webp(
         self,
         ctx: Context,

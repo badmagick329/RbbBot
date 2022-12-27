@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-import discord
 from discord import Embed, TextChannel
 from discord.utils import format_dt
 from tortoise import fields
@@ -80,19 +79,3 @@ class Reminder(Model, ClientMixin):
             f"{channel_str}"
             f"Created at {format_dt(self.created_at, style='f')}"
         )
-
-
-class DiscordUser(Model, ClientMixin):
-    _id = fields.IntField(pk=True)
-    id = fields.BigIntField(unique=True)
-    weather_location = fields.CharField(max_length=100, null=True)
-
-    @property
-    def user(self) -> discord.User | None:
-        return self.client.get_user(self.id) if self.client else None
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __str__(self):
-        return f"{self.user} ({self.id})"

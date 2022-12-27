@@ -1,3 +1,4 @@
+import discord
 from discord import Embed, Member, TextChannel
 from tortoise import fields
 from tortoise.models import Model
@@ -22,10 +23,8 @@ class Guild(Model, ClientMixin):
     max_custom_roles = fields.IntField(default=2)
     reminders_enabled = fields.BooleanField(default=False)
 
-    MAX_PREFIX = 10
-
     @property
-    def guild(self):
+    def guild(self) -> discord.Guild | None:
         return self.client.get_guild(self.id) if self.client else None
 
     @property

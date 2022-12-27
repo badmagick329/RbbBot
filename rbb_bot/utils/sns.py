@@ -276,9 +276,7 @@ class TwitterFetcher(Fetcher):
         """
         Get redirected urls from the tweet and exclude tweet url
         """
-        self.logger.debug(f"About to process text: {text}")
         urls = re.findall(self.TCO_REGEX, text)
-        self.logger.debug(f"Tco urls: {urls}")
         if not urls:
             return text
 
@@ -301,7 +299,6 @@ class TwitterFetcher(Fetcher):
             if int(match.group(4)) == source_id:
                 text = text.replace(match.group(0), "")
 
-        self.logger.debug(f"Returning {text}")
         return text
 
     async def get_redirect(self, url: str) -> str:
@@ -309,15 +306,12 @@ class TwitterFetcher(Fetcher):
         Get the real url str from a t.co url. If this fails an empty string is
         returned for the url to be replaced with
         """
-        self.logger.debug(f"Getting redirect for {url}")
         try:
             async with self.web_client.get(url) as resp:
                 return str(resp.real_url)
         except ClientConnectorError:
-            self.logger.debug("ClientConnectorError")
             return ""
         except TooManyRedirects:
-            self.logger.debug(f"Too many redirects for {url}")
             return url
 
     def urls_in(self, tweet: PeonyResponse) -> list[str]:

@@ -9,6 +9,8 @@ from utils.sns import (InstagramFetcher, RedditFetcher, Sns, TikTokFetcher,
                        TwitterFetcher)
 from utils.views import SnsMenu
 
+from rbb_bot.utils.decorators import log_command
+
 
 class SnsCog(Cog):
     def __init__(self, bot):
@@ -59,6 +61,7 @@ class SnsCog(Cog):
     )
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="sns")
     async def sns_cmd(
         self, ctx: Context, with_text: Optional[bool] = False, *, urls: str
     ):

@@ -16,6 +16,8 @@ from utils.helpers import http_get, truncate
 from utils.scraper import Scraper
 from utils.views import ListView, SearchResult, SearchResultsView
 
+from rbb_bot.utils.decorators import log_command
+
 
 class VideoList(ListView):
     def create_message(self, current_chunk: list[tuple[str, Release]]) -> str:
@@ -135,6 +137,7 @@ class KpopCog(Cog):
         "Either artist or release name is required"
     )
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="videos")
     async def videos(
         self, ctx: Context, artist: Optional[str], release_name: Optional[str]
     ):
@@ -189,6 +192,7 @@ class KpopCog(Cog):
 
     @commands.hybrid_command(brief="Search youtube and return the top results.")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="youtube")
     async def youtube(self, ctx: Context, *, query: str):
         """
         Search youtube and return the top results.
@@ -242,6 +246,7 @@ class KpopCog(Cog):
         brief="Show recent and upcoming releases", alias=["cbs", "cb", "comeback"]
     )
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @log_command(command_name="comebacks")
     async def comebacks(
         self,
         ctx: Context,

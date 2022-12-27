@@ -7,7 +7,7 @@ from discord import Member, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild
-from settings.const import DISCORD_MAX_MESSAGE
+from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE
 from settings.ids import IRENE_CORD_ID, TEST_CORD_ID, WHATEVER2_ID, WHATEVER_ID
 
 
@@ -48,9 +48,9 @@ class GuildCog(Cog):
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         if new_prefix is None:
             return await ctx.send(f"Current prefix: {guild.prefix}")
-        elif len(new_prefix) > Guild.MAX_PREFIX:
+        elif len(new_prefix) > BOT_MAX_PREFIX:
             return await ctx.send(
-                f"Prefix must be less than {Guild.MAX_PREFIX} characters"
+                f"Prefix must be less than {BOT_MAX_PREFIX} characters"
             )
         if guild.prefix == new_prefix:
             return await ctx.send(f"Prefix is already set to {new_prefix}")

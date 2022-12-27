@@ -6,6 +6,7 @@ from discord.ext.commands import Cog, Context
 from discord.ui import Button, View
 
 from rbb_bot.settings.const import FilePaths
+from rbb_bot.utils.decorators import log_command
 
 
 class LetterButton(Button):
@@ -144,6 +145,7 @@ class HangmanCog(Cog):
             await ctx.send_help(ctx.command)
 
     @hangman.command(name="start", brief="Start a new game")
+    @log_command(command_name="hangman start")
     async def start_game(self, ctx: Context):
         if ctx.interaction:
             await ctx.interaction.response.defer()

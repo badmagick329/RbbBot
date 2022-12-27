@@ -1,6 +1,7 @@
-from .release import Release, ReleaseType, Artist
-from .guild import Guild
-from .guild import Greeting
-from .tag import Tag, Response
-from .reminders import Reminder, DiscordUser
 from .cache import DiskCache
+from .command_log import CommandLog
+from .guild import Greeting, Guild
+from .release import Artist, Release, ReleaseType
+from .reminders import Reminder
+from .tag import Response, Tag
+from .user import DiscordUser
