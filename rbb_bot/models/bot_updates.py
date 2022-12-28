@@ -26,7 +26,7 @@ class BotIssue(Model):
     def __repr__(self):
         return (
             f"BotIssue<(id={self.id}, "
-            f"message={self.issue}, "
+            f"message={self.message}, "
             f"created_at={self.created_at})>"
         )
 
