@@ -43,7 +43,7 @@ isort = "^5.10.1"
 [tool.aerich]
 tortoise_orm = "dbconfig.DB_CONFIG"
 location = "./migrations"
-src_folder = "./."
+src_folder = "./rbb_bot"
 
 [build-system]
 requires = ["poetry-core"]
