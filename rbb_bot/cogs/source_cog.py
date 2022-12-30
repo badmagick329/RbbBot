@@ -18,7 +18,7 @@ class SubmissionsView(ListView):
         page_header = ""
         if len(self.view_chunks) > 1:
             page_header = f"\nPage {self.current_page + 1} of {len(self.view_chunks)}"
-        header = f"Source Submissions by users{page_header}"
+        header = f"Source submissions by users{page_header}"
 
         embed = Embed(title=header)
         for user, count in submissions:
@@ -169,6 +169,14 @@ class SourceCog(Cog):
 
         if user.blacklist and user.blacklist.get("source", None) == "blacklist":
             return await ctx.send("You are blacklisted from adding sources")
+
+        if not edit_entry:
+            existing_entry = await SourceEntry.filter(emoji_string=emote_string)
+            if existing_entry:
+                return await ctx.send(
+                    "An entry for this emote already exists. "
+                    f"Use {ctx.prefix}source edit to edit or add more information"
+                )
 
         # Initial validation
         if source_url:
