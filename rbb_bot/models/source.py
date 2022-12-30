@@ -7,7 +7,8 @@ from rbb_bot.utils.mixins import ClientMixin
 
 class SourceEntry(Model, ClientMixin):
     id = fields.IntField(pk=True)
-    emote_string = fields.CharField(max_length=255)
+    emoji_string = fields.CharField(max_length=255)
+    emoji_url = fields.CharField(max_length=255, null=True)
     source_url = fields.CharField(max_length=255, null=True)
     event = fields.CharField(max_length=255, null=True)
     source_date = fields.DateField(null=True)
@@ -21,10 +22,12 @@ class SourceEntry(Model, ClientMixin):
 
     conf_channel_id = CONF_CHANNEL_ID
     conf_guild_id = CONF_GUILD_ID
+    MAX_CHAR_FIELD = 255
 
     def __repr__(self):
         return (
-            f"Source<(id={self.id}, emote_string={self.emote_string}, "
+            f"Source<(id={self.id}, emoji_string={self.emoji_string}, "
+            f"emoji_url={self.emoji_url}, "
             f"source_url={self.source_url}, event={self.event}, "
             f"source_date={self.source_date}, guild_id={self.guild_id}, "
             f"channel_id={self.channel_id}, message_id={self.message_id}, "

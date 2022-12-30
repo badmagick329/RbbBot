@@ -10,8 +10,9 @@ BOT_MAX_PREFIX = 10
 
 @dataclass
 class BotEmojis:
-    TICK = "\N{WHITE HEAVY CHECK MARK}"
-    CROSS = "\N{CROSS MARK}"
+    TICK = "✅"
+    CROSS = "❌"
+    HAMMER = "🔨"
     DOWN_ARROW = "\N{DOWNWARDS BLACK ARROW}"
     TEXT = "\N{PAGE FACING UP}"
     IRENE_TIME = "<a:irenetime:766755195451211818>"
