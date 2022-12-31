@@ -938,7 +938,7 @@ class Sns:
         # First message with text (if any) and urls (if any)
         # If no urls are present but chunked_file_paths or chunked_media are
         # then the first chunk is attached
-        chunked_urls = list(chunker(post_data.urls, 5))
+        chunked_urls = list(chunker(post_data.urls, 5, DISCORD_MAX_MESSAGE))
         url_str = ""
         if chunked_urls:
             url_str = "\n".join(chunked_urls.pop(0))

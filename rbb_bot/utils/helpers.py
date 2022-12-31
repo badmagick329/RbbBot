@@ -60,8 +60,24 @@ def truncate(string: str, max_length: int = DISCORD_MAX_MESSAGE) -> str:
     return f"{string[: max_length - 4]} ..." if len(string) > max_length else string
 
 
-def chunker(seq: Iterable, size: int):
-    return (seq[pos : pos + size] for pos in range(0, len(seq), size))
+def chunker(seq: Iterable, size: int, max_len_per_chunk: int = None) -> Iterable:
+    chunk = []
+    chunk_len = 0
+    for item in seq:
+        if max_len_per_chunk and chunk_len + len(str(item)) > max_len_per_chunk:
+            if not chunk:
+                raise ValueError("max_len_per_chunk is too small")
+            yield chunk
+            chunk = []
+            chunk_len = 0
+        chunk.append(item)
+        chunk_len += len(str(item))
+        if len(chunk) == size:
+            yield chunk
+            chunk = []
+            chunk_len = 0
+    if chunk:
+        yield chunk
 
 
 async def large_send(channel: TextChannel, msg: str):
