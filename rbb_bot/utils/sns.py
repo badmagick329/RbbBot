@@ -418,10 +418,10 @@ class InstagramFetcher(Fetcher):
                 self.logger.debug(f"Data received: {data}")
                 for k, v in data.items():
                     self.logger.debug(f"{k}: {v}")
-            except aiohttp.ContentTypeError as e:
+            except (aiohttp.TooManyRedirects, aiohttp.ContentTypeError) as e:
                 self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
                 return FetchResult(
-                    exception=aiohttp.ContentTypeError,
+                    exception=e,
                     error_message="Failed to fetch instagram post",
                 )
 
