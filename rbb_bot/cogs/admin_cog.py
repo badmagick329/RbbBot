@@ -118,7 +118,7 @@ class AdminCog(Cog):
     @commands.command(brief="Purge messages")
     @commands.guild_only()
     @commands.is_owner()
-    async def purge(
+    async def clear(
         self, ctx, amount: int = 100, channel: Optional[discord.TextChannel] = None
     ):
         if channel is None:
