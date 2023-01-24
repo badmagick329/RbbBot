@@ -192,6 +192,8 @@ class MiscCog(Cog):
         download_icon: Optional[bool]
             Download the server icon (Optional)
         """
+        if ctx.interaction:
+            await ctx.defer()
         guild = ctx.guild
         if download_icon:
             if not guild.icon:
