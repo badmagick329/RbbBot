@@ -110,6 +110,7 @@ class RbbBot(commands.Bot):
         try:
             self.logger_task = asyncio.create_task(discord_handler.start_logging())
         except Exception as e:
+            self.logger.error(f"Error in discord handler\n{e}")
             await (await self.get_dm_channel()).send(f"Error in discord handler\n{e}")
 
     async def on_connect(self):
