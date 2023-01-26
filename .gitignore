@@ -19,4 +19,4 @@ ids.py
 docker-compose*
 !docker-compose.yml
 .env
-rbb_bot.log
+rbb_bot.log*
