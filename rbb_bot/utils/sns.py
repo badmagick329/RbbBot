@@ -389,6 +389,10 @@ class InstagramFetcher(Fetcher):
         self.web_client = aiohttp.ClientSession(cookie_jar=OneTimeCookieJar())
         self.web_client.cookie_jar.force_update_cookies(cookies)
         self.headers = ig_headers
+        self.disabled_msg = (
+            "Instagram currently not working. Bot owner has been notified"
+        )
+        self.disabled = False
         super().__init__(*args, **kwargs)
 
     def shortcode_to_media_id(
@@ -407,6 +411,8 @@ class InstagramFetcher(Fetcher):
         return result
 
     async def fetch(self, source_url: str) -> FetchResult:
+        if self.disabled:
+            return FetchResult(error_message=self.disabled_msg)
         shortcode = source_url.strip("/").split("/")[-1]
         url = self.INSTAGRAM_API_URL.format(
             media_id=self.shortcode_to_media_id(shortcode)
@@ -418,23 +424,20 @@ class InstagramFetcher(Fetcher):
                 self.logger.debug(f"Data received: {data}")
                 for k, v in data.items():
                     self.logger.debug(f"{k}: {v}")
-            except (aiohttp.TooManyRedirects, aiohttp.ContentTypeError) as e:
+            except aiohttp.ContentTypeError as e:
                 self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
-                return FetchResult(
-                    exception=e,
-                    error_message="Failed to fetch instagram post",
-                )
+                return FetchResult(error_message="Failed to fetch instagram post.")
+            except aiohttp.TooManyRedirects as e:
+                self.disabled = True
+                self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
+                return FetchResult(error_message=self.disabled_msg)
 
             if data.get("message", None) == "checkpoint_required":
+                self.disabled = True
                 self.logger.error(
                     f"Instagram checkpoint required. {source_url}\n{data}"
                 )
-                return FetchResult(
-                    error_message=(
-                        "Instagram command currently not working. "
-                        "Bot owner has been notified."
-                    )
-                )
+                return FetchResult(error_message=self.disabled_msg)
             if "spam" in data:
                 self.logger.info(f"Instagram post is spam. {source_url}\n{data}")
                 return FetchResult(error_message="Instagram post not found")

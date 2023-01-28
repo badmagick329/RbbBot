@@ -38,12 +38,12 @@ class DiscordHandler(logging.Handler):
                     await large_send(self.owner_ch, msg)
             else:
                 await large_send(self.log_ch, msg)
+            await asyncio.sleep(1)
 
     def emit(self, record):
         if not self.bot:
             return
         msg = self.format(record)
-        # asyncio.run_coroutine_threadsafe(self.message_queue.put((msg, record.levelno)), asyncio.get_running_loop())
         asyncio.create_task(self.message_queue.put((msg, record.levelno)))
 
 
@@ -107,11 +107,7 @@ class RbbBot(commands.Bot):
             logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         )
         self.logger.addHandler(discord_handler)
-        try:
-            self.logger_task = asyncio.create_task(discord_handler.start_logging())
-        except Exception as e:
-            self.logger.error(f"Error in discord handler\n{e}")
-            await (await self.get_dm_channel()).send(f"Error in discord handler\n{e}")
+        self.logger_task = asyncio.create_task(discord_handler.start_logging())
 
     async def on_connect(self):
         self.logger.info(f"Connected! Latency: {self.latency * 1000:.2f}ms")
