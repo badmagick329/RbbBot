@@ -82,6 +82,8 @@ class TagsCog(Cog):
         inline: str
             When False the trigger has to match the message exactly (Optional)
         """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
         if len(trigger) > Tag.MAX_TRIGGER:
             return await ctx.send(
                 f"{BotEmojis.CROSS} The trigger is too long. Max {Tag.MAX_TRIGGER} characters"
@@ -154,6 +156,8 @@ class TagsCog(Cog):
         tag_id: int
             The id of the tag to remove (Optional)
         """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
         if not trigger and not tag_id:
             if ctx.interaction:
                 return await ctx.interaction.response.send_message(
@@ -198,6 +202,8 @@ class TagsCog(Cog):
         response_id: int
             The id of the response (Optional)
         """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
         if not response and not response_id:
             if ctx.interaction:
                 return await ctx.interaction.response.send_message(
@@ -245,6 +251,8 @@ class TagsCog(Cog):
         """
         List all tags for this server
         """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         tags = await Tag.filter(guild=guild).prefetch_related("responses").all()
         if not tags:
@@ -283,6 +291,8 @@ class TagsCog(Cog):
         tag_id: int
             The id of the tag (Optional)
         """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
         if not trigger and not tag_id:
             if ctx.interaction:
                 return await ctx.interaction.response.send_message(
@@ -340,6 +350,8 @@ class TagsCog(Cog):
         old_trigger: str
             The old trigger of the tag (Optional)
         """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
         new_trigger = new_trigger.lower().strip()
         if not tag_id and not old_trigger:
             if ctx.interaction:
