@@ -150,7 +150,7 @@ class SnsCog(Cog):
             pass
         except Exception as e:
             await self.bot.send_error(
-                exc=e, comment=f"sns on_message\n{message.content}", stack_info=True
+                exc=e, comment=f"sns on_message\n{message.content}"
             )
 
 
