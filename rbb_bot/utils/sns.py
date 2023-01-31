@@ -418,48 +418,51 @@ class InstagramFetcher(Fetcher):
             media_id=self.shortcode_to_media_id(shortcode)
         )
 
-        async with self.web_client.get(url, headers=self.headers) as response:
-            try:
-                data = await response.json()
-                self.logger.debug(f"Data received: {data}")
-                for k, v in data.items():
-                    self.logger.debug(f"{k}: {v}")
-            except aiohttp.ContentTypeError as e:
-                self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
-                return FetchResult(error_message="Failed to fetch instagram post.")
-            except aiohttp.TooManyRedirects as e:
-                self.disabled = True
-                self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
-                return FetchResult(error_message=self.disabled_msg)
+        try:
+            async with self.web_client.get(url, headers=self.headers) as response:
+                try:
+                    data = await response.json()
+                    self.logger.debug(f"Data received: {data}")
+                    for k, v in data.items():
+                        self.logger.debug(f"{k}: {v}")
+                except aiohttp.ContentTypeError as e:
+                    self.logger.error(
+                        f"Failed to fetch instagram post. {e}", exc_info=e
+                    )
+                    return FetchResult(error_message="Failed to fetch instagram post.")
 
-            if data.get("message", None) == "checkpoint_required":
-                self.disabled = True
-                self.logger.error(
-                    f"Instagram checkpoint required. {source_url}\n{data}"
-                )
-                return FetchResult(error_message=self.disabled_msg)
-            if "spam" in data:
-                self.logger.info(f"Instagram post is spam. {source_url}\n{data}")
-                return FetchResult(error_message="Instagram post not found")
-            elif "items" not in data:
-                self.logger.info(f"Instagram post not found. {source_url}\n{data}")
-                return FetchResult(error_message="Instagram post not found")
+                if data.get("message", None) == "checkpoint_required":
+                    self.disabled = True
+                    self.logger.error(
+                        f"Instagram checkpoint required. {source_url}\n{data}"
+                    )
+                    return FetchResult(error_message=self.disabled_msg)
+                if "spam" in data:
+                    self.logger.info(f"Instagram post is spam. {source_url}\n{data}")
+                    return FetchResult(error_message="Instagram post not found")
+                elif "items" not in data:
+                    self.logger.info(f"Instagram post not found. {source_url}\n{data}")
+                    return FetchResult(error_message="Instagram post not found")
 
-            data = data["items"][0]
-            post_data = PostData(source_url)
+                data = data["items"][0]
+                post_data = PostData(source_url)
 
-            try:
-                post_data.text = data["caption"]["text"]
-            except (KeyError, TypeError):
-                pass
-            try:
-                post_data.poster = data["user"]["username"]
-            except KeyError:
-                pass
-            try:
-                post_data.created_at = datetime.fromtimestamp(data["taken_at"])
-            except KeyError:
-                pass
+                try:
+                    post_data.text = data["caption"]["text"]
+                except (KeyError, TypeError):
+                    pass
+                try:
+                    post_data.poster = data["user"]["username"]
+                except KeyError:
+                    pass
+                try:
+                    post_data.created_at = datetime.fromtimestamp(data["taken_at"])
+                except KeyError:
+                    pass
+        except aiohttp.TooManyRedirects as e:
+            self.disabled = True
+            self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
+            return FetchResult(error_message=self.disabled_msg)
 
         media_entries = (
             [data] if "carousel_media" not in data else data["carousel_media"]
