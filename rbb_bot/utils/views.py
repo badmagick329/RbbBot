@@ -236,7 +236,10 @@ class SnsMenu(menus.Menu):
         self.stop()
 
     async def prompt(self, ctx):
-        await self.start(ctx, wait=True)
+        try:
+            await self.start(ctx, wait=True)
+        except menus.CannotAddReactions:
+            pass
         return self.result
 
 
