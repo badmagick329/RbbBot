@@ -3,7 +3,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from discord.ext.menus import CannotSendMessages
+from discord.ext.menus import CannotSendMessages, CannotAddReactions
 from settings.const import FilePaths
 from utils.sns import (InstagramFetcher, RedditFetcher, Sns, TikTokFetcher,
                        TwitterFetcher)
@@ -146,7 +146,7 @@ class SnsCog(Cog):
                 await self.sns_cmd(ctx, with_text=False, urls=message.content)
             else:
                 await self.sns_cmd(ctx, with_text=True, urls=message.content)
-        except CannotSendMessages:
+        except (CannotSendMessages, CannotAddReactions):
             pass
         except Exception as e:
             await self.bot.send_error(

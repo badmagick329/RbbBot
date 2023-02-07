@@ -66,6 +66,7 @@ class TagsCog(Cog):
 
     @tag.command(name="add", brief="Add a tag to this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.guild_only()
     @log_command(command_name="tag add")
     async def add_(
         self, ctx: Context, trigger: str, response: str, inline: Optional[bool] = False
@@ -123,10 +124,7 @@ class TagsCog(Cog):
         if result:
             tag, created = result
             to_send = f"{BotEmojis.TICK} Tag `{tag.trigger}` {'created' if created else 'updated'}"
-            if ctx.interaction:
-                await ctx.interaction.response.send_message(to_send)
-            else:
-                await ctx.send(to_send)
+            await ctx.send(to_send)
         else:
             await ctx.send(f"This response already exists under this tag")
 
@@ -142,6 +140,7 @@ class TagsCog(Cog):
         name="tag",
         brief="Remove a tag from this server. Either trigger or tag_id is required",
     )
+    @commands.guild_only()
     @log_command(command_name="tag remove tag")
     async def remove_tag(
         self, ctx: Context, trigger: Optional[str], tag_id: Optional[int]
@@ -159,12 +158,7 @@ class TagsCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
         if not trigger and not tag_id:
-            if ctx.interaction:
-                return await ctx.interaction.response.send_message(
-                    "Either trigger or tag_id is required", ephemeral=True
-                )
-            else:
-                return await ctx.send_help(ctx.command)
+            return await ctx.send("Either trigger or tag_id is required")
 
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         tag = await Tag.by_id_or_trigger(guild, tag_id, trigger)
@@ -188,6 +182,7 @@ class TagsCog(Cog):
         name="response",
         brief="Remove a response from this server. Either response or response_id is required",
     )
+    @commands.guild_only()
     @log_command(command_name="tag remove response")
     async def remove_response(
         self, ctx: Context, response: Optional[str], response_id: Optional[int]
@@ -205,12 +200,7 @@ class TagsCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
         if not response and not response_id:
-            if ctx.interaction:
-                return await ctx.interaction.response.send_message(
-                    "Either response or response_id is required", ephemeral=True
-                )
-            else:
-                return await ctx.send_help(ctx.command)
+            return await ctx.send("Either response or response_id is required")
 
         response_content = response
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
@@ -246,6 +236,7 @@ class TagsCog(Cog):
 
     @tag.command(name="list", brief="List all tags for this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.guild_only()
     @log_command(command_name="tag list")
     async def list_tags(self, ctx: Context):
         """
@@ -276,6 +267,7 @@ class TagsCog(Cog):
         name="responses",
         brief="List all responses for this tag. Either trigger or tag_id is required",
     )
+    @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
     @log_command(command_name="tag responses")
     async def list_responses(
@@ -294,12 +286,7 @@ class TagsCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
         if not trigger and not tag_id:
-            if ctx.interaction:
-                return await ctx.interaction.response.send_message(
-                    "Either trigger or tag_id is required", ephemeral=True
-                )
-            else:
-                return await ctx.send_help(ctx.command)
+            return await ctx.send("Either trigger or tag_id is required")
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
 
         tag = await Tag.by_id_or_trigger(guild, tag_id, trigger)
@@ -330,6 +317,7 @@ class TagsCog(Cog):
         name="edit",
         brief="Edit a tag's trigger. Either tag_id or old_trigger is required",
     )
+    @commands.guild_only()
     @log_command(command_name="tag edit")
     async def edit_tag(
         self,
@@ -354,12 +342,7 @@ class TagsCog(Cog):
             await ctx.interaction.response.defer()
         new_trigger = new_trigger.lower().strip()
         if not tag_id and not old_trigger:
-            if ctx.interaction:
-                return await ctx.interaction.response.send_message(
-                    "Either tag_id or old_trigger is required", ephemeral=True
-                )
-            else:
-                return await ctx.send_help(ctx.command)
+            return await ctx.send("Either tag_id or old_trigger is required")
 
         if len(new_trigger) > Tag.MAX_TRIGGER:
             return await ctx.send(
