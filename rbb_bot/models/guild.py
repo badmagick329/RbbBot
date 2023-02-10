@@ -70,7 +70,7 @@ class Greeting(Model):
         title = self.title.replace("{username}", member.name)
         description = self.description.replace("{mention}", member.mention)
         embed = Embed(title=title, description=description)
-        embed.set_thumbnail(url=member.avatar.url)
+        embed.set_thumbnail(url=member.display_avatar)
         if self.show_member_count:
             embed.set_footer(text=f"Member #{member.guild.member_count}")
         return embed

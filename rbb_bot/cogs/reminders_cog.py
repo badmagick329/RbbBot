@@ -24,7 +24,7 @@ class RemindersList(ListView):
         embed = discord.Embed(
             title=f"{user}'s reminders", color=discord.Color.blurple()
         )
-        embed.set_thumbnail(url=user.avatar.url)
+        embed.set_thumbnail(url=user.display_avatar.url)
 
         for reminder in reminders:
             embed.add_field(

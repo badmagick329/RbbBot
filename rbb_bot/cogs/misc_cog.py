@@ -123,13 +123,8 @@ class MiscCog(Cog):
 
         if ctx.guild and server_avatar and user in ctx.guild.members:
             member = ctx.guild.get_member(user.id)
-            if member:
-                user = member
-                avatar = user.display_avatar
-            else:
-                avatar = user.avatar
-        else:
-            avatar = user.avatar
+
+        avatar = user.display_avatar
 
         if download_avatar:
             avatar_bytes = await http_get(self.bot.web_client, avatar.url)
@@ -178,7 +173,7 @@ class MiscCog(Cog):
         user: User
             User to show profile picture for (Required)
         """
-        await ctx.send(user.avatar.url)
+        await ctx.send(user.display_avatar.url)
 
     @commands.hybrid_command(brief="Show information about this server")
     @commands.guild_only()
