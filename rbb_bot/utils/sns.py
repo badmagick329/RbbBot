@@ -431,7 +431,10 @@ class InstagramFetcher(Fetcher):
                     )
                     return FetchResult(error_message="Failed to fetch instagram post.")
 
-                if data.get("message", None) == "checkpoint_required":
+                checkpoint_required = data.get("message", None) == "checkpoint_required"
+                login_required = data.get("require_login",None)
+
+                if checkpoint_required or login_required:
                     self.disabled = True
                     self.logger.error(
                         f"Instagram checkpoint required. {source_url}\n{data}"
