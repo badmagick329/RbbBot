@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from discord import Member, TextChannel
+from discord import Member, TextChannel, Message
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild
@@ -200,10 +200,6 @@ class GuildCog(Cog):
         guild = await Guild.get_or_none(id=member.guild.id)
         if not guild or not guild.greet_channel_id:
             return
-        # Fix for this being called multiple times on join for some guilds
-        key = f"{member.guild.id}_{member.id}"
-        if self.is_on_cooldown(key):
-            return
         greeting = await Greeting.get_or_none(guild=guild)
         if not greeting:
             return
@@ -213,13 +209,53 @@ class GuildCog(Cog):
         self.bot.logger.info(
             f"Sending welcome message to {member} in {channel} in {member.guild}"
         )
-        cooldown_dt = datetime.utcnow() + timedelta(minutes=1)
-        self.cooldown_bucket.append((key, cooldown_dt))
         await channel.send(embed=greeting.create_embed(member))
 
         if guild.id in [IRENE_CORD_ID, WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID]:
             random_wave = random.choice(self.irene_waves)
             await channel.send(random_wave)
+
+        bot_messages = list()
+        recent = datetime.utcnow() - timedelta(minutes=3)
+        async for message in channel.history(limit=10):
+            if message.author == self.bot.user and message.embeds and message.created_at > recent:
+                bot_messages.append(message)
+
+        duplicates = self.find_duplicates(bot_messages)
+        self.bot.logger.info(f"Found {len(duplicates)} duplicates. {[m.id for m in duplicates]}")
+        if duplicates:
+            await channel.delete_messages(duplicates)
+
+    def find_duplicates(self, messages: list[Message]) -> list[int]:
+        author_messages = dict()
+        for message in messages:
+            author_messages.setdefault(message.author.id, []).append(message)
+
+        for author, messages in author_messages.items():
+            author_messages[author] = sorted(messages, key=lambda x: x.created_at)
+
+        duplicates = list()
+        for author, messages in author_messages.items():
+            if len(messages) == 1:
+                continue
+            for i,msg_a in enumerate(messages[:-1]):
+                for msg_b in messages[i+1:]:
+                    content_a = self.content_to_dict(msg_a)
+                    content_b = self.content_to_dict(msg_b)
+                    if content_a == content_b and msg_b not in duplicates:
+                        duplicates.append(msg_b)
+        return duplicates
+
+    def content_to_dict(self, message: Message) -> dict:
+        message_dict = {
+            "content": message.content,
+            "author": message.author.id,
+        }
+        for i, att in enumerate(message.attachments):
+            message_dict[f"attachment_{i}"] = att.url
+        for i, embed in enumerate(message.embeds):
+            message_dict[f"embed_{i}"] = embed.to_dict()
+        return message_dict
 
 
 async def setup(bot):
