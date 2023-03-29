@@ -9,8 +9,15 @@ from discord import User
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
-from utils.helpers import (channel_regex, emoji_regex, emoji_url, http_get,
-                           role_regex, truncate, user_regex)
+from utils.helpers import (
+    channel_regex,
+    emoji_regex,
+    emoji_url,
+    http_get,
+    role_regex,
+    truncate,
+    user_regex,
+)
 from utils.views import SearchResult, SearchResultsView
 
 
@@ -142,21 +149,22 @@ class MiscCog(Cog):
         )
         embed.add_field(name="Avatar URL", value=avatar.url, inline=False)
         if ctx.guild and user in ctx.guild.members:
+            member = ctx.guild.get_member(user.id)
             embed.add_field(
                 name=f"Joined {ctx.guild.name} at",
-                value=format_dt(user.joined_at),
+                value=format_dt(member.joined_at),
                 inline=False,
             )
             if len(user.roles) > 1:
                 embed.add_field(
                     name="Roles",
-                    value=", ".join([role.mention for role in user.roles[1:]]),
+                    value=", ".join([role.mention for role in member.roles[1:]]),
                     inline=False,
                 )
             if user.premium_since:
                 embed.add_field(
                     name="Boosting since",
-                    value=format_dt(user.premium_since),
+                    value=format_dt(member.premium_since),
                     inline=False,
                 )
 
