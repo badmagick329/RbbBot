@@ -155,13 +155,13 @@ class MiscCog(Cog):
                 value=format_dt(member.joined_at),
                 inline=False,
             )
-            if len(user.roles) > 1:
+            if len(member.roles) > 1:
                 embed.add_field(
                     name="Roles",
                     value=", ".join([role.mention for role in member.roles[1:]]),
                     inline=False,
                 )
-            if user.premium_since:
+            if member.premium_since:
                 embed.add_field(
                     name="Boosting since",
                     value=format_dt(member.premium_since),
