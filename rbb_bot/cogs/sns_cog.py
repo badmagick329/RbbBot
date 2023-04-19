@@ -43,7 +43,7 @@ class SnsCog(Cog):
         )
         self.sns_dict = {
             "twitter": Sns(twitter_fetcher),
-            "instagram": Sns(instagram_fetcher, timestamped_urls=True),
+            # "instagram": Sns(instagram_fetcher, timestamped_urls=True),
             "tiktok": Sns(tiktok_fetcher),
             "reddit": Sns(reddit_fetcher, cache_files=False),
         }
@@ -56,7 +56,7 @@ class SnsCog(Cog):
         self.instagram_fetcher.web_client.close()
 
     @commands.hybrid_command(
-        name="sns", brief="Get posts from twitter, ig, tiktok or reddit"
+        name="sns", brief="Get posts from twitter, tiktok or reddit"
     )
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
@@ -65,9 +65,9 @@ class SnsCog(Cog):
         self, ctx: Context, with_text: Optional[bool] = False, *, urls: str
     ):
         """
-        Get posts from twitter, ig, tiktok or reddit
+        Get posts from twitter, tiktok or reddit
 
-        Not supported: ig stories, tiktok photos, reddit videos with sound
+        Not supported: tiktok photos, reddit videos with sound
 
         Parameters
         ----------
