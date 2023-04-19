@@ -1,14 +1,19 @@
 import random
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from discord import Member, TextChannel, Message
+from discord import Member, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild
 from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE
-from settings.ids import IRENE_CORD_ID, TEST_CORD_ID, WHATEVER2_ID, WHATEVER_ID
+from settings.ids import (
+    IRENE_CORD_ID,
+    IRENE_CHANNEL_ID,
+    TEST_CORD_ID,
+    WHATEVER2_ID,
+    WHATEVER_ID,
+)
 
 
 class GuildCog(Cog):
@@ -19,9 +24,6 @@ class GuildCog(Cog):
         self.bot = bot
         self.irene_waves = list()
         gfycat_url_base = "https://gfycat.com/{gfy_name}"
-        # Cooldown bucket to avoid greeting spam
-        # List of tuples ("[member_id]_[guild_id]", datetime)
-        self.cooldown_bucket = list()
         with open(self.irenewaves_file, "r") as f:
             for line in f.read().splitlines():
                 self.irene_waves.append(gfycat_url_base.format(gfy_name=line.strip()))
@@ -188,18 +190,15 @@ class GuildCog(Cog):
         await channel.send(message)
         await ctx.send("Message sent")
 
-    def is_on_cooldown(self, id_key: str):
-        self.cooldown_bucket = [
-            entry for entry in self.cooldown_bucket if entry[1] > datetime.utcnow()
-        ]
-        if id_key in [entry[0] for entry in self.cooldown_bucket]:
-            return True
-
     @Cog.listener()
     async def on_member_join(self, member: Member):
         guild = await Guild.get_or_none(id=member.guild.id)
         if not guild or not guild.greet_channel_id:
             return
+
+        if guild.id == IRENE_CORD_ID:
+            random_wave = random.choice(self.irene_waves)
+            await self.bot.get_channel(IRENE_CHANNEL_ID).send(random_wave)
         greeting = await Greeting.get_or_none(guild=guild)
         if not greeting:
             return
@@ -211,51 +210,9 @@ class GuildCog(Cog):
         )
         await channel.send(embed=greeting.create_embed(member))
 
-        if guild.id in [IRENE_CORD_ID, WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID]:
+        if guild.id in [WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID]:
             random_wave = random.choice(self.irene_waves)
             await channel.send(random_wave)
-
-        bot_messages = list()
-        recent = datetime.utcnow() - timedelta(minutes=3)
-        async for message in channel.history(limit=10):
-            if message.author == self.bot.user and message.embeds and message.created_at > recent:
-                bot_messages.append(message)
-
-        duplicates = self.find_duplicates(bot_messages)
-        self.bot.logger.info(f"Found {len(duplicates)} duplicates. {[m.id for m in duplicates]}")
-        if duplicates:
-            await channel.delete_messages(duplicates)
-
-    def find_duplicates(self, messages: list[Message]) -> list[int]:
-        author_messages = dict()
-        for message in messages:
-            author_messages.setdefault(message.author.id, []).append(message)
-
-        for author, messages in author_messages.items():
-            author_messages[author] = sorted(messages, key=lambda x: x.created_at)
-
-        duplicates = list()
-        for author, messages in author_messages.items():
-            if len(messages) == 1:
-                continue
-            for i,msg_a in enumerate(messages[:-1]):
-                for msg_b in messages[i+1:]:
-                    content_a = self.content_to_dict(msg_a)
-                    content_b = self.content_to_dict(msg_b)
-                    if content_a == content_b and msg_b not in duplicates:
-                        duplicates.append(msg_b)
-        return duplicates
-
-    def content_to_dict(self, message: Message) -> dict:
-        message_dict = {
-            "content": message.content,
-            "author": message.author.id,
-        }
-        for i, att in enumerate(message.attachments):
-            message_dict[f"attachment_{i}"] = att.url
-        for i, embed in enumerate(message.embeds):
-            message_dict[f"embed_{i}"] = embed.to_dict()
-        return message_dict
 
 
 async def setup(bot):
