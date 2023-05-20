@@ -37,6 +37,8 @@ class CropSizeButton(Button):
         super().__init__(style=style, label=label, *args, **kwargs)
 
     async def callback(self, interaction: Interaction):
+        if self.view is None:
+            return
         self.view.selected_size = self.crop_size
         self.view.update_size_buttons()
         await interaction.response.edit_message(view=self.view)
@@ -222,12 +224,9 @@ class MediaCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-
-        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
-
+        images_and_names = await self.get_images_and_names(ctx, urls)
         if not images_and_names:
             return await ctx.send("No images found")
-
         sent_message = None
         image_bytes = None
         for image, filename in images_and_names:
@@ -257,7 +256,6 @@ class MediaCog(Cog):
                 )
         if len(images_and_names) != 1 or sent_message is None:
             return
-
         prompt = "Would you like to crop more?"
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
@@ -267,11 +265,9 @@ class MediaCog(Cog):
             init_text = CropView.init_message.format(
                 width=image.size[0], height=image.size[1]
             )
-
             image_bytes.seek(0)
             filename = images_and_names[0][1]
             discord_file = discord.File(image_bytes, filename=filename)
-
             view = CropView(ctx, filename)
             view.message = await ctx.send(init_text, view=view, file=discord_file)
             view.image = image

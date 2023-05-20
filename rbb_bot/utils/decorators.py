@@ -1,5 +1,6 @@
 from functools import wraps
 from typing import Callable
+from copy import deepcopy
 
 from discord.ext.commands import Cog, Context
 from tortoise import Tortoise
@@ -24,7 +25,7 @@ def log_command(command_name: str = None) -> Callable:
                 channel_id = ctx.channel.id
                 message_id = ctx.message.id
                 args_ = args
-                kwargs_ = kwargs
+                kwargs_ = deepcopy(kwargs)
                 prefix = ctx.prefix
                 await CommandLog.create(
                     command_name=cmd_name,
