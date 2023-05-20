@@ -1,5 +1,3 @@
-import random
-from pathlib import Path
 from typing import Optional
 
 from discord import Member, TextChannel
@@ -7,26 +5,11 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild
 from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE
-from settings.ids import (
-    IRENE_CORD_ID,
-    IRENE_CHANNEL_ID,
-    TEST_CORD_ID,
-    WHATEVER2_ID,
-    WHATEVER_ID,
-)
 
 
 class GuildCog(Cog):
-    # TODO Temp fix
-    irenewaves_file = Path(__file__).parent.parent / "data" / "irenewaveids.txt"
-
     def __init__(self, bot):
         self.bot = bot
-        self.irene_waves = list()
-        gfycat_url_base = "https://gfycat.com/{gfy_name}"
-        with open(self.irenewaves_file, "r") as f:
-            for line in f.read().splitlines():
-                self.irene_waves.append(gfycat_url_base.format(gfy_name=line.strip()))
 
     async def cog_load(self):
         self.bot.logger.debug("GuildCog loaded!")
@@ -195,24 +178,13 @@ class GuildCog(Cog):
         guild = await Guild.get_or_none(id=member.guild.id)
         if not guild or not guild.greet_channel_id:
             return
-
-        if guild.id == IRENE_CORD_ID:
-            random_wave = random.choice(self.irene_waves)
-            await self.bot.get_channel(IRENE_CHANNEL_ID).send(random_wave)
         greeting = await Greeting.get_or_none(guild=guild)
         if not greeting:
             return
         channel = await guild.greet_channel()
         if not channel:
             return
-        self.bot.logger.info(
-            f"Sending welcome message to {member} in {channel} in {member.guild}"
-        )
         await channel.send(embed=greeting.create_embed(member))
-
-        if guild.id in [WHATEVER_ID, WHATEVER2_ID, TEST_CORD_ID]:
-            random_wave = random.choice(self.irene_waves)
-            await channel.send(random_wave)
 
 
 async def setup(bot):
