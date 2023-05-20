@@ -249,10 +249,13 @@ class TagsCog(Cog):
             await ctx.interaction.response.defer()
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         responses = await Response.filter(content__icontains="https://gfycat.com")
+        filters = list()
         gfycat_filter = Q(content__icontains="https://gfycat.com") | Q(
             content__icontains="https://www.gfycat.com"
         )
-        responses = await Response.filter(gfycat_filter)
+        filters.append(gfycat_filter)
+        filters.append(Q(guild=guild))
+        responses = await Response.filter(*filters)
         num_responses = len(responses)
         if not num_responses:
             return await ctx.send("No responses using gfycat urls found")
@@ -260,7 +263,7 @@ class TagsCog(Cog):
         for resp in responses:
             responses_text.append(resp.content)
         responses_text = "\n".join(responses_text)
-        prompt = truncate(responses_text, DISCORD_MAX_MESSAGE-4)
+        prompt = truncate(responses_text, DISCORD_MAX_MESSAGE - 4)
         prompt += "\n```"
 
         @atomic()
