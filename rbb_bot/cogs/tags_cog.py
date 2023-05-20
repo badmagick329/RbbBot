@@ -259,9 +259,9 @@ class TagsCog(Cog):
         responses_text = [f"Confirm removal of {num_responses} responses:", "```"]
         for resp in responses:
             responses_text.append(resp.content)
-        responses_text.append("```")
         responses_text = "\n".join(responses_text)
-        prompt = truncate(responses_text, DISCORD_MAX_MESSAGE)
+        prompt = truncate(responses_text, DISCORD_MAX_MESSAGE-4)
+        prompt += "\n```"
 
         @atomic()
         async def remove(responses):
