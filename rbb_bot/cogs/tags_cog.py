@@ -6,6 +6,7 @@ from discord import Embed, Message
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Guild, Response, Tag
+from tortoise.expressions import Q
 from tortoise.functions import Count
 from tortoise.transactions import atomic
 from utils.helpers import truncate
@@ -98,7 +99,7 @@ class TagsCog(Cog):
         trigger = trigger.lower().strip()
         response_content = response.strip()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
 
         @atomic()
         async def add_tag(guild, trigger, response_content, inline) -> Optional[Tag]:
@@ -160,7 +161,7 @@ class TagsCog(Cog):
         if not trigger and not tag_id:
             return await ctx.send("Either trigger or tag_id is required")
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         tag = await Tag.by_id_or_trigger(guild, tag_id, trigger)
         if not tag:
             return await ctx.send(f"Tag not found")
@@ -203,7 +204,7 @@ class TagsCog(Cog):
             return await ctx.send("Either response or response_id is required")
 
         response_content = response
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
 
         responses = await Response.by_id_or_content(
             guild, response_id, response_content
@@ -234,6 +235,53 @@ class TagsCog(Cog):
         await remove(responses)
         await ctx.send(f"{BotEmojis.TICK} Response`{response_truncated}` removed")
 
+    @remove_.command(
+        name="gfycat",
+        brief="Remove responses using gfycat urls from the tags on this server",
+    )
+    @commands.guild_only()
+    @log_command(command_name="tag remove gfycat")
+    async def remove_gfycat(self, ctx: Context):
+        """
+        Remove responses using gfycat urls from the tags on this server
+        """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
+        responses = await Response.filter(content__icontains="https://gfycat.com")
+        gfycat_filter = Q(content__icontains="https://gfycat.com") | Q(
+            content__icontains="https://www.gfycat.com"
+        )
+        responses = await Response.filter(gfycat_filter)
+        num_responses = len(responses)
+        if not num_responses:
+            return await ctx.send("No responses using gfycat urls found")
+        responses_text = [f"Confirm removal of {num_responses} responses:", "```"]
+        for resp in responses:
+            responses_text.append(resp.content)
+        responses_text.append("```")
+        responses_text = "\n".join(responses_text)
+        prompt = truncate(responses_text, DISCORD_MAX_MESSAGE)
+
+        @atomic()
+        async def remove(responses):
+            deleted_responses = await Response.filter(
+                id__in=[r.id for r in responses]
+            ).delete()
+            if deleted_responses:
+                remove_tags = (
+                    await Tag.filter(guild=guild)
+                    .annotate(response_count=Count("responses"))
+                    .filter(response_count=0)
+                    .all()
+                )
+                await Tag.filter(id__in=[t.id for t in remove_tags]).delete()
+
+        if not (await self.bot.get_confirmation(ctx, prompt)):
+            return
+        await remove(responses)
+        await ctx.send(f"{BotEmojis.TICK} {num_responses} responses removed")
+
     @tag.command(name="list", brief="List all tags for this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.guild_only()
@@ -244,7 +292,7 @@ class TagsCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         tags = await Tag.filter(guild=guild).prefetch_related("responses").all()
         if not tags:
             return await ctx.send(f"No tags found")
@@ -287,7 +335,7 @@ class TagsCog(Cog):
             await ctx.interaction.response.defer()
         if not trigger and not tag_id:
             return await ctx.send("Either trigger or tag_id is required")
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
 
         tag = await Tag.by_id_or_trigger(guild, tag_id, trigger)
         if not tag:
@@ -352,7 +400,7 @@ class TagsCog(Cog):
         if tag := await Tag.get_or_none(trigger=new_trigger):
             return await ctx.send(f"Tag with trigger `{new_trigger}` already exists")
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         tag = await Tag.by_id_or_trigger(guild, tag_id, old_trigger)
         if not tag:
             return await ctx.send(f"Tag not found")
