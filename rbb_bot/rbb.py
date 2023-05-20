@@ -55,7 +55,7 @@ class RbbBot(commands.Bot):
         self.creds = creds
         self.logger = logger
         self.web_client = web_client
-        self.load_cogs = [c.stem for c in (Path(__file__).parent / "cogs").glob("*.py")]
+        self.load_cogs = [c.stem for c in (Path(__file__).parent / "cogs").glob("*.py") if not c.stem.startswith("_")]
         self.guild_prefixes = dict()
         self.logger_task = None
         self.bot_tasks = dict()
