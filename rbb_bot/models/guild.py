@@ -121,13 +121,18 @@ class JoinRole(Model, ClientMixin):
 
 
 class JoinEvent(Model, ClientMixin):
+    MAX_MESSAGE = DISCORD_MAX_MESSAGE - 100
     id = fields.IntField(pk=True)
-    guild = fields.ForeignKeyField("models.Guild", related_name="join_events")
+    guild = fields.ForeignKeyField(
+        "models.Guild", related_name="join_events", on_delete=fields.CASCADE
+    )
     _channel_id = fields.BigIntField(null=True)
     _responses = fields.ManyToManyField(
-        "models.JoinResponse", related_name="join_events"
+        "models.JoinResponse", related_name="join_events", on_delete=fields.CASCADE
     )
-    _roles = fields.ManyToManyField("models.JoinRole", related_name="join_events")
+    _roles = fields.ManyToManyField(
+        "models.JoinRole", related_name="join_events", on_delete=fields.CASCADE
+    )
 
     @property
     def channel_id(self) -> int | None:
@@ -135,32 +140,31 @@ class JoinEvent(Model, ClientMixin):
 
     @property
     def channel(self) -> TextChannel | None:
-        if self._channel_id and self.guild.client:
-            return self.guild.client.get_channel(self._channel_id)
+        if self._channel_id and self.client:
+            return self.client.get_channel(self._channel_id)
 
-    def set_channel(self, channel: TextChannel) -> None:
-        self._channel_id = channel.id
+    def set_channel(self, channel: TextChannel | None) -> None:
+        self._channel_id = channel.id if channel else None
 
-    @property
-    def responses(self, as_strs=True) -> list[JoinResponse]:
-        if as_strs:
-            return [response.content for response in self._responses]
-        return self._responses
+    async def responses(self) -> list[JoinResponse]:
+        return await self._responses.all()
+
+    async def responses_as_str(self) -> list[str]:
+        responses = await self._responses.all()
+        return [response.content for response in responses]
 
     async def add_response(self, response: str) -> tuple[JoinResponse, bool]:
         """Add response to an event and return a response and a boolean indicating
         whether the response was newly created or not."""
         if self.channel_id is None:
             raise ValueError("JoinEvent channel is not set.")
-        if len(response) > DISCORD_MAX_MESSAGE:
-            raise ValueError(
-                f"Response length exceeds {DISCORD_MAX_MESSAGE} characters."
-            )
-        saved_response = await JoinResponse.get_or_none(content=response)
+        if len(response) > self.MAX_MESSAGE:
+            raise ValueError(f"Response length exceeds {self.MAX_MESSAGE} characters.")
+        saved_response = await JoinResponse.get_or_none(event=self, content=response)
         if saved_response is not None:
             return saved_response, False
         join_response = await JoinResponse.create(event=self, content=response)
-        self._responses.append(join_response)
+        await self._responses.add(join_response)
         return join_response, True
 
     async def remove_response(
@@ -170,28 +174,26 @@ class JoinEvent(Model, ClientMixin):
         if response_id is None and response_content is None:
             raise ValueError("Either response_id or response_content must be provided.")
         if response_id is not None:
-            response = await JoinResponse.get_or_none(id=response_id)
+            response = await JoinResponse.get_or_none(event=self, id=response_id)
         else:
-            response = await JoinResponse.get_or_none(content=response_content)
+            response = await JoinResponse.get_or_none(
+                event=self, content=response_content
+            )
         if response is None:
             return False
         await response.delete()
-        await self._responses.remove(response)
         return True
 
     async def remove_responses(self) -> None:
         """Remove all responses from an event."""
-        await self._responses.clear()
-        orphaned = await JoinResponse.filter(join_events=None)
-        await orphaned.delete()
+        await self._responses.delete()
 
-    @property
-    def roles(self) -> list[JoinRole]:
-        return self._roles
+    async def roles(self) -> list[JoinRole]:
+        return await self._roles.all()
 
     async def add_role(self, role: discord.Role) -> JoinRole:
         join_role = await JoinRole.create(event=self, role_id=role.id)
-        self._roles.append(join_role)
+        await self._roles.add(join_role)
         return join_role
 
     async def remove_role(self, role: discord.Role) -> bool:
@@ -199,7 +201,6 @@ class JoinEvent(Model, ClientMixin):
         if join_role is None:
             return False
         await join_role.delete()
-        await self._roles.remove(join_role)
         return True
 
     async def discord_roles(self) -> list[discord.Role] | None:
@@ -223,4 +224,8 @@ class JoinEvent(Model, ClientMixin):
         return self.__str__()
 
     def __str__(self):
-        return f"{self.guild} - {self.channel} | {len(self.responses)} | {len(self.roles)}."
+        return f"JoinEvent<(guild={self.guild})>"
+
+    async def str(self):
+        guild = await self.guild.all()
+        return f"JoinEvent<(guild={guild})>"

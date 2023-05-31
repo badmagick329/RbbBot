@@ -1,10 +1,27 @@
+import random
 from typing import Optional
 
-from discord import Member, TextChannel
+from discord import Embed, Member, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from models import Greeting, Guild
-from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE
+from models import Greeting, Guild, JoinEvent
+from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE, BotEmojis
+from utils.helpers import truncate
+from utils.views import ListView
+
+
+class MessagesList(ListView):
+    def create_embed(self, ids_and_responses: list[str]) -> Embed:
+        header = ""
+        if len(self.view_chunks) > 1:
+            header += f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
+        header += f"{len(self.list_items)} {'Messages' if len(self.list_items) > 1 else 'Message'} found"
+        embed = Embed(title=header)
+
+        for id_and_response in ids_and_responses:
+            id, response = id_and_response
+            embed.add_field(name=id, value=response, inline=False)
+        return embed
 
 
 class GuildCog(Cog):
@@ -45,20 +62,20 @@ class GuildCog(Cog):
         self.bot.guild_prefixes[ctx.guild.id] = new_prefix
         await ctx.send(f"Setting prefix to {new_prefix}")
 
-    @commands.hybrid_group(brief="Set a welcome message for new members")
+    @commands.hybrid_group(brief="Set an embeded welcome message for new members")
     @commands.has_permissions(manage_guild=True)
     @commands.guild_only()
     async def greet(self, ctx: Context):
         """
-        Set a welcome message for new members
+        Set an embeded welcome message for new members
         """
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @greet.command(brief="Enable welcome messages in the given channel")
+    @greet.command(brief="Enable embeded welcome messages in the given channel")
     async def enable(self, ctx: Context, channel: TextChannel):
         """
-        Enable welcome messages in the given channel
+        Enable embeded welcome messages in the given channel
 
         Parameters
         ----------
@@ -77,10 +94,10 @@ class GuildCog(Cog):
         await guild.save()
         await ctx.send(f"Set the welcome channel to {channel.mention}")
 
-    @greet.command(brief="Disable welcome messages")
+    @greet.command(brief="Disable embeded welcome messages")
     async def disable(self, ctx: Context):
         """
-        Disable welcome messages
+        Disable embeded welcome messages
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -91,7 +108,7 @@ class GuildCog(Cog):
         await guild.save()
         await ctx.send("Removed welcome channel")
 
-    @greet.command(name="setup", brief="Setup the welcome message")
+    @greet.command(name="setup", brief="Setup embded welcome message")
     async def setup_message(
         self,
         ctx: Context,
@@ -100,7 +117,7 @@ class GuildCog(Cog):
         show_member_count: Optional[bool] = True,
     ):
         """
-        Setup the welcome message
+        Setup embeded welcome message
 
         Parameters
         ----------
@@ -135,10 +152,10 @@ class GuildCog(Cog):
             to_send = f"{to_send}. You can set the welcome channel with `{ctx.prefix}greet enable <channel>`"
         await ctx.send(to_send, embed=greeting.create_embed(ctx.author))
 
-    @greet.command(brief="Preview current welcome message")
+    @greet.command(brief="Preview current embeded welcome message")
     async def preview(self, ctx: Context):
         """
-        Preview current welcome message
+        Preview current embeded welcome message
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -172,6 +189,180 @@ class GuildCog(Cog):
             )
         await channel.send(message)
         await ctx.send("Message sent")
+
+    @commands.hybrid_group(brief="Setup welcome messages for new members")
+    @commands.has_permissions(manage_guild=True)
+    @commands.guild_only()
+    async def welcome(self, ctx: Context):
+        """
+        Setup welcome messages for new members
+        """
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @welcome.command(brief="Enable welcome messages in this channel", name="channel")
+    @commands.guild_only()
+    async def welcome_channel(self, ctx: Context, channel: TextChannel):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if join_event.channel_id == channel.id:
+            return await ctx.send(
+                "Welcome messages are already enabled in this channel"
+            )
+        join_event.set_channel(channel)
+        await join_event.save()
+        perm_message = ""
+        need_permission = (
+            join_event.channel
+            and not join_event.channel.permissions_for(ctx.guild.me).send_messages
+        )
+        if need_permission:
+            perm_message = f"\nI don't have permissions to send messages there right now"  # type: ignore
+        await ctx.send(
+            f"Set the welcome channel to {channel.mention} {BotEmojis.TICK}{perm_message}"
+        )
+
+    @welcome.command(brief="Disable welcome messages in this channel", name="disable")
+    @commands.guild_only()
+    async def welcome_disable(self, ctx: Context):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if join_event.channel_id is None:
+            return await ctx.send("Welcome messages are already disabled")
+        join_event.set_channel(None)
+        await join_event.save()
+        await ctx.send("Disabled welcome messages")
+
+    @welcome.command(brief="Add a welcome message for new members", name="message")
+    @commands.guild_only()
+    async def welcome_message(self, ctx: Context, message: str):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if join_event.channel_id is None:
+            return await ctx.send("No channel assigned for welcome messages.")
+        if join_event.channel is None:
+            join_event.set_channel(None)
+            return await ctx.send("Assigned channel no longer exists. Please reassign.")
+        if not message:
+            return await ctx.send("Message cannot be empty")
+        if len(message) > JoinEvent.MAX_MESSAGE:
+            return await ctx.send(
+                f"Message must be less than {JoinEvent.MAX_MESSAGE} characters"
+            )
+        _, added = await join_event.add_response(message)
+        await join_event.save()
+        if added:
+            await ctx.message.add_reaction(BotEmojis.TICK)
+            need_permission = (
+                join_event.channel
+                and not join_event.channel.permissions_for(ctx.guild.me).send_messages
+            )
+            if need_permission:
+                await ctx.send(
+                    f"I don't have permissions to send messages in the assigned channel right now"
+                )
+        else:
+            await ctx.send("Message already exists")
+
+    @welcome.command(brief="Clear all welcome messages", name="clear")
+    @commands.guild_only()
+    async def welcome_clear(self, ctx: Context):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        await join_event.remove_responses()
+        await join_event.save()
+        await ctx.send("Cleared all welcome messages")
+
+    @welcome.command(
+        brief="Remove a welcome message by id or message (case sensitive)",
+        name="remove",
+    )
+    @commands.guild_only()
+    async def welcome_remove(
+        self, ctx: Context, message_id: Optional[int], message_content: Optional[str]
+    ):
+        if not message_id and not message_content:
+            return await ctx.send("You must provide either an id or message")
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        removed = await join_event.remove_response(message_id, message_content)
+        if removed:
+            await ctx.message.add_reaction(BotEmojis.TICK)
+        else:
+            await ctx.send(
+                "Message not found. Use `welcome list` to see all messages and their ids"
+            )
+
+    @welcome.command(brief="List all welcome messages", name="list")
+    @commands.guild_only()
+    async def welcome_list(self, ctx: Context):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if join_event.channel_id is None:
+            await ctx.send("No channel assigned for welcome messages.")
+        elif join_event.channel_id and join_event.channel is None:
+            join_event.set_channel(None)
+            await ctx.send("Assigned channel no longer exists. Removing assignment.")
+        messages = await join_event.responses()
+        if not messages:
+            return await ctx.send("No welcome messages")
+
+        message_list = []
+        for message in messages:
+            message_list.append(
+                (f"[{message.id}]", f"{truncate(message.content, 200)}")
+            )
+
+        view = MessagesList(ctx, message_list)
+        embed = view.create_embed(view.current_chunk)
+        view.message = await ctx.send(embed=embed, view=view)
+
+    @welcome.command(brief="Preview welcome messages in this channel", name="preview")
+    @commands.guild_only()
+    async def welcome_preview(self, ctx: Context):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        if not ctx.channel.permissions_for(ctx.guild.me).send_messages:
+            return
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        messages = await join_event.responses_as_str()
+        if not messages:
+            return await ctx.send("No welcome messages")
+        await ctx.send(random.choice(messages))
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
