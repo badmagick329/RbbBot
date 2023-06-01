@@ -2,6 +2,7 @@ import discord
 from discord import Embed, Member, TextChannel
 from tortoise import fields
 from tortoise.models import Model
+from tortoise.transactions import atomic
 
 from rbb_bot.settings.config import get_config
 from rbb_bot.settings.const import (DISCORD_MAX_MESSAGE, EMBED_MAX_DESC,
@@ -45,12 +46,13 @@ class Guild(Model, ClientMixin):
 
     def __str__(self):
         return (
-            f"{self.guild.name + ' ' if self.guild else ''}({self.id}), "
-            f"Prefix: {self.prefix}, "
-            f"Emojis Channel: {self.emojis_channel}, "
-            f"Custom Roles Enabled: {self.custom_roles_enabled}, "
-            f"Max Custom Roles: {self.max_custom_roles}, "
-            f"Reminders Enabled: {self.reminders_enabled} "
+            f"Guild<(id={self.id}, "
+            f"{'name=' + self.guild.name + ', ' if self.guild else ''}"
+            f"prefix={self.prefix}, "
+            f"emojis_channel={self.emojis_channel}, "
+            f"custom_roles_enabled={self.custom_roles_enabled}, "
+            f"max_custom_roles={self.max_custom_roles}, "
+            f"reminders_enabled={self.reminders_enabled})>"
         )
 
 
@@ -80,26 +82,35 @@ class Greeting(Model):
 
     def __str__(self):
         return (
-            f"{self.guild} - {self.title} | {self.description}."
-            f"Show member count: {self.show_member_count}"
+            f"Greeting<(id={self.id}, "
+            f"guild={self.guild}, "
+            f"title={self.title}, "
+            f"description={self.description}, "
+            f"show_member_count={self.show_member_count})>"
         )
 
 
 class JoinResponse(Model):
     id = fields.IntField(pk=True)
-    event = fields.ForeignKeyField("models.JoinEvent", related_name="join_responses")
+    event = fields.ForeignKeyField(
+        "models.JoinEvent", related_name="join_responses", on_delete=fields.CASCADE
+    )
     content = fields.CharField(max_length=DISCORD_MAX_MESSAGE, null=True)
 
     def __repr__(self):
-        return self.__str__()
+        return (
+            f"<JoinResponse(id={self.id}, event={self.event}, content={self.content})>"
+        )
 
     def __str__(self):
-        return f"{self.guild} - {self.content}."
+        return f"<JoinResponse(id={self.id}, event={self.event}, content={self.content[:100]})>"
 
 
 class JoinRole(Model, ClientMixin):
     id = fields.IntField(pk=True)
-    event = fields.ForeignKeyField("models.JoinEvent", related_name="join_roles")
+    event = fields.ForeignKeyField(
+        "models.JoinEvent", related_name="join_roles", on_delete=fields.CASCADE
+    )
     role_id = fields.BigIntField(null=False)
 
     @property
@@ -117,14 +128,14 @@ class JoinRole(Model, ClientMixin):
         return self.__str__()
 
     def __str__(self):
-        return f"{self.guild} - {self.role}."
+        return f"<JoinRole(id={self.id}, event={self.event}, role_id={self.role_id}, role={self.role})>"
 
 
 class JoinEvent(Model, ClientMixin):
     MAX_MESSAGE = DISCORD_MAX_MESSAGE - 100
     id = fields.IntField(pk=True)
     guild = fields.ForeignKeyField(
-        "models.Guild", related_name="join_events", on_delete=fields.CASCADE
+        "models.Guild", related_name="join_event", on_delete=fields.CASCADE
     )
     _channel_id = fields.BigIntField(null=True)
     _responses = fields.ManyToManyField(
@@ -168,7 +179,7 @@ class JoinEvent(Model, ClientMixin):
         return join_response, True
 
     async def remove_response(
-        self, response_id: int | None, response_content: str | None
+        self, response_id: int | None = None, response_content: str | None = None
     ) -> bool:
         """Remove response by id or content."""
         if response_id is None and response_content is None:
@@ -181,12 +192,25 @@ class JoinEvent(Model, ClientMixin):
             )
         if response is None:
             return False
-        await response.delete()
-        return True
+
+        @atomic()
+        async def _remove(response: JoinResponse):
+            await self._responses.remove(response)
+            await response.delete()
+            return True
+
+        return await _remove(response)
 
     async def remove_responses(self) -> None:
         """Remove all responses from an event."""
-        await self._responses.delete()
+
+        @atomic()
+        async def _remove(ids: list[int]):
+            await self._responses.clear()
+            await JoinResponse.filter(id__in=ids).delete()
+
+        response_ids = [response.id for response in await self._responses.all()]
+        await _remove(response_ids)
 
     async def roles(self) -> list[JoinRole]:
         return await self._roles.all()
@@ -224,8 +248,7 @@ class JoinEvent(Model, ClientMixin):
         return self.__str__()
 
     def __str__(self):
-        return f"JoinEvent<(guild={self.guild})>"
-
-    async def str(self):
-        guild = await self.guild.all()
-        return f"JoinEvent<(guild={guild})>"
+        return (
+            f"<JoinEvent(id={self.id}, guild={self.guild}, channel_id={self.channel_id}, "
+            f"channel={self.channel})>"
+        )

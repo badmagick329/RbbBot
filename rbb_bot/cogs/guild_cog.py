@@ -1,7 +1,8 @@
 import random
+import re
 from typing import Optional
 
-from discord import Embed, Member, TextChannel
+from discord import Embed, Member, Message, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild, JoinEvent
@@ -190,6 +191,8 @@ class GuildCog(Cog):
         await channel.send(message)
         await ctx.send("Message sent")
 
+    # TODO:
+    # Docstrings
     @commands.hybrid_group(brief="Setup welcome messages for new members")
     @commands.has_permissions(manage_guild=True)
     @commands.guild_only()
@@ -200,9 +203,9 @@ class GuildCog(Cog):
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @welcome.command(brief="Enable welcome messages in this channel", name="channel")
+    @welcome.command(brief="Show or set channel for welcome messages", name="channel")
     @commands.guild_only()
-    async def welcome_channel(self, ctx: Context, channel: TextChannel):
+    async def welcome_channel(self, ctx: Context, channel: Optional[TextChannel]):
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -210,6 +213,12 @@ class GuildCog(Cog):
 
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if channel is None:
+            if join_event.channel is None:
+                return await ctx.send("No welcome channel set")
+            return await ctx.send(
+                f"Welcome messages will be sent in {join_event.channel.mention}"
+            )
         if join_event.channel_id == channel.id:
             return await ctx.send(
                 "Welcome messages are already enabled in this channel"
@@ -222,10 +231,10 @@ class GuildCog(Cog):
             and not join_event.channel.permissions_for(ctx.guild.me).send_messages
         )
         if need_permission:
-            perm_message = f"\nI don't have permissions to send messages there right now"  # type: ignore
-        await ctx.send(
-            f"Set the welcome channel to {channel.mention} {BotEmojis.TICK}{perm_message}"
-        )
+            perm_message = (
+                f"\nI don't have permissions to send messages there right now"
+            )
+        await ctx.send(f"Set the welcome channel to {channel.mention}{perm_message}")
 
     @welcome.command(brief="Disable welcome messages in this channel", name="disable")
     @commands.guild_only()
@@ -257,7 +266,9 @@ class GuildCog(Cog):
             return await ctx.send("No channel assigned for welcome messages.")
         if join_event.channel is None:
             join_event.set_channel(None)
+            await join_event.save()
             return await ctx.send("Assigned channel no longer exists. Please reassign.")
+        message = message.strip()
         if not message:
             return await ctx.send("Message cannot be empty")
         if len(message) > JoinEvent.MAX_MESSAGE:
@@ -267,7 +278,7 @@ class GuildCog(Cog):
         _, added = await join_event.add_response(message)
         await join_event.save()
         if added:
-            await ctx.message.add_reaction(BotEmojis.TICK)
+            await ctx.send(f"Message added {BotEmojis.TICK}")
             need_permission = (
                 join_event.channel
                 and not join_event.channel.permissions_for(ctx.guild.me).send_messages
@@ -278,6 +289,89 @@ class GuildCog(Cog):
                 )
         else:
             await ctx.send("Message already exists")
+
+    @welcome.command(
+        brief="Add all urls from a channel as welcome messages",
+        name="add_urls",
+    )
+    @commands.guild_only()
+    async def welcome_add_urls(
+        self,
+        ctx: Context,
+        channel: TextChannel,
+        include_attachments: Optional[bool] = True,
+    ):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if join_event.channel_id is None:
+            return await ctx.send("No channel assigned for welcome messages.")
+        if join_event.channel is None:
+            join_event.set_channel(None)
+            await join_event.save()
+            return await ctx.send("Assigned channel no longer exists. Please reassign.")
+        urls = await self.retrieve_urls(
+            channel=channel, attachments=include_attachments
+        )
+        added_urls = 0
+        saved_urls = 0
+        for url in urls:
+            _, added = await join_event.add_response(url)
+            await join_event.save()
+            if added:
+                added_urls += 1
+            else:
+                saved_urls += 1
+        message = ""
+        if added_urls:
+            message += f"{added_urls} messages added {BotEmojis.TICK}\n"
+        if saved_urls:
+            message += f"{saved_urls} messages were already saved"
+        await ctx.send(message)
+
+    @welcome.command(brief="Remove all urls from a channel", name="remove_urls")
+    @commands.guild_only()
+    async def welcome_remove_urls(
+        self,
+        ctx: Context,
+        channel: TextChannel,
+        include_attachments: Optional[bool] = True,
+    ):
+        if ctx.guild is None:
+            return
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
+        join_event, _ = await JoinEvent.get_or_create(guild=guild)
+        if join_event.channel_id is None:
+            return await ctx.send("No channel assigned for welcome messages.")
+        if join_event.channel is None:
+            join_event.set_channel(None)
+            await join_event.save()
+            return await ctx.send("Assigned channel no longer exists. Please reassign.")
+        urls = await self.retrieve_urls(
+            channel=channel, attachments=include_attachments
+        )
+        removed_urls = 0
+        not_founds = 0
+        for url in urls:
+            removed = await join_event.remove_response(response_content=url)
+            if removed:
+                removed_urls += 1
+            else:
+                not_founds += 1
+
+        message = ""
+        if removed_urls:
+            message += f"{removed_urls} messages removed {BotEmojis.TICK}\n"
+        if not_founds:
+            message += f"{not_founds} messages were not found"
+        await ctx.send(message)
 
     @welcome.command(brief="Clear all welcome messages", name="clear")
     @commands.guild_only()
@@ -312,7 +406,7 @@ class GuildCog(Cog):
         join_event, _ = await JoinEvent.get_or_create(guild=guild)
         removed = await join_event.remove_response(message_id, message_content)
         if removed:
-            await ctx.message.add_reaction(BotEmojis.TICK)
+            await ctx.send(f"Message removed {BotEmojis.TICK}")
         else:
             await ctx.send(
                 "Message not found. Use `welcome list` to see all messages and their ids"
@@ -332,10 +426,13 @@ class GuildCog(Cog):
             await ctx.send("No channel assigned for welcome messages.")
         elif join_event.channel_id and join_event.channel is None:
             join_event.set_channel(None)
+            await join_event.save()
             await ctx.send("Assigned channel no longer exists. Removing assignment.")
         messages = await join_event.responses()
         if not messages:
-            return await ctx.send("No welcome messages")
+            # TODO:
+            # Command example
+            return await ctx.send("No welcome messages set")
 
         message_list = []
         for message in messages:
@@ -343,6 +440,8 @@ class GuildCog(Cog):
                 (f"[{message.id}]", f"{truncate(message.content, 200)}")
             )
 
+        # TODO:
+        # Show assigned channel
         view = MessagesList(ctx, message_list)
         embed = view.create_embed(view.current_chunk)
         view.message = await ctx.send(embed=embed, view=view)
@@ -364,18 +463,54 @@ class GuildCog(Cog):
             return await ctx.send("No welcome messages")
         await ctx.send(random.choice(messages))
 
-    @Cog.listener()
-    async def on_member_join(self, member: Member):
-        guild = await Guild.get_or_none(id=member.guild.id)
-        if not guild or not guild.greet_channel_id:
-            return
+    async def handle_greeting(self, guild: Guild, member: Member) -> Message | None:
+        if not guild.greet_channel_id:
+            return None
         greeting = await Greeting.get_or_none(guild=guild)
         if not greeting:
-            return
+            return None
         channel = await guild.greet_channel()
         if not channel:
+            return None
+        return await channel.send(embed=greeting.create_embed(member))
+
+    async def handle_join_event(self, guild: Guild) -> Message | None:
+        self.bot.logger.debug("Checking joinevent")
+        join_event = await JoinEvent.get_or_none(guild=guild)
+        if not join_event:
+            return None
+        self.bot.logger.debug("Checking channel")
+        channel = join_event.channel
+        if not channel:
+            return None
+        self.bot.logger.debug("Getting messages")
+        messages = await join_event.responses_as_str()
+        self.bot.logger.debug(f"Got {len(messages)} messages")
+        if not messages:
+            return None
+        self.bot.logger.debug("Sending message")
+        return await channel.send(random.choice(messages))
+
+    async def retrieve_urls(self, channel: TextChannel, attachments=True) -> list[str]:
+        URL_REGEX = re.compile(r"https?://\S+\.\S+")
+        urls = list()
+        async for message in channel.history(limit=None):
+            urls.extend(URL_REGEX.findall(message.content))
+            if attachments and message.attachments:
+                urls.extend(a.url for a in message.attachments)
+        return urls
+
+    @Cog.listener()
+    async def on_member_join(self, member: Member):
+        self.bot.logger.debug("Member joined")
+        guild = await Guild.get_or_none(id=member.guild.id)
+        self.bot.logger.debug(f"Got guild {guild}")
+        if not guild:
             return
-        await channel.send(embed=greeting.create_embed(member))
+        self.bot.logger.debug(f"Handling greeting")
+        await self.handle_greeting(guild, member)
+        self.bot.logger.debug(f"Handing join event")
+        await self.handle_join_event(guild)
 
 
 async def setup(bot):
