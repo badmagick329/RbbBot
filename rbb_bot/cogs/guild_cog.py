@@ -191,8 +191,6 @@ class GuildCog(Cog):
         await channel.send(message)
         await ctx.send("Message sent")
 
-    # TODO:
-    # Docstrings
     @commands.hybrid_group(brief="Setup welcome messages for new members")
     @commands.has_permissions(manage_guild=True)
     @commands.guild_only()
@@ -206,6 +204,14 @@ class GuildCog(Cog):
     @welcome.command(brief="Show or set channel for welcome messages", name="channel")
     @commands.guild_only()
     async def welcome_channel(self, ctx: Context, channel: Optional[TextChannel]):
+        """
+        Show or set channel for welcome messages
+
+        Parameters
+        ----------
+        channel: TextChannel (Optional)
+            The channel to send welcome messages in. Skip to show current channel
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -239,6 +245,9 @@ class GuildCog(Cog):
     @welcome.command(brief="Disable welcome messages in this channel", name="disable")
     @commands.guild_only()
     async def welcome_disable(self, ctx: Context):
+        """
+        Disable welcome messages in this channel
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -255,6 +264,15 @@ class GuildCog(Cog):
     @welcome.command(brief="Add a welcome message for new members", name="message")
     @commands.guild_only()
     async def welcome_message(self, ctx: Context, message: str):
+        """
+        Add a welcome message for new members
+
+        Parameters
+        ----------
+        message: str
+            Add to the list of welcome messages. One of these will be randomly
+            picked when someone joins
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -301,6 +319,16 @@ class GuildCog(Cog):
         channel: TextChannel,
         include_attachments: Optional[bool] = True,
     ):
+        """
+        Add all urls from a channel as welcome messages
+
+        Parameters
+        ----------
+        channel: TextChannel
+            The channel to read urls from. Duplicates will be ignored
+        include_attachments: bool (Optional)
+            Whether to include attachments in the urls. Defaults to True
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -333,7 +361,10 @@ class GuildCog(Cog):
             message += f"{saved_urls} messages were already saved"
         await ctx.send(message)
 
-    @welcome.command(brief="Remove all urls from a channel", name="remove_urls")
+    @welcome.command(
+        brief="Read urls from channel and remove them from welcome messages",
+        name="remove_urls",
+    )
     @commands.guild_only()
     async def welcome_remove_urls(
         self,
@@ -341,6 +372,16 @@ class GuildCog(Cog):
         channel: TextChannel,
         include_attachments: Optional[bool] = True,
     ):
+        """
+        Read urls from channel and remove them from welcome messages
+
+        Parameters
+        ----------
+        channel: TextChannel
+            The channel to read urls from
+        include_attachments: bool (Optional)
+            Whether to include attachments in the urls. Defaults to True
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -376,6 +417,9 @@ class GuildCog(Cog):
     @welcome.command(brief="Clear all welcome messages", name="clear")
     @commands.guild_only()
     async def welcome_clear(self, ctx: Context):
+        """
+        Clear all welcome messages
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -395,6 +439,16 @@ class GuildCog(Cog):
     async def welcome_remove(
         self, ctx: Context, message_id: Optional[int], message_content: Optional[str]
     ):
+        """
+        Remove a welcome message by id or message (case sensitive)
+
+        Parameters
+        ----------
+        message_id: int (Optional)
+            The id of the message to remove
+        message_content: str (Optional)
+            The content of the message to remove
+        """
         if not message_id and not message_content:
             return await ctx.send("You must provide either an id or message")
         if ctx.guild is None:
@@ -415,6 +469,9 @@ class GuildCog(Cog):
     @welcome.command(brief="List all welcome messages", name="list")
     @commands.guild_only()
     async def welcome_list(self, ctx: Context):
+        """
+        List all welcome messages
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -446,9 +503,14 @@ class GuildCog(Cog):
         embed = view.create_embed(view.current_chunk)
         view.message = await ctx.send(embed=embed, view=view)
 
-    @welcome.command(brief="Preview welcome messages in this channel", name="preview")
+    @welcome.command(
+        brief="Preview sending a welcome message in this channel", name="preview"
+    )
     @commands.guild_only()
     async def welcome_preview(self, ctx: Context):
+        """
+        Preview sending a welcome message in this channel
+        """
         if ctx.guild is None:
             return
         if ctx.interaction:
@@ -475,20 +537,15 @@ class GuildCog(Cog):
         return await channel.send(embed=greeting.create_embed(member))
 
     async def handle_join_event(self, guild: Guild) -> Message | None:
-        self.bot.logger.debug("Checking joinevent")
         join_event = await JoinEvent.get_or_none(guild=guild)
         if not join_event:
             return None
-        self.bot.logger.debug("Checking channel")
         channel = join_event.channel
         if not channel:
             return None
-        self.bot.logger.debug("Getting messages")
         messages = await join_event.responses_as_str()
-        self.bot.logger.debug(f"Got {len(messages)} messages")
         if not messages:
             return None
-        self.bot.logger.debug("Sending message")
         return await channel.send(random.choice(messages))
 
     async def retrieve_urls(self, channel: TextChannel, attachments=True) -> list[str]:
@@ -502,14 +559,10 @@ class GuildCog(Cog):
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
-        self.bot.logger.debug("Member joined")
         guild = await Guild.get_or_none(id=member.guild.id)
-        self.bot.logger.debug(f"Got guild {guild}")
         if not guild:
             return
-        self.bot.logger.debug(f"Handling greeting")
         await self.handle_greeting(guild, member)
-        self.bot.logger.debug(f"Handing join event")
         await self.handle_join_event(guild)
 
 
