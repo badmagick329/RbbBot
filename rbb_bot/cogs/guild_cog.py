@@ -359,6 +359,8 @@ class GuildCog(Cog):
             message += f"{added_urls} messages added {BotEmojis.TICK}\n"
         if saved_urls:
             message += f"{saved_urls} messages were already saved"
+        if not message:
+            return await ctx.send(f"No urls found")
         await ctx.send(message)
 
     @welcome.command(
