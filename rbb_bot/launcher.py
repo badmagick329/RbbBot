@@ -1,10 +1,14 @@
 import asyncio
 import logging
 import sys
-
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import aiohttp
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.append(str(BASE_DIR))
 
 from rbb_bot.rbb import RbbBot
 from rbb_bot.settings.config import get_config, get_creds
