@@ -3,7 +3,8 @@ from typing import Optional
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from discord.ext.menus import CannotSendMessages, CannotAddReactions
+from discord.ext.menus import (CannotAddReactions, CannotEmbedLinks,
+                               CannotSendMessages)
 from settings.const import FilePaths
 from utils.sns import (InstagramFetcher, RedditFetcher, Sns, TikTokFetcher,
                        TwitterFetcher)
@@ -124,13 +125,6 @@ class SnsCog(Cog):
             ctx = await self.bot.get_context(message)
             if ctx.command:
                 return
-            if not (ctx.me.guild_permissions.add_reactions):
-                return
-            if not (
-                ctx.me.guild_permissions.embed_links
-                and ctx.me.guild_permissions.send_messages
-            ):
-                return
             found_urls = False
             for _, sns in self.sns_dict.items():
                 if sns.find_urls(message.content):
@@ -146,7 +140,7 @@ class SnsCog(Cog):
                 await self.sns_cmd(ctx, with_text=False, urls=message.content)
             else:
                 await self.sns_cmd(ctx, with_text=True, urls=message.content)
-        except (CannotSendMessages, CannotAddReactions):
+        except (CannotSendMessages, CannotAddReactions, CannotEmbedLinks):
             pass
         except Exception as e:
             await self.bot.send_error(
