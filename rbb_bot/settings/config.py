@@ -25,6 +25,7 @@ class Creds(BaseModel):
     ig_app: str
     ig_cookies: dict
     search_key: str
+    rapid_api_key: str
 
 
 class Config(BaseModel):

@@ -23,13 +23,14 @@ from models import DiskCache
 from peony import PeonyClient, exceptions
 from peony.data_processing import JSONData, PeonyResponse
 from peony.exceptions import DoesNotExist, HTTPNotFound, ProtectedTweet
-from settings.config import get_config
+from settings.config import get_config, get_creds
 from settings.const import (DISCORD_MAX_FILE_SIZE, DISCORD_MAX_MESSAGE,
                             FilePaths)
 from utils.exceptions import DownloadedVideoNotFound, FFmpegError, TimeoutError
 from utils.ffmpeg import FFmpeg
 from utils.helpers import (chunker, http_get, subprocess_run, truncate,
                            url_to_filename)
+from utils.twitter import Tweet, TwitterClient
 from yarl import URL
 
 
@@ -221,6 +222,7 @@ class TwitterFetcher(Fetcher):
         token,
         token_secret,
         web_client: ClientSession,
+        twitter_client: TwitterClient,
         *args,
         **kwargs,
     ):
@@ -230,10 +232,12 @@ class TwitterFetcher(Fetcher):
             access_token=token,
             access_token_secret=token_secret,
         )
+        self.twitter_client = twitter_client
         self.web_client = web_client
         super().__init__(*args, **kwargs)
 
-    async def fetch(self, source_url: str) -> FetchResult:
+    # Deprecated use of twitter api endpoints
+    async def _fetch(self, source_url: str) -> FetchResult:
         tweet_id = self.get_tweet_id(source_url)
         try:
             tweet = await self.client.api.statuses.show.get(
@@ -268,6 +272,24 @@ class TwitterFetcher(Fetcher):
 
         text = await self.process_urls(tweet.full_text, tweet_id)
 
+        return FetchResult(
+            post_data=PostData(source_url, poster, created_at, text, urls)
+        )
+
+    async def fetch(self, source_url: str) -> FetchResult:
+        tweet_id = self.get_tweet_id(source_url)
+        try:
+            tweet = await self.twitter_client.get_tweet(source_url)
+        except Exception as e:
+            self.logger.error(f"Error fetching tweet {source_url}: {e}")
+            return FetchResult(error_message="Error fetching tweet")
+        if not tweet:
+            return FetchResult(error_message="Tweet not found")
+        tweet: Tweet
+        poster = tweet.screen_name
+        created_at = tweet.created_at
+        urls = tweet.urls
+        text = await self.process_urls(tweet.full_text, tweet_id)
         return FetchResult(
             post_data=PostData(source_url, poster, created_at, text, urls)
         )
@@ -375,7 +397,6 @@ class OneTimeCookieJar(aiohttp.CookieJar):
     def force_update_cookies(
         self, cookies: LooseCookies, response_url: URL = URL()  # type: ignore
     ) -> None:
-
         super().update_cookies(cookies, response_url)
 
 

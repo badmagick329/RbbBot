@@ -8,6 +8,7 @@ from discord.ext.menus import (CannotAddReactions, CannotEmbedLinks,
 from settings.const import FilePaths
 from utils.sns import (InstagramFetcher, RedditFetcher, Sns, TikTokFetcher,
                        TwitterFetcher)
+from utils.twitter import TwitterClient
 from utils.views import SnsMenu
 
 from rbb_bot.utils.decorators import log_command
@@ -16,12 +17,18 @@ from rbb_bot.utils.decorators import log_command
 class SnsCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        twitter_client = TwitterClient(
+            web_client=self.bot.web_client,
+            api_key=self.bot.creds.rapid_api_key,
+            logger=self.bot.logger,
+        )
         twitter_fetcher = TwitterFetcher(
             self.bot.creds.twitter_key,
             self.bot.creds.twitter_secret,
             self.bot.creds.twitter_token,
             self.bot.creds.twitter_token_secret,
             self.bot.web_client,
+            twitter_client,
             logger=self.bot.logger,
         )
         instagram_fetcher = InstagramFetcher(
@@ -43,7 +50,7 @@ class SnsCog(Cog):
             logger=self.bot.logger,
         )
         self.sns_dict = {
-            # "twitter": Sns(twitter_fetcher),
+            "twitter": Sns(twitter_fetcher),
             # "instagram": Sns(instagram_fetcher, timestamped_urls=True),
             "tiktok": Sns(tiktok_fetcher),
             "reddit": Sns(reddit_fetcher, cache_files=False),
@@ -56,9 +63,7 @@ class SnsCog(Cog):
         self.bot.logger.debug("SnsCog unloaded!")
         self.instagram_fetcher.web_client.close()
 
-    @commands.hybrid_command(
-        name="sns", brief="Get posts from tiktok or reddit"
-    )
+    @commands.hybrid_command(name="sns", brief="Get posts from tiktok or reddit")
     @commands.bot_has_permissions(send_messages=True, embed_links=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
     @log_command(command_name="sns")
