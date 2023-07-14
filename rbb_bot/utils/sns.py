@@ -23,7 +23,7 @@ from models import DiskCache
 from peony import PeonyClient, exceptions
 from peony.data_processing import JSONData, PeonyResponse
 from peony.exceptions import DoesNotExist, HTTPNotFound, ProtectedTweet
-from settings.config import get_config, get_creds
+from settings.config import get_config
 from settings.const import (DISCORD_MAX_FILE_SIZE, DISCORD_MAX_MESSAGE,
                             FilePaths)
 from utils.exceptions import DownloadedVideoNotFound, FFmpegError, TimeoutError
@@ -709,30 +709,41 @@ class RedditFetcher(Fetcher):
         client_secret: str,
         user_agent: str,
         web_client: ClientSession,
-        download_location: Path,
+        mgck_key: str,
         *args,
         **kwargs,
     ):
         self.web_client = web_client
-        self.download_location = download_location
         self.reddit = asyncpraw.Reddit(
             client_id=client_id,
             client_secret=client_secret,
             user_agent=user_agent,
         )
+        self.mgck_key = mgck_key
         super().__init__(*args, **kwargs)
 
-    def get_reddit_post_urls(self, post: reddit.Submission) -> list[str]:
+    async def get_video_url(self, post: reddit.Submission) -> str:
+        try:
+            url = post.media["reddit_video"]["fallback_url"]
+            url = url.split("?")[0]
+        except Exception as e:
+            self.logger.error(
+                f"Failed to get reddit video url. {post.url}. {e}", exc_info=e
+            )
+            return post.url
+        post_url = "https://mgck.ink/reddit/video/"
+        data = {"source_url": url, "token": self.mgck_key}
+        async with self.web_client.post(post_url, data=data) as resp:
+            if not resp.status == 200:
+                return url
+            json = await resp.json()
+            return json.get("video_url", url)
+
+    async def get_reddit_post_urls(self, post: reddit.Submission) -> list[str]:
         urls = list()
         if "v.redd.it" in post.url:
-            try:
-                url = post.media["reddit_video"]["fallback_url"]
-                url = url.split("?")[0]
-                urls.append(url)
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to get reddit video url. {post.url}. {e}", exc_info=e
-                )
+            video_url = await self.get_video_url(post)
+            urls.append(video_url)
         elif "reddit.com/gallery" in post.url:
             urls.extend(self.process_gallery(post))
         else:
@@ -766,7 +777,7 @@ class RedditFetcher(Fetcher):
         text = f"{post.title}\n{post.selftext}"
         urls = list()
         if not post.is_self:
-            urls = self.get_reddit_post_urls(post)
+            urls = await self.get_reddit_post_urls(post)
         post_data = PostData(source_url, poster, created_at, text, urls)
         return FetchResult(post_data=post_data)
 

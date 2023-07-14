@@ -46,14 +46,14 @@ class SnsCog(Cog):
             self.bot.creds.reddit_secret,
             self.bot.creds.reddit_agent,
             self.bot.web_client,
-            FilePaths.CACHE_DIR,
+            self.bot.creds.mgck_key,
             logger=self.bot.logger,
         )
         self.sns_dict = {
             "twitter": Sns(twitter_fetcher),
             # "instagram": Sns(instagram_fetcher, timestamped_urls=True),
             "tiktok": Sns(tiktok_fetcher),
-            "reddit": Sns(reddit_fetcher, cache_files=False),
+            "reddit": Sns(reddit_fetcher, cache_files=True),
         }
 
     async def cog_load(self):

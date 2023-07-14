@@ -26,6 +26,7 @@ class Creds(BaseModel):
     ig_cookies: dict
     search_key: str
     rapid_api_key: str
+    mgck_key: str
 
 
 class Config(BaseModel):
