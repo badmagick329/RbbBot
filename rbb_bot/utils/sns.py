@@ -25,7 +25,7 @@ from peony.data_processing import JSONData, PeonyResponse
 from peony.exceptions import DoesNotExist, HTTPNotFound, ProtectedTweet
 from settings.config import get_config
 from settings.const import (DISCORD_MAX_FILE_SIZE, DISCORD_MAX_MESSAGE,
-                            FilePaths)
+                            MAX_ATTACHMENTS, FilePaths)
 from utils.exceptions import DownloadedVideoNotFound, FFmpegError, TimeoutError
 from utils.ffmpeg import FFmpeg
 from utils.helpers import (chunker, http_get, subprocess_run, truncate,
@@ -837,9 +837,7 @@ class Sns:
         chunked_file_paths = list()
         file_chunk = list()
         chunk_size = 0
-        MAX = DISCORD_MAX_FILE_SIZE
-        # For testing
-        # MAX = 2 * 1024 * 1024
+        att_num = 0
 
         for url in post_data.urls:
             try:
@@ -859,13 +857,17 @@ class Sns:
                 continue
             file_path = Path(FilePaths.CACHE_DIR, filename)
             bytes_and_paths.append((file_bytes, file_path))
+            att_num += 1
 
-            if (fsize + chunk_size) > MAX:
+            if (
+                fsize + chunk_size
+            ) > DISCORD_MAX_FILE_SIZE or att_num >= MAX_ATTACHMENTS:
                 chunked_file_paths.append(file_chunk)
                 chunked_media.append(media_chunk)
                 file_chunk = [str(file_path)]
                 media_chunk = [PostMedia(filename=filename, bytes_io=file_bytes)]
                 chunk_size = fsize
+                att_num = 0
             else:
                 chunk_size += fsize
                 file_chunk.append(str(file_path))
