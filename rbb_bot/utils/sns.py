@@ -778,6 +778,8 @@ class RedditFetcher(Fetcher):
         urls = list()
         if not post.is_self:
             urls = await self.get_reddit_post_urls(post)
+        if urls:
+            text += "\n```" + "\n".join(urls) + "\n```"
         post_data = PostData(source_url, poster, created_at, text, urls)
         return FetchResult(post_data=post_data)
 
