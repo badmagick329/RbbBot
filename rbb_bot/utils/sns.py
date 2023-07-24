@@ -852,7 +852,7 @@ class Sns:
                 await http_get(self.web_client, URL(url, encoded=True))
             )
             fsize = file_bytes.getbuffer().nbytes
-            if fsize > MAX:
+            if fsize > DISCORD_MAX_FILE_SIZE:
                 urls.append(url)
                 continue
             file_path = Path(FilePaths.CACHE_DIR, filename)
