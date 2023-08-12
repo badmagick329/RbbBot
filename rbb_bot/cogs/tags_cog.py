@@ -2,7 +2,7 @@ import random
 import re
 from typing import Optional
 
-from discord import Embed, Message
+from discord import Embed, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Guild, Response, Tag
@@ -477,6 +477,8 @@ class TagsCog(Cog):
                 tag.use_count += 1
                 await tag.save()
                 await channel.send(response.content)
+            except errors.Forbidden:
+                pass
             except Exception as e:
                 await self.bot.send_error(
                     ctx, e, comment="Error sending tag response", stack_info=e
