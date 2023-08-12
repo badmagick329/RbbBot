@@ -50,7 +50,7 @@ class SnsCog(Cog):
             logger=self.bot.logger,
         )
         self.sns_dict = {
-            "twitter": Sns(twitter_fetcher),
+            # "twitter": Sns(twitter_fetcher),
             # "instagram": Sns(instagram_fetcher, timestamped_urls=True),
             "tiktok": Sns(tiktok_fetcher),
             "reddit": Sns(reddit_fetcher, cache_files=True),
