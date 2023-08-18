@@ -585,7 +585,7 @@ class TikTokFetcher(Fetcher):
             try:
                 self.logger.debug("Downloading tiktok video")
                 gathered_tasks = asyncio.gather(text_task, download_task)
-                results = await asyncio.wait_for(gathered_tasks, timeout=10)
+                results = await asyncio.wait_for(gathered_tasks, timeout=20)
                 for result in results:
                     returncode, stdout, stderr = result
                     if returncode != 0:
