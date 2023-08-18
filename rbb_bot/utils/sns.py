@@ -206,11 +206,50 @@ class Fetcher(ABC):
         """
         Create a filename for the file at the url
         """
+        # TODO:
+        # This is coming from helpers. Maybe rename this
         return url_to_filename(url)
+
+    def find_urls(self, text: str) -> list[str]:
+        long_matches = self.LONG_URL.finditer(text)
+        found_urls = list()
+        for match in long_matches:
+            if (url := match.group(0).split("?")[0]) not in found_urls:
+                found_urls.append(url)
+        if hasattr(self, "SHORT_URL"):
+            short_matches = self.SHORT_URL.finditer(text)
+            for match in short_matches:
+                if (url := match.group(0).split("?")[0]) not in found_urls:
+                    found_urls.append(url)
+        return found_urls
+
+    async def get_download_url(self, url: str) -> str | None:
+        """Take either a shortened url or a download url, returns the download url"""
+        if re.match(self.LONG_URL, url):
+            return url.split("?")[0]
+        elif re.match(self.SHORT_URL, url):
+
+            async def _get(u):
+                async with ClientSession() as s:
+                    async with s.get(
+                        u, headers={"User-Agent": "python-requests/2.20.0"}
+                    ) as response:
+                        return response
+
+            try:
+                self.logger.debug("Fetching download url")
+                response = await asyncio.wait_for(_get(url), timeout=4)
+                return str(response.url).split("?")[0]
+            except aiohttp.ClientError as e:
+                self.logger.error(f"Failed to fetch post. {url}. {e}", exc_info=e)
+                return None
+            except Exception as e:
+                self.logger.error(f"Failed to fetch post. {url}. {e}", exc_info=e)
+                return None
 
 
 class TwitterFetcher(Fetcher):
-    URL_REGEX = (
+    LONG_URL = (
         r"(https?://)?(mobile\.|www\.)?twitter\.com/(\S+)/status/(\d+)(\?s=\d+)?(\S+)?"
     )
     TCO_REGEX = r"(https://t.co/\S+)"
@@ -316,7 +355,7 @@ class TwitterFetcher(Fetcher):
         for url, redirected_url in zip(urls, redirected_urls):
             text = text.replace(url, redirected_url)
 
-        tweet_matches = re.finditer(self.URL_REGEX, text)
+        tweet_matches = re.finditer(self.LONG_URL, text)
         for match in tweet_matches:
             if int(match.group(4)) == source_id:
                 text = text.replace(match.group(0), "")
@@ -362,18 +401,10 @@ class TwitterFetcher(Fetcher):
         Get the tweet id from a twitter url.
         The url should be validated before calling this method.
         """
-        match = re.search(self.URL_REGEX, source_url)
+        match = re.search(self.LONG_URL, source_url)
         if not match:
             raise ValueError("Invalid twitter url")
         return int(match.group(4))
-
-    def find_urls(self, text: str) -> list[str]:
-        matches = re.finditer(self.URL_REGEX, text)
-        found_urls = list()
-        for match in matches:
-            if match.group(0) not in found_urls:
-                found_urls.append(match.group(0))
-        return found_urls
 
     def url_to_filename(self, url: str) -> str:
         """
@@ -401,7 +432,7 @@ class OneTimeCookieJar(aiohttp.CookieJar):
 
 
 class InstagramFetcher(Fetcher):
-    URL_REGEX = r"https?://(www.)?instagram.com/(p|tv|reel)/((\w|-)+)/?"
+    LONG_URL = r"https?://(www.)?instagram.com/(p|tv|reel)/((\w|-)+)/?"
     INSTAGRAM_API_URL = "https://i.instagram.com/api/v1/media/{media_id}/info/"
 
     def __init__(
@@ -498,18 +529,10 @@ class InstagramFetcher(Fetcher):
                 post_data.urls.append(media["url"])
         return FetchResult(post_data=post_data)
 
-    def find_urls(self, text: str) -> list[str]:
-        matches = re.finditer(self.URL_REGEX, text)
-        found_urls = list()
-        for match in matches:
-            if match.group(0) not in found_urls:
-                found_urls.append(match.group(0))
-        return found_urls
-
 
 class TikTokFetcher(Fetcher):
-    DL_URL = re.compile(r"https?://(?:www\.)?tiktok\.com/([^/]+)/video/(\d+)")
-    SHORT_URL = re.compile(r"https?://www\.tiktok\.com/t/([^/]+)")
+    LONG_URL = re.compile(r"https?://(?:www\.)?tiktok\.com/([^/]+)/video/(\d+)")
+    SHORT_URL = re.compile(r"https?://vm\.tiktok\.com/([^/]+)")
 
     def __init__(
         self, web_client: ClientSession, download_location: Path, *args, **kwargs
@@ -520,21 +543,21 @@ class TikTokFetcher(Fetcher):
         super().__init__(*args, **kwargs)
 
     async def fetch(self, source_url: str) -> FetchResult:
-        if re.match(self.DL_URL, source_url):
+        if re.match(self.LONG_URL, source_url):
             url = source_url.split("?")[0]
         elif re.match(self.SHORT_URL, source_url):
-            return FetchResult(
-                error_message="Shortened URLs are currently not supported. "
-                "Try using the video URL instead."
-            )
+            url = await self.get_download_url(source_url)
+            if not url:
+                return FetchResult(
+                    error_message=(
+                        "Failed to get redirect url. "
+                        "Try using the full video url instead"
+                    )
+                )
         else:
             self.logger.info(f"Invalid TikTok URL: {source_url}")
             return FetchResult(error_message="Invalid TikTok URL")
 
-        # TODO Find another way to get the video URL
-        # url = await self.get_download_url(url)
-        # if not url:
-        #     return FetchResult(error_message="Failed to get download url")
         video_id = self.url_to_id(url)
         filename = str(self.download_location / f"{video_id}.mp4")
 
@@ -653,55 +676,21 @@ class TikTokFetcher(Fetcher):
         )
         return FetchResult(post_data=post_data)
 
-    def find_urls(self, text: str) -> list[str]:
-        dl_matches = self.DL_URL.finditer(text)
-        short_matches = self.SHORT_URL.finditer(text)
-        found_urls = list()
-        for match in dl_matches:
-            if (url := match.group(0).split("?")[0]) not in found_urls:
-                found_urls.append(url)
-        for match in short_matches:
-            if (url := match.group(0).split("?")[0]) not in found_urls:
-                found_urls.append(url)
-        return found_urls
-
-    async def get_download_url(self, url: str) -> str | None:
-        """Take either a shortened url or a download url, returns the download url"""
-        if re.match(self.DL_URL, url):
-            return url.split("?")[0]
-        elif re.match(self.SHORT_URL, url):
-
-            async def _get(u):
-                async with self.web_client.get(u, headers=self.headers) as response:
-                    return response
-
-            try:
-                self.logger.debug("Fetching download url")
-                response = await asyncio.wait_for(_get(url), timeout=4)
-                return str(response.url).split("?")[0]
-            except aiohttp.ClientError as e:
-                self.logger.error(
-                    f"Failed to fetch tiktok post. {url}. {e}", exc_info=e
-                )
-                return None
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch tiktok post. {url}. {e}", exc_info=e
-                )
-                return None
-
     def url_to_id(self, url: str) -> str:
-        return re.search(self.DL_URL, url).group(2)
+        return re.search(self.LONG_URL, url).group(2)  # type: ignore
 
     def url_to_username(self, url: str) -> str:
-        return re.search(self.DL_URL, url).group(1)
+        return re.search(self.LONG_URL, url).group(1)  # type: ignore
 
 
 class RedditFetcher(Fetcher):
-    REDDIT_URL = re.compile(
+    LONG_URL = re.compile(
         r"https?://(?:www\.|old\.?)?reddit.com/r/(?:[^/]+)/comments/([^/]+)/?\S*"
     )
     REDDIT_VIDEO = re.compile(r"https?://v\.redd\.it/[^|/^\s]+")
+    SHORT_URL = re.compile(
+        r"https?://(?:www\.|old\.?)?reddit.com/r/(?:[^/]+)/s/([^/]+)/?\S*"
+    )
 
     def __init__(
         self,
@@ -770,7 +759,17 @@ class RedditFetcher(Fetcher):
         return links
 
     async def fetch(self, source_url: str) -> FetchResult:
-        post_id = self.REDDIT_URL.search(source_url).group(1)
+        if re.match(self.LONG_URL, source_url):
+            self.logger.debug(f"Found reddit url")
+            url = source_url.split("?")[0]
+        elif re.match(self.SHORT_URL, source_url):
+            self.logger.debug(f"Found shortened reddit url")
+            url = await self.get_download_url(source_url)
+            if not url:
+                return FetchResult(error_message="Couldn't fetch the redirect url")
+        else:
+            return FetchResult(error_message="Couldn't find post id 😕")
+        post_id = self.LONG_URL.search(url).group(1)
         post = await self.reddit.submission(post_id)
         poster = post.author.name
         created_at = datetime.fromtimestamp(post.created_utc)
@@ -780,14 +779,8 @@ class RedditFetcher(Fetcher):
             urls = await self.get_reddit_post_urls(post)
         if urls:
             text += "\n```" + "\n".join(urls) + "\n```"
-        post_data = PostData(source_url, poster, created_at, text, urls)
+        post_data = PostData(url, poster, created_at, text, urls)
         return FetchResult(post_data=post_data)
-
-    def find_urls(self, text: str) -> list[str]:
-        matches = self.REDDIT_URL.finditer(text)
-        if not matches:
-            return []
-        return [match.group(0) for match in matches]
 
 
 class Sns:
