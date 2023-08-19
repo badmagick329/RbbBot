@@ -62,8 +62,10 @@ class FFmpeg:
         file_path = str(file_path)
         output_path = str(output_path)
         duration = await self.get_duration(file_path)
-        video_bitrate = int((file_size / duration) * 8 * 0.85)
-        audio_bitrate = int((file_size / duration) * 8 * 0.06)
+        video_bitrate = int(((file_size / 1000) / duration) * 8 * 0.85)
+        audio_bitrate = int(((file_size / 1000) / duration) * 8 * 0.06)
+        self.logger.debug(f"{duration=} {file_size=}")
+        self.logger.debug(f"{video_bitrate=} {audio_bitrate=}")
 
         compress_cmd = [
             "ffmpeg",
