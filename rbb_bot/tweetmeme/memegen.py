@@ -43,20 +43,20 @@ class TweetImage:
 
 
 class TweetMeme:
-    TweetImage: TweetImage
+    tweet_image: TweetImage
     video_file: Path
 
     def __init__(self) -> None:
         image_file = IMAGE_FILE
         font_file = FONT_FILE
         video_file = TYPING_FILE
-        self.TweetImage = TweetImage(image_file, font_file)
+        self.tweet_image = TweetImage(image_file, font_file)
         self.video_file = video_file
 
     async def create_meme(
         self, text: str, image_duration: int = 3, clean_up: bool = True
     ) -> Path:
-        image = self.TweetImage.draw_text(text)
+        image = self.tweet_image.draw_text(text)
         tmp_name = str(TEMP_DIR / f"tmp_{datetime.now().timestamp()}")
         tmp_image, tmp_video = f"{tmp_name}.png", f"{tmp_name}.mp4"
         list_file = f"{tmp_name}.txt"
@@ -118,7 +118,7 @@ def main():
 
 
 async def run():
-    irene_meme = TweetMeme(IMAGE_FILE, TYPING_FILE, FONT_FILE)
+    irene_meme = TweetMeme()
     video = await irene_meme.create_meme("ABC1ABC2ABC3ABC4ABC5ABC6ABC7ABC8 🤔")
     print(video)
 
