@@ -32,7 +32,7 @@ class MemeCog(Cog):
             return await ctx.send("No text provided")
         async with ctx.typing():
             irene_meme = TweetMeme()
-            meme_file = await irene_meme.create_meme(text)
+            meme_file = await irene_meme.create_meme(text.upper())
             await ctx.send(file=discord.File(meme_file))
         try:
             meme_file.unlink(missing_ok=True)
