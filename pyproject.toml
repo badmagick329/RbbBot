@@ -54,3 +54,7 @@ addopts = "-rP"
 testpaths = [
     "tests",
 ]
+
+[tools.pyright]
+include= ["./rbb_bot"]
+exclude= [ "./vnv", "**/node_modules", "**/__pycache__", "src/experimental", "src/typestubs" ]
