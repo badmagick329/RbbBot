@@ -115,7 +115,7 @@ class ElijahTerrific(VideoGenerator):
             video_file=self.VIDEO_FILE,
             font_file=self.FONT_FILE,
             font_size=font_size,
-            rgb_color=(184, 97, 255),
+            rgb_color=(66, 17, 105),
         )
         super().__init__(config)
 
