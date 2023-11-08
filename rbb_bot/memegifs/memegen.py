@@ -120,7 +120,7 @@ class ElijahTerrific(VideoGenerator):
         super().__init__(config)
 
     async def create(self, text: str) -> Path:
-        image = self.image_with_text(text, 16, 4, 30, 60)
+        image = self.image_with_text(text, 13, 4, 8, 20)
         video = await self.generate_video(image, 5)
         return video
 
