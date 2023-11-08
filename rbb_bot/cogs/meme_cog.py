@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 
-from rbb_bot.tweetmeme.memegen import TweetMeme
+from rbb_bot.memegifs.memegen import IreneTweeting
 from rbb_bot.utils.decorators import log_command
 
 
@@ -31,8 +31,8 @@ class MemeCog(Cog):
         if text.strip() == "":
             return await ctx.send("No text provided")
         async with ctx.typing():
-            irene_meme = TweetMeme()
-            meme_file = await irene_meme.create_meme(text.upper())
+            irene_meme = IreneTweeting()
+            meme_file = await irene_meme.create(text.upper())
             await ctx.send(file=discord.File(meme_file))
         try:
             meme_file.unlink(missing_ok=True)
