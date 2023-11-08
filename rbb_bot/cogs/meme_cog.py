@@ -42,7 +42,7 @@ class MemeCog(Cog):
             irene_tweeting = IreneTweeting()
             await self.create_and_send(ctx, irene_tweeting, text.upper())
         except Exception as e:
-            self.logger.error(f"Error in meme tweet. {e}", exc_info=e)
+            self.bot.logger.error(f"Error in meme tweet. {e}", exc_info=e)
             return await ctx.send("Something went wrong 😕")
 
     @meme.command(brief="Elijah meme")
