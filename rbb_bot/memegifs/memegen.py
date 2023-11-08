@@ -103,6 +103,26 @@ class IreneTweeting(VideoGenerator):
         video = await self.generate_video(image, 3)
         return video
 
+class ElijahTerrific(VideoGenerator):
+    IMAGE_FILE = DATA_DIR / "elijah.png"
+    VIDEO_FILE = DATA_DIR / "elijah.mp4"
+    FONT_FILE = DATA_DIR / "Roboto" / "Roboto-Bold.ttf"
+
+    def __init__(self, font_size: int = 44) -> None:
+        assert DATA_DIR.exists(), "Data directory not found"
+        config = Config(
+            image_file=self.IMAGE_FILE,
+            video_file=self.VIDEO_FILE,
+            font_file=self.FONT_FILE,
+            font_size=font_size,
+            rgb_color=(184, 97, 255),
+        )
+        super().__init__(config)
+
+    async def create(self, text: str) -> Path:
+        image = self.image_with_text(text, 16, 4, 30, 60)
+        video = await self.generate_video(image, 5)
+        return video
 
 def text_to_lines(text: str, line_max: int = 40) -> list[str]:
     lines = list()
@@ -147,8 +167,8 @@ def main():
 
 
 async def run():
-    irene_meme = IreneTweeting()
-    video = await irene_meme.create("ABC1ABC2ABC3ABC4ABC5ABC6ABC7ABC8 🤔")
+    meme = IreneTweeting()
+    video = await meme.create("ABC1ABC2ABC3ABC4ABC5ABC6ABC7ABC8 🤔")
     print(video)
 
 
