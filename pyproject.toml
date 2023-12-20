@@ -29,6 +29,7 @@ dateparser = "^1.1.2"
 discord-ext-menus = {git = "https://github.com/Rapptz/discord-ext-menus"}
 jishaku = "^2.5.1"
 TikTokApi = "^5.2.2"
+httpx = "^0.25.2"
 
 
 [tool.poetry.group.dev.dependencies]
