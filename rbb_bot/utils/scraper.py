@@ -11,6 +11,8 @@ import aiohttp
 import asyncpraw
 import pendulum
 from aiohttp import ClientSession
+from asyncpraw.models.reddit.subreddit import Subreddit
+from asyncpraw.models.reddit.wikipage import WikiPage
 from asyncprawcore.exceptions import BadRequest
 from bs4 import BeautifulSoup as bs
 from pydantic import BaseModel
@@ -60,9 +62,9 @@ class PyRelease(BaseModel):
     def format_dates(self) -> "PyRelease":
         self.release_date = pendulum.parse(str(self.release_date)).date()
         if self.release_time:
-            self.release_time = pendulum.instance(self.release_time).in_timezone(
-                "Asia/Seoul"
-            )
+            self.release_time = pendulum.instance(
+                self.release_time
+            ).in_timezone("Asia/Seoul")
         return self
 
     def to_dict(self) -> dict:
@@ -190,22 +192,28 @@ class Scraper:
 
     async def scrape_url(self, url: str) -> list[PyRelease]:
         # For reference
-        table_headers = [
-            "day",
-            "time",
-            "artist",
-            "album title",
-            "album type",
-            "title track",
-            "streaming",
-        ]
+        # table_headers = [
+        #     "day",
+        #     "time",
+        #     "artist",
+        #     "album title",
+        #     "album type",
+        #     "title track",
+        #     "streaming",
+        # ]
         month = url.split("/")[-2]
         year = int(url.split("/")[-3])
         release_list = list()
-        async with self.web_client.get(url, headers=self.headers) as response:
-            if response.status == 200:
-                html = await response.text()
-                release_list = self.get_release_list(html, month, year)
+        try:
+            subreddit: Subreddit = await self.reddit.subreddit("kpop")
+            wiki_page: WikiPage = await subreddit.wiki.get_page(
+                f"upcoming-releases/{year}/{month}"
+            )
+
+            html = wiki_page.content_html
+            release_list = self.get_release_list(html, month, year)
+        except Exception as e:
+            self.logger.error(f"Error scraping {url}\n{e}")
         return release_list
 
     @staticmethod
@@ -324,16 +332,22 @@ class Scraper:
             return cbs
         except Exception as e:
             self.logger.error(
-                f"Error extracting youtube urls: {e}", exc_info=e, stack_info=True
+                f"Error extracting youtube urls: {e}",
+                exc_info=e,
+                stack_info=True,
             )
 
-    def merge_cbs(self, old_cbs: list[dict], new_cbs: list[dict]) -> list[dict]:
+    def merge_cbs(
+        self, old_cbs: list[dict], new_cbs: list[dict]
+    ) -> list[dict]:
         """
         Merge new_cbs into old_cbs. All old_cb dates that are in new_cbs are replaced with new_cbs
         """
         old_cbs = deepcopy(old_cbs)
         remove_dates = list(set([cb["release_date"] for cb in new_cbs]))
-        merged_cbs = [c for c in old_cbs if c["release_date"] not in remove_dates]
+        merged_cbs = [
+            c for c in old_cbs if c["release_date"] not in remove_dates
+        ]
         merged_cbs.extend(new_cbs)
         return merged_cbs
 
@@ -379,9 +393,12 @@ class Scraper:
                 release_date__gte=start_date
             ).prefetch_related("release_type", "artist")
         else:
-            releases = await Release.all().prefetch_related("release_type", "artist")
+            releases = await Release.all().prefetch_related(
+                "release_type", "artist"
+            )
         return [
-            PyRelease.from_orm(release).format_dates().to_dict() for release in releases
+            PyRelease.from_orm(release).format_dates().to_dict()
+            for release in releases
         ]
 
     async def save_to_db(self, cbs: list[dict]):
@@ -399,10 +416,13 @@ class Scraper:
         artist_names = list(set([cb["artist"] for cb in cbs]))
         release_types_names = list(set([cb["release_type"] for cb in cbs]))
         saved_artists = await Artist.filter(name__in=artist_names)
-        saved_release_types = await ReleaseType.filter(name__in=release_types_names)
+        saved_release_types = await ReleaseType.filter(
+            name__in=release_types_names
+        )
         artist_names_map = {artist.name: artist for artist in saved_artists}
         release_types_names_map = {
-            release_type.name: release_type for release_type in saved_release_types
+            release_type.name: release_type
+            for release_type in saved_release_types
         }
 
         for i, cb in enumerate(cbs):
@@ -438,14 +458,17 @@ class Scraper:
             else:
                 release = await Release.get(id=cb["id"])
                 release.release_time = (
-                    pendulum.parse(cb["release_time"]) if cb["release_time"] else None
+                    pendulum.parse(cb["release_time"])
+                    if cb["release_time"]
+                    else None
                 )
                 release.reddit_urls = cb["reddit_urls"]
                 release.urls = cb["urls"] if cb["urls"] else release.urls
                 update_releases.append(release)
                 if len(update_releases) == BATCH:
                     await Release.bulk_update(
-                        update_releases, fields=["release_time", "reddit_urls", "urls"]
+                        update_releases,
+                        fields=["release_time", "reddit_urls", "urls"],
                     )
                     update_releases = list()
 
@@ -468,9 +491,13 @@ class Scraper:
         for year in years:
             for month in self.month_strings:
                 if year == pendulum.now().year and month == current_month:
-                    urls.append(self.reddit_wiki_base.format(year=year, month=month))
+                    urls.append(
+                        self.reddit_wiki_base.format(year=year, month=month)
+                    )
                     return urls
-                urls.append(self.reddit_wiki_base.format(year=year, month=month))
+                urls.append(
+                    self.reddit_wiki_base.format(year=year, month=month)
+                )
 
 
 async def init():
