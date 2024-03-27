@@ -7,7 +7,7 @@ authors = ["badmagick329"]
 [tool.poetry.dependencies]
 python = "^3.10"
 python-dotenv = "^0.21.0"
-"discord.py" = "^2.1"
+"discord.py" = "2.2"
 aiohttp = "^3.8.3"
 yarl = "^1.8.1"
 aioscheduler = "^1.4.2"
