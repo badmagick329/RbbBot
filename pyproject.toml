@@ -15,7 +15,7 @@ asyncpg = "^0.26.0"
 pydantic = "^1.10.2"
 numpy = "^1.23.3"
 pendulum = "^2.1.2"
-peony-twitter = {extras = ["all"], version = "^2.1.2"}
+peony-twitter = { extras = ["all"], version = "^2.1.2" }
 Pillow = "^9.2.0"
 psycopg2-binary = "^2.9.3"
 PyYAML = "^6.0"
@@ -26,7 +26,7 @@ asyncpraw = "^7.6.0"
 lxml = "^4.9.1"
 python-rapidjson = "^1.8"
 dateparser = "^1.1.2"
-discord-ext-menus = {git = "https://github.com/Rapptz/discord-ext-menus"}
+discord-ext-menus = { git = "https://github.com/Rapptz/discord-ext-menus" }
 jishaku = "^2.5.1"
 TikTokApi = "^5.2.2"
 httpx = "^0.25.2"
@@ -52,10 +52,14 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = "-rP"
-testpaths = [
-    "tests",
-]
+testpaths = ["tests"]
 
-[tools.pyright]
-include= ["./rbb_bot"]
-exclude= [ "./vnv", "**/node_modules", "**/__pycache__", "src/experimental", "src/typestubs" ]
+[tool.pyright]
+include = ["./rbb_bot"]
+exclude = [
+    "./vnv",
+    "**/node_modules",
+    "**/__pycache__",
+    "src/experimental",
+    "src/typestubs",
+]
