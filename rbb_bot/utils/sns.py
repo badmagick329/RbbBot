@@ -25,12 +25,15 @@ from peony import PeonyClient, exceptions
 from peony.data_processing import JSONData, PeonyResponse
 from peony.exceptions import DoesNotExist, HTTPNotFound, ProtectedTweet
 from settings.config import get_config
-from settings.const import (DISCORD_MAX_FILE_SIZE, DISCORD_MAX_MESSAGE,
-                            MAX_ATTACHMENTS, FilePaths)
+from settings.const import (
+    DISCORD_MAX_FILE_SIZE,
+    DISCORD_MAX_MESSAGE,
+    MAX_ATTACHMENTS,
+    FilePaths,
+)
 from utils.exceptions import DownloadedVideoNotFound, FFmpegError, TimeoutError
 from utils.ffmpeg import FFmpeg
-from utils.helpers import (chunker, http_get, subprocess_run, truncate,
-                           url_to_filename)
+from utils.helpers import chunker, http_get, subprocess_run, truncate, url_to_filename
 from utils.twitter import Tweet, TwitterClient
 from yarl import URL
 
@@ -82,11 +85,11 @@ class PostData:
         return {
             "source_url": self.source_url,
             "poster": self.poster,
-            "created_at": datetime.strftime(
-                self.created_at, "%Y-%m-%d %H:%M:%S.%f"
-            )
-            if self.created_at
-            else None,
+            "created_at": (
+                datetime.strftime(self.created_at, "%Y-%m-%d %H:%M:%S.%f")
+                if self.created_at
+                else None
+            ),
             "text": self.text,
             "urls": self.urls,
             "chunked_file_paths": self.chunked_file_paths,
@@ -94,9 +97,7 @@ class PostData:
 
     @property
     def media_list(self) -> list[PostMedia]:
-        return [
-            media for media_list in self.chunked_media for media in media_list
-        ]
+        return [media for media_list in self.chunked_media for media in media_list]
 
     @property
     def file_path_list(self) -> list[str]:
@@ -120,11 +121,11 @@ class PostData:
         return PostData(
             source_url=data["source_url"],
             poster=data["poster"],
-            created_at=datetime.strptime(
-                data["created_at"], "%Y-%m-%d %H:%M:%S.%f"
-            )
-            if data["created_at"]
-            else None,
+            created_at=(
+                datetime.strptime(data["created_at"], "%Y-%m-%d %H:%M:%S.%f")
+                if data["created_at"]
+                else None
+            ),
             text=data["text"],
             urls=data["urls"],
             chunked_file_paths=data["chunked_file_paths"],
@@ -247,9 +248,7 @@ class Fetcher(ABC):
             async with httpx.AsyncClient() as client:
                 try:
                     self.logger.debug(f"Fetching download url for {url}")
-                    resp = await client.get(
-                        url, follow_redirects=True, timeout=4
-                    )
+                    resp = await client.get(url, follow_redirects=True, timeout=4)
                     self.logger.debug(f"Status code {resp.status_code}")
                     if resp.status_code != 200:
                         return None
@@ -257,14 +256,10 @@ class Fetcher(ABC):
                     self.logger.debug(f"Returning {real_url=}")
                     return real_url
                 except httpx.ConnectTimeout as e:
-                    self.logger.error(
-                        f"Failed to fetch post. {url}. {e}", exc_info=e
-                    )
+                    self.logger.error(f"Failed to fetch post. {url}. {e}", exc_info=e)
                     return None
                 except Exception as e:
-                    self.logger.error(
-                        f"Failed to fetch post. {url}. {e}", exc_info=e
-                    )
+                    self.logger.error(f"Failed to fetch post. {url}. {e}", exc_info=e)
                     return None
 
 
@@ -317,9 +312,7 @@ class TwitterFetcher(Fetcher):
             )
         except HTTPNotFound:
             self.logger.info(f"Tweet {source_url} not found")
-            return FetchResult(
-                error_message="Tweet not found. Is the URL correct?"
-            )
+            return FetchResult(error_message="Tweet not found. Is the URL correct?")
 
         tweet: PeonyResponse
         tweet.user: JSONData
@@ -437,9 +430,7 @@ class TwitterFetcher(Fetcher):
 
 
 class OneTimeCookieJar(aiohttp.CookieJar):
-    def __init__(
-        self, *, unsafe: bool = False, loop: AbstractEventLoop = None
-    ) -> None:
+    def __init__(self, *, unsafe: bool = False, loop: AbstractEventLoop = None) -> None:
         super().__init__(unsafe=unsafe, loop=loop)
         self._initial_cookies_loaded = False
 
@@ -472,9 +463,7 @@ class InstagramFetcher(Fetcher):
             "Instagram currently not working. Bot owner has been notified"
         )
         self.disabled = False
-        url_pat = re.compile(
-            r"https?://(www.)?instagram.com/(p|tv|reel)/((\w|-)+)/?"
-        )
+        url_pat = re.compile(r"https?://(www.)?instagram.com/(p|tv|reel)/((\w|-)+)/?")
         super().__init__(url_pat=url_pat, short_pats=list(), *args, **kwargs)
 
     def shortcode_to_media_id(
@@ -501,9 +490,7 @@ class InstagramFetcher(Fetcher):
         )
 
         try:
-            async with self.web_client.get(
-                url, headers=self.headers
-            ) as response:
+            async with self.web_client.get(url, headers=self.headers) as response:
                 try:
                     data = await response.json()
                     self.logger.debug(f"Data received: {data}")
@@ -513,9 +500,7 @@ class InstagramFetcher(Fetcher):
                     self.logger.error(
                         f"Failed to fetch instagram post. {e}", exc_info=e
                     )
-                    return FetchResult(
-                        error_message="Failed to fetch instagram post."
-                    )
+                    return FetchResult(error_message="Failed to fetch instagram post.")
 
                 if data.get("message", None) == "checkpoint_required":
                     self.disabled = True
@@ -524,14 +509,10 @@ class InstagramFetcher(Fetcher):
                     )
                     return FetchResult(error_message=self.disabled_msg)
                 if "spam" in data:
-                    self.logger.info(
-                        f"Instagram post is spam. {source_url}\n{data}"
-                    )
+                    self.logger.info(f"Instagram post is spam. {source_url}\n{data}")
                     return FetchResult(error_message="Instagram post not found")
                 elif "items" not in data:
-                    self.logger.info(
-                        f"Instagram post not found. {source_url}\n{data}"
-                    )
+                    self.logger.info(f"Instagram post not found. {source_url}\n{data}")
                     return FetchResult(error_message="Instagram post not found")
 
                 data = data["items"][0]
@@ -546,16 +527,12 @@ class InstagramFetcher(Fetcher):
                 except KeyError:
                     pass
                 try:
-                    post_data.created_at = datetime.fromtimestamp(
-                        data["taken_at"]
-                    )
+                    post_data.created_at = datetime.fromtimestamp(data["taken_at"])
                 except KeyError:
                     pass
         except aiohttp.TooManyRedirects as e:
             self.disabled = True
-            self.logger.error(
-                f"Failed to fetch instagram post. {e}", exc_info=e
-            )
+            self.logger.error(f"Failed to fetch instagram post. {e}", exc_info=e)
             return FetchResult(error_message=self.disabled_msg)
 
         media_entries = (
@@ -564,14 +541,9 @@ class InstagramFetcher(Fetcher):
         for media_entry in media_entries:
             media = dict()
             if media_entry["media_type"] == 1:
-                media["url"] = media_entry["image_versions2"]["candidates"][0][
-                    "url"
-                ]
+                media["url"] = media_entry["image_versions2"]["candidates"][0]["url"]
                 post_data.urls.append(media["url"])
-            elif (
-                media_entry["media_type"] == 2
-                and "video_versions" in media_entry
-            ):
+            elif media_entry["media_type"] == 2 and "video_versions" in media_entry:
                 media["url"] = media_entry["video_versions"][0]["url"]
                 post_data.urls.append(media["url"])
         return FetchResult(post_data=post_data)
@@ -588,9 +560,7 @@ class TikTokFetcher(Fetcher):
         self.web_client = web_client
         self.download_location = download_location
         self.headers = get_config().headers
-        url_pat = re.compile(
-            r"https?://(?:www\.)?tiktok\.com/([^/]+)/video/(\d+)"
-        )
+        url_pat = re.compile(r"https?://(?:www\.)?tiktok\.com/([^/]+)/video/(\d+)")
         short_pats = [
             re.compile(r"https?://vm\.tiktok\.com/([^/]+)"),
             re.compile(r"https?://(?:www\.)tiktok.com/t/([^/]+)"),
@@ -650,9 +620,7 @@ class TikTokFetcher(Fetcher):
                 for result in results:
                     returncode, stdout, stderr = result
                     if returncode != 0:
-                        self.logger.error(
-                            f"Download failed\n{stdout}\n{stderr}"
-                        )
+                        self.logger.error(f"Download failed\n{stdout}\n{stderr}")
                         return FetchResult(error_message="Download failed")
 
             except TimeoutError:
@@ -690,9 +658,7 @@ class TikTokFetcher(Fetcher):
             ]
             returncode, _, stderr = await subprocess_run(cmd, timeout=20)
             if returncode != 0:
-                self.logger.error(
-                    f"Failed to download TikTok video.\n{url}\n{stderr}"
-                )
+                self.logger.error(f"Failed to download TikTok video.\n{url}\n{stderr}")
                 return FetchResult(error_message="Could not fetch video")
             return "", filename
 
@@ -714,9 +680,7 @@ class TikTokFetcher(Fetcher):
         if not file_path.exists():
             self.logger.error(f"Failed to download {url}")
             return FetchResult(
-                exception=DownloadedVideoNotFound(
-                    f"Video not found at {file_path}"
-                ),
+                exception=DownloadedVideoNotFound(f"Video not found at {file_path}"),
                 error_message="Download failed",
             )
 
@@ -794,32 +758,13 @@ class RedditFetcher(Fetcher):
                 r"https?://(?:www\.|old\.?)?reddit.com/r/(?:[^/]+)/s/([^/]+)/?\S*"
             )
         ]
-        super().__init__(
-            url_pat=url_pat, short_pats=short_pats, *args, **kwargs
-        )
-
-    # TODO: Update for new reddit format
-    async def _get_video_url(self, post: reddit.Submission) -> str:
-        try:
-            url = post.media["reddit_video"]["fallback_url"]
-            url = url.split("?")[0]
-        except Exception as e:
-            self.logger.error(
-                f"Failed to get reddit video url. {post.url}. {e}", exc_info=e
-            )
-            return post.url
-        post_url = "https://mgck.ink/reddit/video/"
-        data = {"source_url": url, "token": self.mgck_key}
-        async with self.web_client.post(post_url, data=data) as resp:
-            if not resp.status == 200:
-                return url
-            json = await resp.json()
-            return json.get("video_url", url)
+        super().__init__(url_pat=url_pat, short_pats=short_pats, *args, **kwargs)
 
     async def get_video_url(self, post: reddit.Submission) -> str:
         try:
             url = post.media["reddit_video"]["fallback_url"]
             url = url.split("?")[0]
+            self.logger.debug(f"Got url {url}")
             return url
         except Exception as e:
             self.logger.error(
@@ -836,6 +781,7 @@ class RedditFetcher(Fetcher):
             urls.extend(self.process_gallery(post))
         else:
             urls.append(post.url)
+        self.logger.debug(f"Return urls {urls}")
         return urls
 
     def process_gallery(self, submission, header=""):
@@ -866,9 +812,7 @@ class RedditFetcher(Fetcher):
             if re.match(short_pat, source_url):
                 url = await self.get_download_url(source_url)
                 if not url:
-                    return FetchResult(
-                        error_message="Couldn't fetch the redirect url"
-                    )
+                    return FetchResult(error_message="Couldn't fetch the redirect url")
                 break
         if url is None:
             return FetchResult(error_message="Couldn't find post id 😕")
@@ -876,16 +820,20 @@ class RedditFetcher(Fetcher):
         if match is None:
             return FetchResult(error_message="Couldn't find post id 😕")
         post_id = match.group(1)
+        self.logger.debug("Got post id", post_id)
         post = await self.reddit.submission(post_id)
         poster = post.author.name
         created_at = datetime.fromtimestamp(post.created_utc)
         text = f"{post.title}\n{post.selftext}"
+        self.logger.debug(f"Got post {post.url} with text {text}")
         urls = list()
         if not post.is_self:
+            self.logger.debug("Getting post urls")
             urls = await self.get_reddit_post_urls(post)
         if urls:
             text += "\n```" + "\n".join(urls) + "\n```"
         post_data = PostData(url, poster, created_at, text, urls)
+        print(f"Created post_data\n{post_data}")
         return FetchResult(post_data=post_data)
 
 
@@ -930,7 +878,7 @@ class Sns:
             Whether the urls are timestamped. If true and any of the media is over
             the discord size limit, none of the files will be downloaded.
         """
-        urls = list()
+        undownloadable_urls = list()
         bytes_and_paths = list()
 
         chunked_media = list()
@@ -941,6 +889,9 @@ class Sns:
         att_num = 0
 
         for url in post_data.urls:
+            if not self.is_downloadable(url):
+                undownloadable_urls.append(url)
+                continue
             try:
                 filename = self.fetcher.url_to_filename(url)
             except Exception as e:
@@ -954,7 +905,7 @@ class Sns:
             )
             fsize = file_bytes.getbuffer().nbytes
             if fsize > DISCORD_MAX_FILE_SIZE:
-                urls.append(url)
+                undownloadable_urls.append(url)
                 continue
             file_path = Path(FilePaths.CACHE_DIR, filename)
             bytes_and_paths.append((file_bytes, file_path))
@@ -966,17 +917,13 @@ class Sns:
                 chunked_file_paths.append(file_chunk)
                 chunked_media.append(media_chunk)
                 file_chunk = [str(file_path)]
-                media_chunk = [
-                    PostMedia(filename=filename, bytes_io=file_bytes)
-                ]
+                media_chunk = [PostMedia(filename=filename, bytes_io=file_bytes)]
                 chunk_size = fsize
                 att_num = 0
             else:
                 chunk_size += fsize
                 file_chunk.append(str(file_path))
-                media_chunk.append(
-                    PostMedia(filename=filename, bytes_io=file_bytes)
-                )
+                media_chunk.append(PostMedia(filename=filename, bytes_io=file_bytes))
 
         if file_chunk or media_chunk:
             chunked_file_paths.append(file_chunk)
@@ -987,10 +934,10 @@ class Sns:
             post_data.poster,
             post_data.created_at,
             post_data.text,
-            urls,
+            undownloadable_urls,
         )
 
-        if timestamped_urls and urls:
+        if timestamped_urls and undownloadable_urls:
             new_data.chunked_media = chunked_media
             return new_data
         else:
@@ -1003,6 +950,13 @@ class Sns:
             if post_data.chunked_file_paths:
                 new_data.chunked_file_paths.extend(post_data.chunked_file_paths)
             return new_data
+
+    def is_downloadable(self, url: str) -> bool:
+        skip_urls = ["https://i.imgur", "https://imgur"]
+        for skip_url in skip_urls:
+            if url.startswith(skip_url):
+                return False
+        return True
 
     async def fetch(self, source_url: str) -> FetchResult:
         """
@@ -1034,9 +988,7 @@ class Sns:
         post_data = fetch_result.post_data
 
         if not post_data:
-            self.logger.debug(
-                f"No data found. Skipping caching for {source_url}"
-            )
+            self.logger.debug(f"No data found. Skipping caching for {source_url}")
             return fetch_result
         self.logger.debug(f"Got data: {post_data}")
 
@@ -1049,9 +1001,7 @@ class Sns:
         if not skip_cache:
             # Create cache
             self.logger.debug(f"Caching data for {source_url}")
-            entry = await DiskCache.create(
-                key=source_url, value=post_data.as_dict()
-            )
+            entry = await DiskCache.create(key=source_url, value=post_data.as_dict())
             self.logger.debug(f"Created entry for {source_url}. {entry=}")
             if (await DiskCache.all().count()) > DiskCache.MAX_SIZE:
                 self.logger.debug("DiskCache is full. Deleting oldest entry.")
@@ -1112,8 +1062,6 @@ class Sns:
             messages.append(SnsMessage(content="", media=chunk))
 
         messages = [
-            x
-            for x in messages
-            if x.content or x.file_paths or x.media or x.url_str
+            x for x in messages if x.content or x.file_paths or x.media or x.url_str
         ]
         return messages
