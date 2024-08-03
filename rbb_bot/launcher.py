@@ -14,7 +14,7 @@ from rbb_bot.rbb import RbbBot
 from rbb_bot.settings.config import get_config, get_creds
 from rbb_bot.settings.const import FilePaths
 
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 
 async def main():
