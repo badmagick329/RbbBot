@@ -55,7 +55,11 @@ class RbbBot(commands.Bot):
         self.creds = creds
         self.logger = logger
         self.web_client = web_client
-        self.load_cogs = [c.stem for c in (Path(__file__).parent / "cogs").glob("*.py") if not c.stem.startswith("_")]
+        self.load_cogs = [
+            c.stem
+            for c in (Path(__file__).parent / "cogs").glob("*.py")
+            if not c.stem.startswith("_")
+        ]
         self.guild_prefixes = dict()
         self.logger_task = None
         self.bot_tasks = dict()
@@ -120,7 +124,7 @@ class RbbBot(commands.Bot):
 
     async def on_ready(self):
         await self.change_presence(
-            activity=Activity(type=ActivityType.listening, name="birthday")
+            activity=Activity(type=ActivityType.listening, name="Like a flower")
         )
         self.logger.info(f"Logged in as {self.user} ({self.user.id})")
         self.logger.info("RbbBot ready!")
