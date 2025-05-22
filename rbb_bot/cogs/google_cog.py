@@ -46,10 +46,10 @@ class GoogleCog(Cog):
         self.google_url = self.bot.config.google_url
 
     async def cog_load(self) -> None:
-        self.bot.logger.info("GoogleCog loaded")
+        pass
 
     async def cog_unload(self) -> None:
-        self.bot.logger.info("GoogleCog unloaded")
+        pass
 
     @commands.hybrid_command(brief="Search google", aliases=["g"])
     @commands.cooldown(3, 10, commands.BucketType.user)

@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import unquote_plus, urlparse
 
+import discord
 import pendulum
 from aiohttp import ClientSession
-from discord import TextChannel
 from discord.ext import commands
 
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
@@ -80,7 +80,7 @@ def chunker(seq: Iterable, size: int, max_len_per_chunk: int = None) -> Iterable
         yield chunk
 
 
-async def large_send(channel: TextChannel, msg: str):
+async def large_send(channel: discord.TextChannel | discord.DMChannel, msg: str):
     """Sends a message to a channel, splitting it up if it's too long"""
     if len(msg) > DISCORD_MAX_MESSAGE:
         for chunk in chunker(msg, DISCORD_MAX_MESSAGE):

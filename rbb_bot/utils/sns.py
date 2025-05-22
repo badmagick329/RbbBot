@@ -441,7 +441,9 @@ class OneTimeCookieJar(aiohttp.CookieJar):
         self._initial_cookies_loaded = True
 
     def force_update_cookies(
-        self, cookies: LooseCookies, response_url: URL = URL()  # type: ignore
+        self,
+        cookies: LooseCookies,
+        response_url: URL = URL(),  # type: ignore
     ) -> None:
         super().update_cookies(cookies, response_url)
 
@@ -822,7 +824,7 @@ class RedditFetcher(Fetcher):
         post_id = match.group(1)
         self.logger.debug("Got post id", post_id)
         post = await self.reddit.submission(post_id)
-        poster = post.author.name if post.author else '[deleted]'
+        poster = post.author.name if post.author else "[deleted]"
         created_at = datetime.fromtimestamp(post.created_utc)
         text = f"{post.title}\n{post.selftext}"
         self.logger.debug(f"Got post {post.url} with text {text}")

@@ -6,45 +6,15 @@ import discord
 from discord import Activity, ActivityType, Message
 from discord.ext import commands
 from discord.ext.commands import Context
+from lib.discord_log_handler import DiscordLogHandler
 from models import Guild
 from tortoise import Tortoise
 from utils.help_command import EmbedHelpCommand
-from utils.helpers import large_send
 from utils.views import ConfirmView
 
 from rbb_bot.settings.config import Config, Creds
 from rbb_bot.settings.ids import LOGGER_CHANNEL_ID, MY_ID
 from rbb_bot.utils.mixins import ClientMixin
-
-
-class DiscordHandler(logging.Handler):
-    def __init__(self, bot=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bot = bot
-        self.log_ch = None
-        self.owner_ch = None
-        self.message_queue = asyncio.Queue()
-
-    async def start_logging(self):
-        self.log_ch = self.bot.get_channel(LOGGER_CHANNEL_ID)
-        self.owner_ch = await self.bot.get_dm_channel()
-        while True:
-            msg, level = await self.message_queue.get()
-            msg = f"```\n{msg}\n```"
-            if level == logging.ERROR or level == logging.CRITICAL:
-                if not self.owner_ch:
-                    await large_send(self.log_ch, f"Could not get DM channel\n{msg}")
-                else:
-                    await large_send(self.owner_ch, msg)
-            else:
-                await large_send(self.log_ch, msg)
-            await asyncio.sleep(1)
-
-    def emit(self, record):
-        if not self.bot:
-            return
-        msg = self.format(record)
-        asyncio.create_task(self.message_queue.put((msg, record.levelno)))
 
 
 class RbbBot(commands.Bot):
@@ -105,13 +75,18 @@ class RbbBot(commands.Bot):
 
     async def setup_logging(self):
         await self.wait_until_ready()
-        discord_handler = DiscordHandler(bot=self)
-        discord_handler.setLevel(logging.INFO)
-        discord_handler.setFormatter(
+        discord_log_handler = DiscordLogHandler(
+            bot=self,
+            logger_channel_id=LOGGER_CHANNEL_ID,
+            my_id=MY_ID,
+            logger=self.logger,
+        )
+        discord_log_handler.setLevel(logging.INFO)
+        discord_log_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         )
-        self.logger.addHandler(discord_handler)
-        self.logger_task = asyncio.create_task(discord_handler.start_logging())
+        self.logger.addHandler(discord_log_handler)
+        self.logger_task = asyncio.create_task(discord_log_handler.start_logging())
 
     async def on_connect(self):
         self.logger.info(f"Connected! Latency: {self.latency * 1000:.2f}ms")
@@ -126,7 +101,10 @@ class RbbBot(commands.Bot):
         await self.change_presence(
             activity=Activity(type=ActivityType.listening, name="Like a flower")
         )
-        self.logger.info(f"Logged in as {self.user} ({self.user.id})")
+        if self.user:
+            self.logger.info(f"Logged in as {self.user} ({self.user.id})")
+        else:
+            self.logger.error("Logged in as None???")
         self.logger.info("RbbBot ready!")
 
     async def close(self):
@@ -149,15 +127,6 @@ class RbbBot(commands.Bot):
         view.message = await ctx.send(prompt, view=view)
         await view.wait()
         return view.confirmed
-
-    async def get_dm_channel(self, user_id=MY_ID) -> discord.abc.Messageable:
-        user = self.get_user(user_id)
-        if not user:
-            user = await self.fetch_user(user_id)
-        channel = user.dm_channel
-        if not channel:
-            return await user.create_dm()
-        return channel
 
     async def send_error(
         self,
