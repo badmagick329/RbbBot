@@ -97,7 +97,11 @@ class TagsCog(Cog):
             )
 
         trigger = trigger.lower().strip()
+        if not trigger:
+            return await ctx.send("Trigger can't be empty")
         response_content = response.strip()
+        if not response_content:
+            return await ctx.send("Response can't be empty")
 
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
 
@@ -127,7 +131,7 @@ class TagsCog(Cog):
             to_send = f"{BotEmojis.TICK} Tag `{tag.trigger}` {'created' if created else 'updated'}"
             await ctx.send(to_send)
         else:
-            await ctx.send(f"This response already exists under this tag")
+            await ctx.send("This response already exists under this tag")
 
     @tag.group(name="remove", brief="Remove a tag or response")
     async def remove_(self, ctx: Context):
@@ -203,14 +207,27 @@ class TagsCog(Cog):
         if not response and not response_id:
             return await ctx.send("Either response or response_id is required")
 
-        response_content = response
+        response_content = response or None
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
 
         responses = await Response.by_id_or_content(
             guild, response_id, response_content
         )
-        if not responses:
-            return await ctx.send(f"This response does not exist")
+
+        if not responses or len(responses) == 0:
+            return await ctx.send("This response does not exist")
+
+        if not all(responses[0].content == r.content for r in responses):
+            self.bot.logger.warning("Inconsistent response content found")
+            for r in responses:
+                self.bot.logger.warning(f"Response: {r.content}")
+
+        response_content = responses[0].content
+        if not response_content:
+            self.bot.logger.warning(
+                f"No response content found. Query was {response=} {response_id=} in {guild.id=}"
+            )
+            return await ctx.send("No response content found 🤔")
 
         @atomic()
         async def remove(responses):
@@ -233,7 +250,7 @@ class TagsCog(Cog):
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
         await remove(responses)
-        await ctx.send(f"{BotEmojis.TICK} Response`{response_truncated}` removed")
+        await ctx.send(f"{BotEmojis.TICK} Response `{response_truncated}` removed")
 
     @remove_.command(
         name="gfycat",
@@ -298,7 +315,7 @@ class TagsCog(Cog):
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         tags = await Tag.filter(guild=guild).prefetch_related("responses").all()
         if not tags:
-            return await ctx.send(f"No tags found")
+            return await ctx.send("No tags found")
 
         tags_and_responses = []
         for tag in tags:
@@ -351,7 +368,7 @@ class TagsCog(Cog):
                 ctx=ctx, message=f"No responses found for tag `{trigger}`"
             )
             return await ctx.send(
-                f"No responses found for this tag. Tag has been deleted"
+                "No responses found for this tag. Tag has been deleted"
             )
 
         response_list = []
@@ -406,7 +423,7 @@ class TagsCog(Cog):
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         tag = await Tag.by_id_or_trigger(guild, tag_id, old_trigger)
         if not tag:
-            return await ctx.send(f"Tag not found")
+            return await ctx.send("Tag not found")
 
         prompt = (
             f"Are you sure you want to edit the tag `{tag.trigger}` to `{new_trigger}`?"
