@@ -5,8 +5,7 @@ from tortoise.models import Model
 from tortoise.transactions import atomic
 
 from rbb_bot.settings.config import get_config
-from rbb_bot.settings.const import (DISCORD_MAX_MESSAGE, EMBED_MAX_DESC,
-                                    EMBED_MAX_TITLE)
+from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, EMBED_MAX_DESC, EMBED_MAX_TITLE
 from rbb_bot.utils.mixins import ClientMixin
 
 default_prefix = get_config().default_prefix

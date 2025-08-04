@@ -1,0 +1,2 @@
+class GuildLoggingServiceError(Exception):
+    pass
