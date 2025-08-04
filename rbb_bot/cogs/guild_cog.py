@@ -2,10 +2,11 @@ import random
 import re
 from typing import Optional
 
-from discord import Embed, Member, Message, TextChannel
+from discord import Embed, Member, Message, Role, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild, JoinEvent
+from services.auto_role_service import AutoRoleService
 from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE, BotEmojis
 from utils.helpers import truncate
 from utils.views import ListView
@@ -85,13 +86,15 @@ class GuildCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
+        if not ctx.guild:
+            return await ctx.send("This command can only be used in a server.")
 
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         if guild.greet_channel_id == channel.id:
             return await ctx.send(
                 "Welcome messages are already enabled in this channel"
             )
-        guild.greet_channel_id = channel.id
+        guild.greet_channel_id = channel.id  # type: ignore
         await guild.save()
         await ctx.send(f"Set the welcome channel to {channel.mention}")
 
@@ -102,6 +105,9 @@ class GuildCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
+        if not ctx.guild:
+            return await ctx.send("This command can only be used in a server.")
+
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         if guild.greet_channel_id is None:
             return await ctx.send("Welcome messages are already disabled")
@@ -527,6 +533,106 @@ class GuildCog(Cog):
             return await ctx.send("No welcome messages")
         await ctx.send(random.choice(messages))
 
+    @commands.hybrid_group(
+        brief="Manage auto roles for this server", invoke_without_command=True
+    )
+    @commands.has_permissions(manage_roles=True)
+    async def autorole(self, ctx: Context):
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a server.")
+            return
+
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @autorole.command(
+        brief="Add a role that will be auto applied to new members", name="add"
+    )
+    async def add_role(self, ctx: Context, role: Role):
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a server.")
+            return
+
+        result = await AutoRoleService.add_auto_role(ctx.guild.id, role.id)
+        if result.is_err:
+            self.bot.logger.error(f"Error adding auto role: {result.unwrap_err()}")
+            return await ctx.send(
+                f"Something went wrong while adding the role {role.mention}."
+            )
+
+        message = result.unwrap()
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            message += "\nI will need the `Manage Roles` permission to apply roles to new members."
+        await ctx.send(message)
+
+    @autorole.command(brief="Remove a role from the auto role list", name="remove")
+    async def remove_role(self, ctx: Context, role: Role):
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a server.")
+            return
+
+        result = await AutoRoleService.remove_auto_role(ctx.guild.id, role.id)
+        if result.is_err:
+            self.bot.logger.error(f"Error removing auto role: {result.unwrap_err()}")
+            return await ctx.send(
+                f"Something went wrong while removing the role {role.mention}."
+            )
+
+        message = result.unwrap()
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            message += "\nI will need the `Manage Roles` permission to apply roles to new members."
+        await ctx.send(message)
+
+    @autorole.command(brief="List all auto roles", name="list")
+    async def list_roles(self, ctx: Context):
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a server.")
+            return
+
+        result = await AutoRoleService.list_auto_roles(ctx.guild.id)
+        if result.is_err:
+            self.bot.logger.error(f"Error retrieving auto roles: {result.unwrap_err()}")
+            return await ctx.send("Something went wrong while retrieving auto roles.")
+
+        roles = result.unwrap()
+        if not roles:
+            return await ctx.send("No auto roles set for this server.")
+
+        embed = Embed(title="Auto Roles", description="List of auto roles")
+        for role in roles:
+            embed.add_field(
+                name=f"{role.name} `[{role.id}]`", value=f"{role.mention}", inline=False
+            )
+
+        await ctx.send(embed=embed)
+
+    @autorole.command(brief="Remove all auto roles")
+    async def remove_all(self, ctx: Context):
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a server.")
+            return
+
+        result = await AutoRoleService.remove_all_auto_roles(ctx.guild.id)
+        if result.is_err:
+            self.bot.logger.error(
+                f"Error removing all auto roles: {result.unwrap_err()}"
+            )
+            return await ctx.send("Something went wrong while removing all auto roles.")
+
+        await ctx.send(result.unwrap())
+
+    # -----------------------
+    # ----End of Commands----
+    # -----------------------
+
     async def handle_greeting(self, guild: Guild, member: Member) -> Message | None:
         if not guild.greet_channel_id:
             return None
@@ -559,6 +665,18 @@ class GuildCog(Cog):
                 urls.extend(a.url for a in message.attachments)
         return urls
 
+    async def handle_auto_role(self, member: Member) -> None:
+        roles = await AutoRoleService.list_auto_roles(member.guild.id)
+        if roles.is_err:
+            self.bot.logger.error(f"Error retrieving auto roles: {roles.unwrap_err()}")
+            return
+
+        roles = roles.unwrap()
+        if not roles:
+            return
+
+        await member.add_roles(*roles)
+
     @Cog.listener()
     async def on_member_join(self, member: Member):
         guild = await Guild.get_or_none(id=member.guild.id)
@@ -566,6 +684,7 @@ class GuildCog(Cog):
             return
         await self.handle_greeting(guild, member)
         await self.handle_join_event(guild)
+        await self.handle_auto_role(member)
 
 
 async def setup(bot):
