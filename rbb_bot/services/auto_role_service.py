@@ -95,7 +95,7 @@ class AutoRoleService:
             )
 
     @classmethod
-    async def list_auto_roles(
+    async def _list_auto_roles(
         cls, guild_id: int
     ) -> Result[ListAutoRolesResult, AutoRoleServiceError]:
         try:
@@ -117,6 +117,20 @@ class AutoRoleService:
             )
         except Exception as e:
             return Result.Err(AutoRoleServiceError(f"{e}"))
+
+    @classmethod
+    async def list_with_cleanup(
+        cls, guild_id: int
+    ) -> Result[list[discord.Role], AutoRoleServiceError]:
+        list_result = await AutoRoleService._list_auto_roles(guild_id)
+        if list_result.is_err:
+            return Result.Err(list_result.unwrap_err())
+
+        result = list_result.unwrap()
+        if result.deleted_role_ids:
+            await AutoRoleService.remove_auto_roles(guild_id, result.deleted_role_ids)
+
+        return Result.Ok(result.existing_roles)
 
     @classmethod
     async def apply_auto_roles(
@@ -156,7 +170,9 @@ class AutoRoleService:
                     )
 
             if not errors:
-                return Result.Ok("All auto roles applied successfully.")
+                return Result.Ok(
+                    f"Missing auto roles applied to {successes} member{'s' if successes > 1 else ''}."
+                )
 
             return Result.Err(
                 AutoRoleServiceError(
