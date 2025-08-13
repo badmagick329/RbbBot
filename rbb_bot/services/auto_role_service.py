@@ -1,9 +1,16 @@
 import traceback
+from dataclasses import dataclass
 
 import discord
 from core.errors import AutoRoleServiceError
 from core.result import Result
 from models.auto_role import AutoRole
+
+
+@dataclass
+class ListAutoRolesResult:
+    existing_roles: list[discord.Role]
+    deleted_role_ids: list[int]
 
 
 class AutoRoleService:
@@ -54,6 +61,27 @@ class AutoRoleService:
             return Result.Err(AutoRoleServiceError(f"Error removing auto role: {e}"))
 
     @classmethod
+    async def remove_auto_roles(
+        cls, guild_id: int, role_ids: list[int]
+    ) -> Result[str, AutoRoleServiceError]:
+        try:
+            auto_roles = await AutoRole.filter(guild_id=guild_id, role_id__in=role_ids)
+            if not auto_roles:
+                return Result.Ok("No roles found in auto role list")
+            role_names = [
+                auto_role.role.name if auto_role.role else f"`[{auto_role.role_id}]`"
+                for auto_role in auto_roles
+            ]
+
+            await AutoRole.filter(guild_id=guild_id, role_id__in=role_ids).delete()
+            return Result.Ok(
+                f"Removed roles: {', '.join(role_names)} from auto role list"
+            )
+
+        except Exception as e:
+            return Result.Err(AutoRoleServiceError(f"Error removing auto roles: {e}"))
+
+    @classmethod
     async def remove_all_auto_roles(
         cls, guild_id: int
     ) -> Result[str, AutoRoleServiceError]:
@@ -68,10 +96,23 @@ class AutoRoleService:
     @classmethod
     async def list_auto_roles(
         cls, guild_id: int
-    ) -> Result[list[discord.Role], AutoRoleServiceError]:
+    ) -> Result[ListAutoRolesResult, AutoRoleServiceError]:
         try:
             auto_roles = await AutoRole.filter(guild_id=guild_id)
-            roles = [role.role for role in auto_roles if role.role]
-            return Result.Ok(roles)
+            existing_roles = []
+            deleted_role_ids = []
+            for auto_role in auto_roles:
+                role = auto_role.role
+                if role:
+                    existing_roles.append(role)
+                else:
+                    deleted_role_ids.append(auto_role.role_id)
+
+            return Result.Ok(
+                ListAutoRolesResult(
+                    existing_roles=existing_roles,
+                    deleted_role_ids=deleted_role_ids,
+                )
+            )
         except Exception as e:
-            return Result.Err(AutoRoleServiceError(f"Error retrieving auto roles: {e}"))
+            return Result.Err(AutoRoleServiceError(f"{e}"))

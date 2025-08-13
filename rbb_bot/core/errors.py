@@ -4,3 +4,9 @@ class GuildLoggingServiceError(Exception):
 
 class AutoRoleServiceError(Exception):
     pass
+
+
+class ClientInitializationError(Exception):
+    """Raised when the client from the ClientMixin fails to initialize properly."""
+
+    pass

@@ -575,7 +575,7 @@ class GuildCog(Cog):
             await ctx.send("This command can only be used in a server.")
             return
 
-        result = await AutoRoleService.remove_auto_role(ctx.guild.id, role.id)
+        result = await AutoRoleService.remove_auto_roles(ctx.guild.id, [role.id])
         if result.is_err:
             self.bot.logger.error(f"Error removing auto role: {result.unwrap_err()}")
             return await ctx.send(
@@ -595,17 +595,24 @@ class GuildCog(Cog):
             await ctx.send("This command can only be used in a server.")
             return
 
-        result = await AutoRoleService.list_auto_roles(ctx.guild.id)
-        if result.is_err:
-            self.bot.logger.error(f"Error retrieving auto roles: {result.unwrap_err()}")
+        list_result = await AutoRoleService.list_auto_roles(ctx.guild.id)
+        if list_result.is_err:
+            self.bot.logger.error(
+                f"Error retrieving auto roles: {list_result.unwrap_err()}"
+            )
             return await ctx.send("Something went wrong while retrieving auto roles.")
 
-        roles = result.unwrap()
-        if not roles:
+        result = list_result.unwrap()
+        if result.deleted_role_ids:
+            await AutoRoleService.remove_auto_roles(
+                ctx.guild.id, result.deleted_role_ids
+            )
+
+        if not result.existing_roles:
             return await ctx.send("No auto roles set for this server.")
 
         embed = Embed(title="Auto Roles", description="List of auto roles")
-        for role in roles:
+        for role in result.existing_roles:
             embed.add_field(
                 name=f"{role.name} `[{role.id}]`", value=f"{role.mention}", inline=False
             )
@@ -666,16 +673,30 @@ class GuildCog(Cog):
         return urls
 
     async def handle_auto_role(self, member: Member) -> None:
-        roles = await AutoRoleService.list_auto_roles(member.guild.id)
-        if roles.is_err:
-            self.bot.logger.error(f"Error retrieving auto roles: {roles.unwrap_err()}")
+        list_result = await AutoRoleService.list_auto_roles(member.guild.id)
+        if list_result.is_err:
+            self.bot.logger.error(
+                f"Error retrieving auto roles: {list_result.unwrap_err()}"
+            )
             return
 
-        roles = roles.unwrap()
-        if not roles:
+        result = list_result.unwrap()
+        if not result.existing_roles and not result.deleted_role_ids:
             return
 
-        await member.add_roles(*roles)
+        if not member.guild.me.guild_permissions.manage_roles:
+            self.bot.logger.warning(
+                f"Missing `Manage Roles` permission in {member.guild.name} for auto roles"
+            )
+            return
+
+        if result.existing_roles:
+            await member.add_roles(*result.existing_roles)
+
+        if result.deleted_role_ids:
+            await AutoRoleService.remove_auto_roles(
+                member.guild.id, result.deleted_role_ids
+            )
 
     @Cog.listener()
     async def on_member_join(self, member: Member):

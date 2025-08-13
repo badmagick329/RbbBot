@@ -2,6 +2,7 @@ import discord
 from tortoise import fields
 from tortoise.models import Model
 
+from rbb_bot.core.errors import ClientInitializationError
 from rbb_bot.utils.mixins import ClientMixin
 
 
@@ -15,12 +16,24 @@ class AutoRole(Model, ClientMixin):
 
     @property
     def guild(self) -> discord.Guild | None:
-        return self.client.get_guild(self.guild_id) if self.client else None
+        """
+        Returns the guild associated with this auto role.
+
+        Raises ClientInitializationError if the client is not initialized.
+        """
+        if not self.client:
+            raise ClientInitializationError("Client not initialized")
+        return self.client.get_guild(self.guild_id)
 
     @property
     def role(self) -> discord.Role | None:
+        """
+        Returns the role associated with this auto role if the associated guild and role are found.
+
+        Raises ClientInitializationError if the client is not initialized.
+        """
         if not self.client:
-            return None
+            raise ClientInitializationError("Client not initialized")
 
         guild = self.guild
         if not guild:
