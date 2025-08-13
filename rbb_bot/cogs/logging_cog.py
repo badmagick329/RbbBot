@@ -7,6 +7,8 @@ from discord.ext.commands import Cog, Context
 from services.guild_logging_service import GuildLoggingService
 from settings.const import MAX_EMBED_FIELD_VALUE
 
+from rbb_bot.core.formatted_timestamps import MemberTimestamps, MessageTimestamps
+
 
 class LoggingCog(Cog):
     def __init__(self, bot):
@@ -177,6 +179,8 @@ class LoggingCog(Cog):
         if ctx.invoked_with:
             return
 
+        message_timestamps = MessageTimestamps(message)
+
         logging_channel_result = await GuildLoggingService.logging_channel_for(
             message.guild, "message_removed"
         )
@@ -195,7 +199,6 @@ class LoggingCog(Cog):
         embed = discord.Embed(
             title="Message Deleted",
             color=discord.Color.red(),
-            timestamp=message.created_at,
         )
         embed.set_author(
             name=f"{author.name}({author.id})",
@@ -203,6 +206,11 @@ class LoggingCog(Cog):
         )
         embed.add_field(name="Channel", value=channel.mention, inline=True)  # type: ignore
         embed.add_field(name="Message ID", value=f"`{message.id}`", inline=True)
+        embed.add_field(
+            name="Created at",
+            value=f"{message_timestamps.created}",
+            inline=False,
+        )
 
         if len(message.content) < MAX_EMBED_FIELD_VALUE:
             embed.add_field(
@@ -237,10 +245,11 @@ class LoggingCog(Cog):
         if not logging_channel:
             return
 
+        message_timestamps = MessageTimestamps(after)
+
         embed = discord.Embed(
             title="Message Edited",
             color=discord.Color.orange(),
-            timestamp=after.edited_at or after.created_at,
         )
         embed.set_author(
             name=f"{before.author.name}({before.author.id})",
@@ -248,6 +257,11 @@ class LoggingCog(Cog):
         )
         embed.add_field(name="Channel", value=before.channel.mention, inline=True)  # type:ignore
         embed.add_field(name="Message ID", value=f"`{before.id}`", inline=True)
+        embed.add_field(
+            name="Created at",
+            value=f"{message_timestamps.created}",
+            inline=False,
+        )
 
         if before.content == after.content:
             return
@@ -326,14 +340,19 @@ class LoggingCog(Cog):
         if not logging_channel:
             return
 
+        formatted_timestamps = MemberTimestamps(member)
+
         embed = discord.Embed(
             title="Member Joined",
             color=discord.Color.green(),
-            timestamp=member.joined_at or member.created_at,
         )
         embed.set_author(
             name=f"{member.name}({member.id})",
             icon_url=member.display_avatar.url,
+        )
+        embed.add_field(
+            name="Account Created",
+            value=f"{formatted_timestamps.account_created} ~ {formatted_timestamps.account_created_relative}",
         )
         await logging_channel.send(embed=embed)
 
@@ -352,18 +371,34 @@ class LoggingCog(Cog):
             return
 
         logging_channel = logging_channel_result.unwrap()
+        formatted_timestamps = MemberTimestamps(member)
+
         if not logging_channel:
             return
 
         embed = discord.Embed(
             title="Member Left",
             color=discord.Color.red(),
-            timestamp=member.joined_at or member.created_at,
         )
         embed.set_author(
             name=f"{member.name}({member.id})",
             icon_url=member.display_avatar.url,
         )
+        embed.add_field(
+            name="Account Created",
+            value=f"{formatted_timestamps.account_created} ~ {formatted_timestamps.account_created_relative}",
+        )
+        if member.joined_at:
+            embed.add_field(
+                name="Joined At",
+                value=f"{formatted_timestamps.joined_at} ~ {formatted_timestamps.joined_at_relative}",
+            )
+        else:
+            embed.add_field(
+                name="Joined At",
+                value="Unknown",
+            )
+
         await logging_channel.send(embed=embed)
 
 
