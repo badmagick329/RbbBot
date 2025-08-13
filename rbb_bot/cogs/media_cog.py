@@ -12,7 +12,6 @@ from discord.ui import Button, View
 from PIL import Image, UnidentifiedImageError
 from utils.exceptions import TimeoutError
 from utils.helpers import http_get, url_to_filename
-from utils.sns import InstagramFetcher, Sns
 
 from rbb_bot.utils.decorators import log_command
 
@@ -140,7 +139,7 @@ class CropView(View):
             crop_text = f"You can crop the image {self.MAX_CROPS} times"
         else:
             crop_text = (
-                f"You can crop the image {self.MAX_CROPS-self.crop_count} more times"
+                f"You can crop the image {self.MAX_CROPS - self.crop_count} more times"
             )
         return (
             f"{self.init_message.format(width=self.image.width, height=self.image.height)}\n"
@@ -177,18 +176,11 @@ class CropView(View):
 class MediaCog(Cog):
     def __init__(self, bot):
         self.bot = bot
-        instagram_fetcher = InstagramFetcher(
-            self.bot.config.ig_headers,
-            self.bot.creds.ig_cookies,
-            logger=self.bot.logger,
-        )
-        self.sns_instagram = Sns(instagram_fetcher, timestamped_urls=True)
 
     async def cog_load(self):
         self.bot.logger.debug("MediaCog loaded!")
 
     async def cog_unload(self):
-        await self.sns_instagram.fetcher.web_client.close()
         self.bot.logger.debug("MediaCog unloaded!")
 
     @commands.hybrid_group(
@@ -220,7 +212,7 @@ class MediaCog(Cog):
         Parameters
         ----------
         urls : str
-            The urls of images, instagram post or attachments (Required)
+            The urls of images or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -348,7 +340,7 @@ class MediaCog(Cog):
         rotate_by : List
             The number of degrees to rotate by counter-clockwise (Required)
         urls : str
-            The urls of images, instagram post or attachments (Required)
+            The urls of images or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -409,7 +401,7 @@ class MediaCog(Cog):
         flip_direction : List
             The direction to flip by (h or v) (Required)
         urls : str
-            The urls of images, instagram post or attachments (Required)
+            The urls of images or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -462,7 +454,7 @@ class MediaCog(Cog):
         Parameters
         ----------
         urls : str
-            The urls of images, instagram post or an attachment (Required)
+            The urls of images or attachments (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -491,33 +483,19 @@ class MediaCog(Cog):
                 continue
 
     async def get_images_and_names(
-        self, ctx: Context, urls: str, check_ig=False
+        self, ctx: Context, urls: str | None, check_ig=False
     ) -> list[tuple[Image.Image, str]]:
         """
         Get images and their filenames from urls or attachments
         """
-        image_urls = [url.strip() for url in urls.split(" ") if url.strip()]
-        instagram_urls = list()
+
+        if not urls:
+            image_urls = []
+        else:
+            image_urls = [url.strip() for url in urls.split(" ") if url.strip()]
         images_and_names = list()
 
-        if check_ig and (ig_urls := self.sns_instagram.fetcher.find_urls(urls)):
-            instagram_urls.extend(ig_urls)
-            fetch_result = await self.sns_instagram.fetch(ig_urls[0])
-            if fetch_result.post_data:
-                post_data = fetch_result.post_data
-                image_urls.extend(post_data.urls)
-                for post_media in post_data.media_list:
-                    image = Image.open(post_media.bytes_io)
-                    images_and_names.append((image, post_media.filename))
-                for file_path in post_data.file_path_list:
-                    try:
-                        image = Image.open(file_path)
-                    except UnidentifiedImageError:
-                        continue
-                    images_and_names.append((image, file_path))
-
         image_urls.extend([attachment.url for attachment in ctx.message.attachments])
-        image_urls = [url for url in image_urls if url not in instagram_urls]
 
         for url in image_urls:
             img = await self.get_image(url)

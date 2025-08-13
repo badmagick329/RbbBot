@@ -89,7 +89,7 @@ class ReleasesView(ListView):
             name, value = format_release_field(release)
             value = f"{value}\n{'-' * 50}"
             embed.add_field(name=name, value=value, inline=False)
-        embed.set_footer(text=f"Source: https://www.reddit.com/r/kpop")
+        embed.set_footer(text="Source: https://www.reddit.com/r/kpop")
         return embed
 
 
@@ -341,7 +341,7 @@ class KpopCog(Cog):
         if not releases:
             return await ctx.send("No releases found")
         else:
-            await ctx.send(f"No recent releases found. Showing older releases")
+            await ctx.send("No recent releases found. Showing older releases")
             return await send_releases(ctx, releases)
 
     @commands.hybrid_command(
