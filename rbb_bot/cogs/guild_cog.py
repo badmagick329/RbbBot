@@ -567,6 +567,37 @@ class GuildCog(Cog):
             message += "\nI will need the `Manage Roles` permission to apply roles to new members."
         await ctx.send(message)
 
+    @autorole.command(
+        brief="Apply auto roles to all members in the server", name="apply_all"
+    )
+    async def apply_all(self, ctx: Context, include_bots: bool = False):
+        """
+        Apply auto roles to all members in the server
+
+        Parameters
+        ----------
+        include_bots: bool
+            Whether to include bots in the auto role application. Defaults to False
+        """
+        if ctx.interaction:
+            await ctx.interaction.response.defer()
+        if not ctx.guild:
+            return await ctx.send("This command can only be used in a server.")
+
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            return await ctx.send(
+                "I need the `Manage Roles` permission to apply auto roles."
+            )
+
+        result = await AutoRoleService.apply_auto_roles(
+            ctx.guild.id, ctx.guild.members, include_bots=include_bots
+        )
+        if result.is_err:
+            self.bot.logger.error(f"Error applying auto roles: {result.unwrap_err()}")
+            return await ctx.send("Something went wrong while applying auto roles.")
+
+        await ctx.send(result.unwrap())
+
     @autorole.command(brief="Remove a role from the auto role list", name="remove")
     async def remove_role(self, ctx: Context, role: Role):
         if ctx.interaction:

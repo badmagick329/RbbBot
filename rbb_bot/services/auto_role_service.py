@@ -1,5 +1,6 @@
 import traceback
 from dataclasses import dataclass
+from typing import Iterable
 
 import discord
 from core.errors import AutoRoleServiceError
@@ -114,5 +115,54 @@ class AutoRoleService:
                     deleted_role_ids=deleted_role_ids,
                 )
             )
+        except Exception as e:
+            return Result.Err(AutoRoleServiceError(f"{e}"))
+
+    @classmethod
+    async def apply_auto_roles(
+        cls,
+        guild_id: int,
+        members: Iterable[discord.Member],
+        include_bots: bool = False,
+    ):
+        try:
+            auto_roles = await AutoRole.filter(guild_id=guild_id)
+            roles = [r.role for r in auto_roles if r.role]
+            members_and_missing_roles = {}
+            for member in members:
+                if member.bot and not include_bots:
+                    continue
+                member_roles = set(member.roles)
+                missing_roles = [role for role in roles if role not in member_roles]
+                if missing_roles:
+                    members_and_missing_roles[member] = missing_roles
+
+            if not members_and_missing_roles:
+                return Result.Ok("No members missing auto roles.")
+
+            errors = []
+            successes = 0
+            for member, missing_roles in members_and_missing_roles.items():
+                try:
+                    await member.add_roles(
+                        *missing_roles, reason="Auto role assignment"
+                    )
+                    successes += 1
+
+                except Exception as e:
+                    errors.append(
+                        f"Failed to add roles {', '.join(role.name for role in missing_roles)} "
+                        f"to {member.display_name}: {e}"
+                    )
+
+            if not errors:
+                return Result.Ok("All auto roles applied successfully.")
+
+            return Result.Err(
+                AutoRoleServiceError(
+                    f"Applied {successes} auto roles with errors:\n{', '.join(errors)}"
+                )
+            )
+
         except Exception as e:
             return Result.Err(AutoRoleServiceError(f"{e}"))
