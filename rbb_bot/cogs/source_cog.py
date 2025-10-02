@@ -3,7 +3,7 @@ from datetime import date as Date
 from datetime import datetime
 from typing import Optional
 
-from discord import Embed, RawReactionActionEvent
+from discord import Embed, Emoji, RawReactionActionEvent
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import DiscordUser, SourceEntry
@@ -182,6 +182,9 @@ class SourceCog(Cog):
                     f"Use {ctx.prefix}source edit to edit or add more information"
                 )
 
+        if event:
+            event = event.strip()
+
         # Initial validation
         if source_url:
             if len(source_url) > SourceEntry.MAX_CHAR_FIELD:
@@ -192,17 +195,8 @@ class SourceCog(Cog):
         if event:
             if len(event) > SourceEntry.MAX_CHAR_FIELD:
                 return await ctx.send(
-                    "Event is too long. Max " f"{SourceEntry.MAX_CHAR_FIELD} characters"
+                    f"Event is too long. Max {SourceEntry.MAX_CHAR_FIELD} characters"
                 )
-
-        if not emoji_regex.search(emote_string):
-            return await ctx.send(
-                f"`{emote_string}` does not look like a valid emote string"
-            )
-
-        emoji_url = await self.fetch_emoji_url(emote_string)
-        if not emoji_url:
-            return await ctx.send(f"`{emote_string}` does not look like a valid emote")
 
         if edit_entry:
             if source_url:
@@ -224,14 +218,16 @@ class SourceCog(Cog):
                     )
                 )
             source_date = validated_date
-        if event and event.strip():
-            event = event.strip()
 
         if edit_entry:
-            if not [a for a in [source_url, source_date, event] if a]:
+            if not any([source_url, source_date, event]):
                 return await ctx.send(
                     "At least one of these is required: source_url, source_date, event"
                 )
+
+        emote_url = await self.fetch_emoji_url(emote_string)
+        if not emote_url:
+            return await ctx.send("Could not validate the emote url")
 
         # Get confirmation
         conf_prompt = ""
@@ -243,9 +239,9 @@ class SourceCog(Cog):
             conf_prompt += f"Event: {event}\n"
 
         if edit_entry:
-            conf_prompt += f"Edit these fields?"
+            conf_prompt += "Edit these fields?"
         else:
-            conf_prompt += f"Is this correct?"
+            conf_prompt += "Is this correct?"
 
         if not (await self.bot.get_confirmation(ctx, conf_prompt)):
             return
@@ -253,7 +249,7 @@ class SourceCog(Cog):
         # Create entry
         source_entry = SourceEntry(
             emoji_string=emote_string,
-            emoji_url=emoji_url,
+            emoji_url=emote_url,
             source_url=source_url,
             source_date=source_date,
             event=event,
@@ -333,19 +329,17 @@ class SourceCog(Cog):
             return None
         return date
 
-    async def fetch_emoji_url(self, emoji_string) -> str | None:
+    async def fetch_emoji_url(self, emoji_string: str) -> str | None:
         match = emoji_regex.search(emoji_string)
         if not match:
             return None
         emoji_id = match.group(3)
-        image_format = "gif" if match.group(1) == "a" else "png"
+        params = "?animated=true" if match.group(1) == "a" else ""
 
-        cdn_template = "https://cdn.discordapp.com/emojis/{emoji_id}.{image_format}"
-        async with self.bot.web_client.get(
-            cdn_template.format(emoji_id=emoji_id, image_format=image_format)
-        ) as response:
+        url = f"https://cdn.discordapp.com/emojis/{emoji_id}.webp{params}"
+        async with self.bot.web_client.get(url) as response:
             if response.status == 200:
-                return cdn_template.format(emoji_id=emoji_id, image_format=image_format)
+                return url
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
