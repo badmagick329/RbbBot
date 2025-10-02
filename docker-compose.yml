@@ -2,8 +2,8 @@ services:
   db:
     image: postgres:13
     volumes:
-      - ./dbdata:/var/lib/postgresql/data
-    restart: always
+      - rbb_db:/var/lib/postgresql/data
+    restart: "unless-stopped"
     environment:
       POSTGRES_USER: "${DB_USER}"
       POSTGRES_PASSWORD: "${DB_PASSWORD}"
@@ -13,16 +13,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      appnet:
+        aliases: ["rbb-db"]
+
   rbb:
-    image: rbb:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: always
-    volumes:
-      - ./rbb_bot:/app/rbb_bot
+    image: rbb_bot:latest
+    restart: "unless-stopped"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - PYTHONUNBUFFERED=1
+      PYTHONUNBUFFERED: 1
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_NAME: "${DB_NAME}"
+      DB_PORT: "${DB_PORT}"
+      DB_URL: "${DB_URL}"
+    networks: [appnet]
+
+volumes:
+  rbb_db:
+    name: "rbb_db"
+
+networks:
+  appnet:

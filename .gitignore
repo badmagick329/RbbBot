@@ -13,9 +13,9 @@ scripts/
 tc_cog.py
 
 dbconfig.py
-config.yaml
-creds.yaml
-ids.py
+config*.yaml
+creds*.yaml
+ids*.py
 docker-compose*
 !docker-compose.yml
 .env
