@@ -63,9 +63,9 @@ class MiscCog(Cog):
         if len(results) == 10:
             msg.append("Displaying the first 10 results")
         for result in results:
-            type_ = f'{result["type"]} ' if result["type"] else ""
-            string = f'{result["str"]} ' if result["str"] else ""
-            created_at = f'created at {format_dt(result["created"])}'
+            type_ = f"{result['type']} " if result["type"] else ""
+            string = f"{result['str']} " if result["str"] else ""
+            created_at = f"created at {format_dt(result['created'])}"
             msg.append(f"{type_}{string}{created_at}")
 
         await ctx.send("\n".join(msg))
@@ -222,24 +222,25 @@ class MiscCog(Cog):
             embed.add_field(name="Boost Level", value=guild.premium_tier, inline=False)
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(brief="Search wiki")
-    @commands.cooldown(3, 10, commands.BucketType.user)
-    async def wiki(self, ctx: Context, *, query: str):
-        """
-        Search wiki
+    # NOTE: Discontinued
+    # @commands.hybrid_command(brief="Search wiki")
+    # @commands.cooldown(3, 10, commands.BucketType.user)
+    # async def wiki(self, ctx: Context, *, query: str):
+    #     """
+    #     Search wiki
 
-        Parameters
-        ----------
-        query: str
-            Query to search for (Required)
-        """
-        query = urllib.parse.quote(query)
-        url = self.wiki_url.format(apikey=self.search_key, query=query)
-        response = await http_get(self.bot.web_client, url, as_json=True)
-        search_results = [SearchResult(item) for item in response["items"][:5]]
-        view = SearchResultsView(ctx, search_results, 1)
-        view.embed = view.create_embed(view.current_chunk)
-        view.message = await ctx.send(embed=view.embed, view=view)
+    #     Parameters
+    #     ----------
+    #     query: str
+    #         Query to search for (Required)
+    #     """
+    #     query = urllib.parse.quote(query)
+    #     url = self.wiki_url.format(apikey=self.search_key, query=query)
+    #     response = await http_get(self.bot.web_client, url, as_json=True)
+    #     search_results = [SearchResult(item) for item in response["items"][:5]]
+    #     view = SearchResultsView(ctx, search_results, 1)
+    #     view.embed = view.create_embed(view.current_chunk)
+    #     view.message = await ctx.send(embed=view.embed, view=view)
 
 
 async def setup(bot):
