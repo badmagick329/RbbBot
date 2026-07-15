@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.10.10
 RUN apt-get update
 RUN apt-get install -y ffmpeg
 WORKDIR /app
