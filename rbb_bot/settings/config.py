@@ -1,9 +1,12 @@
+import os
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel
 
-CONFIG_FILE = Path(__file__).parent / "config.yaml"
+CONFIG_FILE = Path(
+    os.environ.get("RBB_CONFIG_FILE", Path(__file__).parent / "config.yaml")
+)
 CREDS_FILE = Path(__file__).parent / "creds.yaml"
 
 

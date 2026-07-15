@@ -1,0 +1,7 @@
+debug: true
+default_prefix: "!"
+headers: {}
+ig_headers: {}
+kprofiles_url: "https://example.test/kprofiles"
+wiki_url: "https://example.test/wiki"
+google_url: "https://example.test/google"

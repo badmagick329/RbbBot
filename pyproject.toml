@@ -55,6 +55,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 addopts = "-rP"
 testpaths = ["tests"]
+markers = [
+    "integration: requires the dedicated local Postgres test database",
+]
 
 [tool.pyright]
 include = ["./rbb_bot"]

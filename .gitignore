@@ -19,6 +19,7 @@ creds*.yaml
 ids*.py
 docker-compose*
 !docker-compose.yml
+!docker-compose-test.yml
 .env
 rbb_bot.log*
 **/temp/*.mp4
