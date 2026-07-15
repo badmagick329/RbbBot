@@ -4,7 +4,8 @@ __pycache__/
 .pytest_cache/
 dbdata/
 test_dbdata/
-tests/
+tests/**/__pycache__/
+tests/ignore/
 tester/
 
 media_cache/

@@ -529,4 +529,4 @@ if __name__ == "__main__":
 
     asyncio.run(main())
 else:
-    from models import Artist, Release, ReleaseType
+    from rbb_bot.models import Artist, Release, ReleaseType
