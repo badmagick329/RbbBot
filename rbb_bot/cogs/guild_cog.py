@@ -707,23 +707,50 @@ class GuildCog(Cog):
         if not existing_roles:
             return
 
-        if not member.guild.me.guild_permissions.manage_roles:
+        bot_member = member.guild.me
+        if bot_member is None:
+            self.bot.logger.error(
+                f"Bot member unavailable for auto roles in guild {member.guild.id}"
+            )
+            return
+
+        if not bot_member.guild_permissions.manage_roles:
             self.bot.logger.warning(
                 f"Missing `Manage Roles` permission in {member.guild.name} for auto roles"
             )
             return
 
-        if existing_roles:
-            await member.add_roles(*existing_roles)
+        await member.add_roles(*existing_roles)
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
         guild = await Guild.get_or_none(id=member.guild.id)
         if not guild:
             return
-        await self.handle_greeting(guild, member)
-        await self.handle_join_event(guild)
-        await self.handle_auto_role(member)
+
+        try:
+            await self.handle_greeting(guild, member)
+        except Exception:
+            self.bot.logger.exception(
+                "Member join greeting failed; continuing with remaining join actions "
+                f"guild_id={member.guild.id} member_id={member.id}"
+            )
+
+        try:
+            await self.handle_join_event(guild)
+        except Exception:
+            self.bot.logger.exception(
+                "Member join event failed; continuing with remaining join actions "
+                f"guild_id={member.guild.id} member_id={member.id}"
+            )
+
+        try:
+            await self.handle_auto_role(member)
+        except Exception:
+            self.bot.logger.exception(
+                "Member join autorole failed "
+                f"guild_id={member.guild.id} member_id={member.id}"
+            )
 
 
 async def setup(bot):
