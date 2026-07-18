@@ -1,0 +1,13 @@
+.git
+.idea
+.venv
+__pycache__
+.pytest_cache
+dbdata
+test_dbdata
+.env
+notes
+tests
+rbb_bot/settings/creds*.yaml
+rbb_bot/data/rbb_bot.log*
+rbb_bot/data/media_cache
