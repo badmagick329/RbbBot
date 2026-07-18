@@ -4,15 +4,21 @@ import discord
 from discord.errors import Forbidden
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, Greedy
-from discord.ext.commands.errors import (BadArgument, BadLiteralArgument,
-                                         ChannelNotFound, CommandInvokeError,
-                                         CommandOnCooldown,
-                                         ExpectedClosingQuoteError,
-                                         MissingPermissions,
-                                         MissingRequiredArgument, RoleNotFound)
+from discord.ext.commands.errors import (
+    BadArgument,
+    BadLiteralArgument,
+    ChannelNotFound,
+    CommandInvokeError,
+    CommandOnCooldown,
+    ExpectedClosingQuoteError,
+    MissingPermissions,
+    MissingRequiredArgument,
+    RoleNotFound,
+)
 from models import DiskCache
 
 from rbb_bot.settings.const import BotEmojis
+from rbb_bot.services.guild_data_service import GuildDataService
 from rbb_bot.utils.error_logging import format_error_context
 
 
@@ -129,6 +135,29 @@ class AdminCog(Cog):
         deleted = await channel.purge(limit=amount)
         return await ctx.send(f"Purged {len(deleted)} messages.", delete_after=5)
 
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def reconcile_guilds(self, ctx: Context) -> None:
+        """Mark legacy configured guilds no longer present in the ready guild cache."""
+        try:
+            guild_ids = await GuildDataService.reconcile_departed_guilds(
+                [guild.id for guild in self.bot.guilds]
+            )
+        except Exception:
+            self.bot.logger.exception("Legacy guild reconciliation failed")
+            await ctx.send(f"{BotEmojis.CROSS} Guild reconciliation failed.")
+            return
+
+        self.bot.logger.info(
+            "Legacy guild reconciliation complete count=%s guild_ids=%s",
+            len(guild_ids),
+            ",".join(str(guild_id) for guild_id in guild_ids),
+        )
+        await ctx.send(
+            f"Marked {len(guild_ids)} legacy departed guild"
+            f"{'s' if len(guild_ids) != 1 else ''}."
+        )
+
     @commands.command(brief="Admin commands")
     @commands.is_owner()
     async def cmd(self, ctx, *, cmd_text: Optional[str] = ""):
@@ -204,9 +233,7 @@ class AdminCog(Cog):
             if isinstance(error.original, Forbidden):
                 await ctx.send(f"{BotEmojis.CROSS} {error.original}")
 
-        self.bot.logger.error(
-            format_error_context(ctx), exc_info=error
-        )
+        self.bot.logger.error(format_error_context(ctx), exc_info=error)
 
 
 async def setup(bot):

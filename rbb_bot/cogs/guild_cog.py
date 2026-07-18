@@ -34,32 +34,78 @@ class GuildCog(Cog):
         self.bot = bot
 
     async def cog_load(self):
-        self.guild_cleanup_candidate_task.start()
+        self.guild_cleanup_task.start()
         self.bot.logger.debug("GuildCog loaded!")
 
     async def cog_unload(self):
-        self.guild_cleanup_candidate_task.cancel()
+        self.guild_cleanup_task.cancel()
         self.bot.logger.debug("GuildCog unloaded!")
 
-    async def report_expired_cleanup_candidates(self) -> None:
-        candidates = await GuildDataService.expired_cleanup_candidates()
-        if not candidates:
-            return
+    async def delete_source_confirmation_messages(
+        self, guild_id: int, source_entries: list
+    ) -> bool:
+        """Delete source moderation posts before their database records are removed."""
+        for source_entry in source_entries:
+            try:
+                channel = self.bot.get_channel(source_entry.conf_channel_id)
+                if channel is None:
+                    channel = await self.bot.fetch_channel(source_entry.conf_channel_id)
+                message = await channel.fetch_message(source_entry.conf_message_id)
+                await message.delete()
+            except discord.NotFound:
+                continue
+            except (discord.Forbidden, discord.HTTPException):
+                self.bot.logger.exception(
+                    "Guild source confirmation cleanup failed guild_id=%s "
+                    "source_entry_count=%s",
+                    guild_id,
+                    len(source_entries),
+                )
+                return False
+        return True
 
-        guild_ids = ",".join(str(guild.id) for guild in candidates)
-        self.bot.logger.warning(
-            "Guild cleanup candidates count=%s guild_ids=%s", len(candidates), guild_ids
-        )
+    async def cleanup_expired_guilds(self) -> None:
+        candidates = await GuildDataService.expired_cleanup_candidates()
+        deleted_guild_ids = []
+        for guild in candidates:
+            try:
+                source_entries = await GuildDataService.source_entries_for_cleanup(
+                    guild.id
+                )
+                if source_entries is None:
+                    continue
+                if not await self.delete_source_confirmation_messages(
+                    guild.id, source_entries
+                ):
+                    continue
+                if await GuildDataService.delete_guild_data(guild.id):
+                    self.bot.guild_prefixes.pop(guild.id, None)
+                    deleted_guild_ids.append(guild.id)
+                else:
+                    self.bot.logger.warning(
+                        "Guild cleanup skipped after source confirmation cleanup "
+                        "guild_id=%s",
+                        guild.id,
+                    )
+            except Exception:
+                self.bot.logger.exception("Guild cleanup failed guild_id=%s", guild.id)
+
+        if deleted_guild_ids:
+            self.bot.logger.info(
+                "Guild cleanup complete count=%s guild_ids=%s",
+                len(deleted_guild_ids),
+                ",".join(str(guild_id) for guild_id in deleted_guild_ids),
+            )
 
     @tasks.loop(hours=24)
-    async def guild_cleanup_candidate_task(self) -> None:
+    async def guild_cleanup_task(self) -> None:
         try:
-            await self.report_expired_cleanup_candidates()
+            await self.cleanup_expired_guilds()
         except Exception:
-            self.bot.logger.exception("Guild cleanup candidate report failed")
+            self.bot.logger.exception("Guild cleanup task failed")
 
-    @guild_cleanup_candidate_task.before_loop
-    async def before_guild_cleanup_candidate_task(self) -> None:
+    @guild_cleanup_task.before_loop
+    async def before_guild_cleanup_task(self) -> None:
         await self.bot.wait_until_ready()
 
     @commands.hybrid_command(brief="Show or set the prefix for this server")
