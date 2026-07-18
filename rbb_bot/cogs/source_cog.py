@@ -9,7 +9,6 @@ from discord.ext.commands import Cog, Context
 from models import DiscordUser, SourceEntry
 
 from rbb_bot.settings.const import BotEmojis
-from rbb_bot.utils.decorators import log_command
 from rbb_bot.utils.helpers import emoji_regex
 from rbb_bot.utils.views import ListView
 
@@ -45,7 +44,6 @@ class SourceCog(Cog):
             await ctx.invoke(self.find_source, *args, **kwargs)
 
     @source.command(name="find", brief="Look up the source for an emote")
-    @log_command(command_name="source find")
     async def find_source(self, ctx: Context, emote_string: str = ""):
         """
         Look up the source for an emote
@@ -95,7 +93,6 @@ class SourceCog(Cog):
         name="add",
         brief="Add a source for an emote (Incorrect entries will be removed)",
     )
-    @log_command(command_name="source add")
     async def add_source(
         self,
         ctx: Context,
@@ -125,7 +122,6 @@ class SourceCog(Cog):
         )
 
     @source.command(name="edit", brief="Edit source data for an emote")
-    @log_command(command_name="source edit")
     async def source_edit(
         self,
         ctx: Context,
@@ -267,7 +263,6 @@ class SourceCog(Cog):
             return await ctx.send("Source added. Thank you! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧")
 
     @source.command(name="list", brief="List number of submissions by users")
-    @log_command(command_name="source list")
     async def source_list(self, ctx: Context):
         if ctx.interaction:
             await ctx.interaction.response.defer()

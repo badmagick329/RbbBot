@@ -11,8 +11,6 @@ from models import Guild
 from utils.views import ListView
 
 from rbb_bot.settings.const import FilePaths
-from rbb_bot.utils.decorators import log_command
-
 
 class ColorsList(ListView):
     def create_embed(self, colors: list[tuple[str, str]]) -> Embed:
@@ -124,7 +122,6 @@ class RolesCog(Cog):
     @roles.command(brief="Remove unused roles")
     @commands.has_permissions(manage_roles=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="roles prune")
     async def prune(self, ctx: Context):
         """
         Remove unused roles
@@ -151,7 +148,6 @@ class RolesCog(Cog):
     @roles.command(brief="Clear all unique roles belonging to users")
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.has_permissions(manage_roles=True)
-    @log_command(command_name="roles clear")
     async def clear(self, ctx: Context):
         """
         Clear all unique roles belonging to users
@@ -196,7 +192,6 @@ class RolesCog(Cog):
 
     @roles.command(brief="Show a list of available colors")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="roles colors")
     async def colors(self, ctx: Context):
         """
         Show a list of available colors
@@ -207,7 +202,6 @@ class RolesCog(Cog):
 
     @roles.command(brief="Create a unique role for yourself")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="roles add")
     async def add(self, ctx: Context, color: str, *, name: str):
         """
         Create a unique role for yourself
@@ -289,7 +283,6 @@ class RolesCog(Cog):
             )
 
     @roles.command(brief="Remove a unique role")
-    @log_command(command_name="roles remove")
     async def remove(self, ctx: Context, *, role: Role):
         """
         Remove a unique role

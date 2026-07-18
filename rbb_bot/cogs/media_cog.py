@@ -13,8 +13,6 @@ from PIL import Image, UnidentifiedImageError
 from utils.exceptions import TimeoutError
 from utils.helpers import http_get, url_to_filename
 
-from rbb_bot.utils.decorators import log_command
-
 SMALL = 5
 MEDIUM = 10
 LARGE = 25
@@ -201,7 +199,6 @@ class MediaCog(Cog):
 
     @crop.command(name="images", brief="Crop solid lines around images")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="crop images")
     async def crop_images(self, ctx: Context, *, urls: Optional[str] = ""):
         """
         Crop solid lines around images
@@ -227,7 +224,7 @@ class MediaCog(Cog):
             except Exception as e:
                 await ctx.send(f"Could not crop image {filename}")
                 await self.bot.send_error(
-                    ctx, e, include_attachments=True, comment="Error in crop_image()"
+                    ctx, e, comment="Error in crop_image()"
                 )
                 continue
             arr = BytesIO()
@@ -243,7 +240,6 @@ class MediaCog(Cog):
                 self.bot.send_error(
                     ctx,
                     e,
-                    include_attachments=True,
                     comment="Error sending cropped image",
                 )
         if len(images_and_names) != 1 or sent_message is None:
@@ -268,7 +264,6 @@ class MediaCog(Cog):
 
     @crop.command(name="adjust", brief="Make adjustments to a cropped image")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="crop adjust")
     async def crop_adjust(self, ctx: Context, url: Optional[str] = ""):
         """
         Make adjustments to a cropped image
@@ -308,7 +303,7 @@ class MediaCog(Cog):
         except (InvalidURL, UnidentifiedImageError, TimeoutError):
             return None
         except Exception as e:
-            await self.bot.send_error(exc=e, comment=f"Error in get_image({url})")
+            await self.bot.send_error(exc=e, comment="Error fetching image")
             return None
 
     @commands.hybrid_group(name="image", brief="Rotate or flip images")
@@ -324,7 +319,6 @@ class MediaCog(Cog):
 
     @edit_image.command(name="rotate", brief="Rotate images counter-clockwise")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="edit image rotate")
     async def rotate_image(
         self,
         ctx: Context,
@@ -369,7 +363,7 @@ class MediaCog(Cog):
             except Exception as e:
                 await ctx.send(f"Could not rotate image {filename}")
                 await self.bot.send_error(
-                    ctx, e, include_attachments=True, comment="Error rotating"
+                    ctx, e, comment="Error rotating"
                 )
                 continue
             arr = BytesIO()
@@ -380,12 +374,11 @@ class MediaCog(Cog):
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
                 await self.bot.send_error(
-                    ctx, e, include_attachments=True, comment="Error while sending"
+                    ctx, e, comment="Error while sending"
                 )
 
     @edit_image.command(name="flip", brief="Flip images horizontally or vertically")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="edit image flip")
     async def flip_image(
         self,
         ctx: Context,
@@ -425,7 +418,7 @@ class MediaCog(Cog):
             except Exception as e:
                 await ctx.send(f"Could not flip image {filename}")
                 await self.bot.send_error(
-                    ctx, e, include_attachments=True, comment="Error flipping"
+                    ctx, e, comment="Error flipping"
                 )
                 continue
             arr = BytesIO()
@@ -436,12 +429,11 @@ class MediaCog(Cog):
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
                 await self.bot.send_error(
-                    ctx, e, include_attachments=True, comment="Error while sending"
+                    ctx, e, comment="Error while sending"
                 )
 
     @edit_image.command(name="webp", brief="Convert images from webp to png")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="convert webp")
     async def convert_webp(
         self,
         ctx: Context,
@@ -478,7 +470,7 @@ class MediaCog(Cog):
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
                 await self.bot.send_error(
-                    ctx, e, include_attachments=True, comment="Error while sending"
+                    ctx, e, comment="Error while sending"
                 )
                 continue
 

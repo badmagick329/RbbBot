@@ -43,7 +43,7 @@ async def test_database():
     try:
         await Tortoise.init(
             db_url=database_url,
-            modules={"models": ["rbb_bot.models"]},
+            modules={"models": ["rbb_bot.models", "aerich.models"]},
         )
         connection = Tortoise.get_connection("default")
         await connection.execute_script(

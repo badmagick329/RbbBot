@@ -8,4 +8,5 @@ RUN poetry config virtualenvs.create false
 RUN poetry install --without dev
 RUN pip install yt-dlp
 COPY ./rbb_bot ./rbb_bot
-CMD ["python", "./rbb_bot/launcher.py"]
+COPY ./migrations ./migrations
+CMD ["python", "-m", "rbb_bot.container_start"]

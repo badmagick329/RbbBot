@@ -122,7 +122,7 @@ class EmojisCog(Cog):
             elif "In image:" in e.text:
                 return await ctx.send("The image was too large")
             else:
-                await self.bot.send_error(ctx, e, "Error adding emote")
+                await self.bot.send_error(ctx, e, comment="Error adding emote")
                 return await ctx.send(f"Error adding emote: {e.text}")
 
         await ctx.send(f"Added emote {added_emoji}")
@@ -327,8 +327,7 @@ class EmojisCog(Cog):
     async def post_updated_emojis(self, guild: Guild, discord_guild):
         if guild.id not in self.post_datetimes:
             await self.bot.send_error(
-                comment=f"post_updated_emojis called for {discord_guild} "
-                f"but no post_datetimes entry. {self.post_datetimes}"
+                comment="Post-updated-emojis called without a schedule entry"
             )
             return
 

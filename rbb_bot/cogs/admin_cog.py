@@ -13,6 +13,7 @@ from discord.ext.commands.errors import (BadArgument, BadLiteralArgument,
 from models import DiskCache
 
 from rbb_bot.settings.const import BotEmojis
+from rbb_bot.utils.error_logging import format_error_context
 
 
 class AdminCog(Cog):
@@ -203,17 +204,8 @@ class AdminCog(Cog):
             if isinstance(error.original, Forbidden):
                 await ctx.send(f"{BotEmojis.CROSS} {error.original}")
 
-        params = list()
-
-        args = ",".join([str(a) for a in ctx.args])
-        if args:
-            params.append(f"args={args}")
-        kwargs = ",".join(f"{k}:{v}." for k, v in ctx.kwargs.items())
-        if kwargs:
-            params.append(f"kwargs={kwargs}")
-        params = ", ".join(params)
         self.bot.logger.error(
-            f"Command: {ctx.command.qualified_name}\n" f"{params}\n", exc_info=error
+            format_error_context(ctx), exc_info=error
         )
 
 

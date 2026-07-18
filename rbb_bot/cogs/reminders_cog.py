@@ -11,7 +11,6 @@ from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
 from models import DiscordUser, Guild, Reminder
 
-from rbb_bot.utils.decorators import log_command
 from rbb_bot.utils.helpers import truncate
 from rbb_bot.utils.views import ListView
 
@@ -117,7 +116,6 @@ class RemindersCog(Cog):
 
     @remind.command(name="set", brief="Set a reminder")
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="remind set")
     async def set_reminder(
         self,
         ctx: Context,
@@ -313,7 +311,7 @@ class RemindersCog(Cog):
                     )
                 else:
                     await self.bot.send_error(
-                        exc=e, comment=f"Channel not found\n{reminder=}"
+                        exc=e, comment="Reminder channel not found"
                     )
                     message_content = f"Failed to send reminder to set channel"
 

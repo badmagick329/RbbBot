@@ -13,8 +13,6 @@ from utils.helpers import truncate
 from utils.views import ListView
 
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, BotEmojis
-from rbb_bot.utils.decorators import log_command
-
 
 class TagsList(ListView):
     def create_embed(self, tags_and_responses: list[str]) -> Embed:
@@ -68,7 +66,6 @@ class TagsCog(Cog):
     @tag.command(name="add", brief="Add a tag to this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.guild_only()
-    @log_command(command_name="tag add")
     async def add_(
         self, ctx: Context, trigger: str, response: str, inline: Optional[bool] = False
     ):
@@ -146,7 +143,6 @@ class TagsCog(Cog):
         brief="Remove a tag from this server. Either trigger or tag_id is required",
     )
     @commands.guild_only()
-    @log_command(command_name="tag remove tag")
     async def remove_tag(
         self, ctx: Context, trigger: Optional[str], tag_id: Optional[int]
     ):
@@ -188,7 +184,6 @@ class TagsCog(Cog):
         brief="Remove a response from this server. Either response or response_id is required",
     )
     @commands.guild_only()
-    @log_command(command_name="tag remove response")
     async def remove_response(
         self, ctx: Context, response: Optional[str], response_id: Optional[int]
     ):
@@ -257,7 +252,6 @@ class TagsCog(Cog):
         brief="Remove responses using gfycat urls from the tags on this server",
     )
     @commands.guild_only()
-    @log_command(command_name="tag remove gfycat")
     async def remove_gfycat(self, ctx: Context):
         """
         Remove responses using gfycat urls from the tags on this server
@@ -305,7 +299,6 @@ class TagsCog(Cog):
     @tag.command(name="list", brief="List all tags for this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.guild_only()
-    @log_command(command_name="tag list")
     async def list_tags(self, ctx: Context):
         """
         List all tags for this server
@@ -337,7 +330,6 @@ class TagsCog(Cog):
     )
     @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
-    @log_command(command_name="tag responses")
     async def list_responses(
         self, ctx: Context, trigger: Optional[str], tag_id: Optional[int]
     ):
@@ -386,7 +378,6 @@ class TagsCog(Cog):
         brief="Edit a tag's trigger. Either tag_id or old_trigger is required",
     )
     @commands.guild_only()
-    @log_command(command_name="tag edit")
     async def edit_tag(
         self,
         ctx: Context,

@@ -6,8 +6,6 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context
 
 from rbb_bot.memegifs.memegen import ElijahTerrific, IreneTweeting
-from rbb_bot.utils.decorators import log_command
-
 
 class MemeGenerator(Protocol):
     async def create(self, text: str) -> Path:
@@ -34,7 +32,6 @@ class MemeCog(Cog):
             await ctx.send_help(ctx.command)
 
     @meme.command(brief="Tweet meme")
-    @log_command("tweet")
     async def tweet(self, ctx: commands.Context, *, text: str):
         if text.strip() == "":
             return await ctx.send("No text provided")
@@ -46,7 +43,6 @@ class MemeCog(Cog):
             return await ctx.send("Something went wrong 😕")
 
     @meme.command(brief="Elijah meme")
-    @log_command("elijah")
     async def elijah(self, ctx: commands.Context, *, text: str):
         if text.strip() == "":
             return await ctx.send("No text provided")

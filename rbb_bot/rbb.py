@@ -14,6 +14,7 @@ from utils.views import ConfirmView
 
 from rbb_bot.settings.config import Config, Creds
 from rbb_bot.settings.ids import LOGGER_CHANNEL_ID, MY_ID
+from rbb_bot.utils.error_logging import format_error_context
 from rbb_bot.utils.mixins import ClientMixin
 
 
@@ -133,26 +134,8 @@ class RbbBot(commands.Bot):
         ctx: Context | None = None,
         exc: Exception | None = None,
         stack_info=False,
-        include_attachments=False,
         comment="",
     ):
-        msg = comment
-        if comment:
-            msg += "\n"
-        if ctx:
-            if include_attachments and ctx.message.attachments:
-                msg += "\n".join(a.url for a in ctx.message.attachments)
-            if ctx.guild:
-                msg += f"Guild: {ctx.guild.name} ({ctx.guild.id})\n"
-            if ctx.command:
-                msg += f"\n{ctx.command.qualified_name=}"
-                params = list()
-                args = ",".join([str(a) for a in ctx.args])
-                if args:
-                    params.append(f"args={args}")
-                kwargs = ",".join(f"{k}:{v}." for k, v in ctx.kwargs.items())
-                if kwargs:
-                    params.append(f"kwargs={kwargs}")
-                params = ", ".join(params)
-                msg += f"\n{params}\n"
+        context = format_error_context(ctx) if ctx else ""
+        msg = "\n".join(part for part in (comment, context) if part)
         self.logger.error(msg, exc_info=exc, stack_info=stack_info)
