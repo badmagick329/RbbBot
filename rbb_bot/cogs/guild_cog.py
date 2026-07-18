@@ -13,6 +13,7 @@ from utils.helpers import truncate
 from utils.views import ListView
 
 from rbb_bot.services.guild_data_service import GuildDataService
+from rbb_bot.services.source_confirmation_service import SourceConfirmationService
 
 
 class MessagesList(ListView):
@@ -32,6 +33,7 @@ class MessagesList(ListView):
 class GuildCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.source_confirmation_service = SourceConfirmationService(bot)
 
     async def cog_load(self):
         self.guild_cleanup_task.start()
@@ -45,24 +47,9 @@ class GuildCog(Cog):
         self, guild_id: int, source_entries: list
     ) -> bool:
         """Delete source moderation posts before their database records are removed."""
-        for source_entry in source_entries:
-            try:
-                channel = self.bot.get_channel(source_entry.conf_channel_id)
-                if channel is None:
-                    channel = await self.bot.fetch_channel(source_entry.conf_channel_id)
-                message = await channel.fetch_message(source_entry.conf_message_id)
-                await message.delete()
-            except discord.NotFound:
-                continue
-            except (discord.Forbidden, discord.HTTPException):
-                self.bot.logger.exception(
-                    "Guild source confirmation cleanup failed guild_id=%s "
-                    "source_entry_count=%s",
-                    guild_id,
-                    len(source_entries),
-                )
-                return False
-        return True
+        return await self.source_confirmation_service.delete_confirmation_messages(
+            source_entries, scope="guild", scope_id=guild_id
+        )
 
     async def cleanup_expired_guilds(self) -> None:
         candidates = await GuildDataService.expired_cleanup_candidates()
@@ -80,6 +67,9 @@ class GuildCog(Cog):
                     continue
                 if await GuildDataService.delete_guild_data(guild.id):
                     self.bot.guild_prefixes.pop(guild.id, None)
+                    tag_service = getattr(self.bot, "tag_service", None)
+                    if tag_service:
+                        tag_service.remove_guild(guild.id)
                     deleted_guild_ids.append(guild.id)
                 else:
                     self.bot.logger.warning(

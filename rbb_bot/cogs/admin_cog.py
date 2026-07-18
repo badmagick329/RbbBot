@@ -19,6 +19,7 @@ from models import DiskCache
 
 from rbb_bot.settings.const import BotEmojis
 from rbb_bot.services.guild_data_service import GuildDataService
+from rbb_bot.services.user_data_service import UserDataService
 from rbb_bot.utils.error_logging import format_error_context
 
 
@@ -156,6 +157,27 @@ class AdminCog(Cog):
         await ctx.send(
             f"Marked {len(guild_ids)} legacy departed guild"
             f"{'s' if len(guild_ids) != 1 else ''}."
+        )
+
+    @commands.command(hidden=True)
+    @commands.is_owner()
+    async def privacy_status(self, ctx: Context, discord_user_id: int) -> None:
+        """Report privacy-data counts without exposing user-provided content."""
+        try:
+            status = await UserDataService.status(discord_user_id)
+        except Exception:
+            self.bot.logger.exception(
+                "Privacy status lookup failed discord_user_id=%s", discord_user_id
+            )
+            await ctx.send(f"{BotEmojis.CROSS} Privacy status lookup failed.")
+            return
+
+        await ctx.send(
+            "Privacy status: "
+            f"exists={status['exists']} reminders={status['reminder_count']} "
+            f"source_entries={status['source_entry_count']} "
+            f"tag_opt_out={status['tag_opt_out']} "
+            f"has_blacklist={status['has_blacklist']}"
         )
 
     @commands.command(brief="Admin commands")

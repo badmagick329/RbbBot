@@ -69,6 +69,9 @@ async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
     await create_legacy_command_log_table()
     connection = Tortoise.get_connection("default")
     await connection.execute_script('ALTER TABLE "guild" DROP COLUMN "departed_at";')
+    await connection.execute_script(
+        'ALTER TABLE "discorduser" DROP COLUMN "tag_opt_out";'
+    )
     await baseline_existing_schema()
     await Tortoise.close_connections()
 
@@ -90,6 +93,7 @@ async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
     assert await command.upgrade(run_in_transaction=True) == [
         "49_20260718_remove_command_log.py",
         "50_20260718_guild_lifecycle.py",
+        "51_20260718_user_tag_opt_out.py",
     ]
 
     connection = Tortoise.get_connection("default")
@@ -105,3 +109,11 @@ async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
         """
     )
     assert [row["column_name"] for row in rows] == ["departed_at"]
+    _, rows = await connection.execute_query(
+        """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'discorduser'
+          AND column_name = 'tag_opt_out';
+        """
+    )
+    assert [row["column_name"] for row in rows] == ["tag_opt_out"]

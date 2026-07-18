@@ -1,5 +1,3 @@
-import random
-import re
 from typing import Optional
 
 from discord import Embed, Message, errors
@@ -13,6 +11,9 @@ from utils.helpers import truncate
 from utils.views import ListView
 
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, BotEmojis
+from rbb_bot.services.tag_service import TagService
+from rbb_bot.services.user_data_service import UserDataService
+
 
 class TagsList(ListView):
     def create_embed(self, tags_and_responses: list[str]) -> Embed:
@@ -46,11 +47,16 @@ class ResponsesList(ListView):
 class TagsCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.tag_service = TagService()
+        self.bot.tag_service = self.tag_service
 
     async def cog_load(self):
+        await self.tag_service.load()
         self.bot.logger.debug("TagsCog loaded!")
 
     async def cog_unload(self):
+        if getattr(self.bot, "tag_service", None) is self.tag_service:
+            del self.bot.tag_service
         self.bot.logger.debug("TagsCog unloaded!")
 
     @commands.hybrid_group(brief="Manage tags")
@@ -125,6 +131,7 @@ class TagsCog(Cog):
         result = await add_tag(guild, trigger, response_content, inline)
         if result:
             tag, created = result
+            await self.tag_service.refresh_guild(ctx.guild.id)
             to_send = f"{BotEmojis.TICK} Tag `{tag.trigger}` {'created' if created else 'updated'}"
             await ctx.send(to_send)
         else:
@@ -177,6 +184,7 @@ class TagsCog(Cog):
             return
 
         await remove(tag)
+        await self.tag_service.refresh_guild(ctx.guild.id)
         await ctx.send(f"{BotEmojis.TICK} Tag `{trigger}` removed")
 
     @remove_.command(
@@ -245,6 +253,7 @@ class TagsCog(Cog):
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
         await remove(responses)
+        await self.tag_service.refresh_guild(ctx.guild.id)
         await ctx.send(f"{BotEmojis.TICK} Response `{response_truncated}` removed")
 
     @remove_.command(
@@ -294,6 +303,7 @@ class TagsCog(Cog):
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
         await remove(responses)
+        await self.tag_service.refresh_guild(ctx.guild.id)
         await ctx.send(f"{BotEmojis.TICK} {num_responses} responses removed")
 
     @tag.command(name="list", brief="List all tags for this server")
@@ -423,68 +433,26 @@ class TagsCog(Cog):
             return
         tag.trigger = new_trigger
         await tag.save()
+        await self.tag_service.refresh_guild(ctx.guild.id)
         await ctx.send(f"{BotEmojis.TICK} Tag `{tag.trigger}` edited")
-
-    @staticmethod
-    def get_triggered_tag(tags: list[Tag], message: str) -> Tag | None:
-        """
-        Get the tag that was triggered by the message
-
-        Parameters
-        ----------
-        tags: list[Tag]
-            The tags to check
-        message: str
-            The message to check
-
-        Returns
-        -------
-        Tag | None
-            The tag that was triggered or None if no tag was triggered
-        """
-        tags = [t for t in tags if t.trigger in message]
-
-        for tag in [t for t in tags if not t.inline]:
-            if tag.trigger == message:
-                return tag
-
-        for tag in [t for t in tags if t.inline]:
-            if re.search("".join(["\\b", tag.trigger, "\\b"]), message):
-                return tag
-        return None
 
     @Cog.listener()
     async def on_message(self, message: Message):
         if message.author.bot or not message.guild:
             return
+        if UserDataService.is_tag_opted_out(message.author.id):
+            return
         ctx = await self.bot.get_context(message)
         if ctx.invoked_with:
             return
 
-        ci_content = message.content.lower().strip()
-        channel = message.channel
-
-        guild, _ = await Guild.get_or_create(id=message.guild.id)
-        if guild.emojis_channel and message.channel == guild.emojis_channel:
-            return
-        tags = await Tag.filter(guild=guild).prefetch_related("responses")
-        if not tags:
-            return
-
-        tag = self.get_triggered_tag(tags, ci_content)
+        tag = self.tag_service.match(
+            message.guild.id, message.channel.id, message.content
+        )
         if tag:
             try:
-                responses = await tag.responses.all()
-                if not responses:
-                    await tag.delete()
-                    await self.bot.send_error(
-                        ctx=ctx, message=f"No responses found for tag `{tag.trigger}`"
-                    )
-                    return
-                response = random.choice(responses)
-                tag.use_count += 1
-                await tag.save()
-                await channel.send(response.content)
+                response = await self.tag_service.choose_response(tag)
+                await message.channel.send(response)
             except errors.Forbidden:
                 pass
             except Exception as e:

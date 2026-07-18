@@ -10,6 +10,7 @@ class DiscordUser(Model, ClientMixin):
     id = fields.BigIntField(unique=True)
     cached_username = fields.CharField(max_length=32, null=True)
     blacklist = fields.JSONField(null=True)
+    tag_opt_out = fields.BooleanField(default=False, index=True)
 
     @property
     def user(self) -> discord.User | None:
@@ -19,7 +20,7 @@ class DiscordUser(Model, ClientMixin):
         return (
             f"<DiscordUser(_id={self._id},"
             f"id={self.id}, cached_username={self.cached_username}, "
-            f"blacklist={self.blacklist})>"
+            f"blacklist={self.blacklist}, tag_opt_out={self.tag_opt_out})>"
         )
 
     def __str__(self) -> str:
