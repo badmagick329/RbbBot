@@ -63,10 +63,12 @@ async def test_bootstrap_rejects_an_incomplete_schema(test_database):
 
 
 @pytest.mark.asyncio
-async def test_baseline_makes_aerich_upgrade_apply_only_the_removal_migration(
+async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
     test_database,
 ):
     await create_legacy_command_log_table()
+    connection = Tortoise.get_connection("default")
+    await connection.execute_script('ALTER TABLE "guild" DROP COLUMN "departed_at";')
     await baseline_existing_schema()
     await Tortoise.close_connections()
 
@@ -86,7 +88,8 @@ async def test_baseline_makes_aerich_upgrade_apply_only_the_removal_migration(
     await command.init()
 
     assert await command.upgrade(run_in_transaction=True) == [
-        "49_20260718_remove_command_log.py"
+        "49_20260718_remove_command_log.py",
+        "50_20260718_guild_lifecycle.py",
     ]
 
     connection = Tortoise.get_connection("default")
@@ -94,3 +97,11 @@ async def test_baseline_makes_aerich_upgrade_apply_only_the_removal_migration(
         "SELECT to_regclass('public.commandlog') AS table_name;"
     )
     assert rows[0]["table_name"] is None
+    _, rows = await connection.execute_query(
+        """
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'guild'
+          AND column_name = 'departed_at';
+        """
+    )
+    assert [row["column_name"] for row in rows] == ["departed_at"]

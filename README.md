@@ -16,3 +16,15 @@ prevents later starts, because the baseline may only be created once.
 
 Migration 49 permanently removes `commandlog`; its historical data is not
 recoverable.
+
+## Development startup
+
+Run the development entry point instead of invoking `launcher.py` directly:
+
+```powershell
+poetry run python -m rbb_bot.dev_start
+```
+
+It reads the local development database URL from `rbb_bot/settings/creds.yaml`,
+applies pending Aerich migrations, then starts the normal bot launcher. An
+explicit `DB_URL` environment variable takes precedence when needed.

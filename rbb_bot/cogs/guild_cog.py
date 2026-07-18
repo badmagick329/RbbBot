@@ -2,14 +2,17 @@ import random
 import re
 from typing import Optional
 
+import discord
 from discord import Embed, Member, Message, Role, TextChannel
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
 from models import Greeting, Guild, JoinEvent
 from services.auto_role_service import AutoRoleService
 from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE, BotEmojis
 from utils.helpers import truncate
 from utils.views import ListView
+
+from rbb_bot.services.guild_data_service import GuildDataService
 
 
 class MessagesList(ListView):
@@ -31,10 +34,33 @@ class GuildCog(Cog):
         self.bot = bot
 
     async def cog_load(self):
+        self.guild_cleanup_candidate_task.start()
         self.bot.logger.debug("GuildCog loaded!")
 
     async def cog_unload(self):
+        self.guild_cleanup_candidate_task.cancel()
         self.bot.logger.debug("GuildCog unloaded!")
+
+    async def report_expired_cleanup_candidates(self) -> None:
+        candidates = await GuildDataService.expired_cleanup_candidates()
+        if not candidates:
+            return
+
+        guild_ids = ",".join(str(guild.id) for guild in candidates)
+        self.bot.logger.warning(
+            "Guild cleanup candidates count=%s guild_ids=%s", len(candidates), guild_ids
+        )
+
+    @tasks.loop(hours=24)
+    async def guild_cleanup_candidate_task(self) -> None:
+        try:
+            await self.report_expired_cleanup_candidates()
+        except Exception:
+            self.bot.logger.exception("Guild cleanup candidate report failed")
+
+    @guild_cleanup_candidate_task.before_loop
+    async def before_guild_cleanup_candidate_task(self) -> None:
+        await self.bot.wait_until_ready()
 
     @commands.hybrid_command(brief="Show or set the prefix for this server")
     async def prefix(self, ctx: Context, new_prefix: str = None):
@@ -750,6 +776,28 @@ class GuildCog(Cog):
             self.bot.logger.exception(
                 "Member join autorole failed "
                 f"guild_id={member.guild.id} member_id={member.id}"
+            )
+
+    @Cog.listener()
+    async def on_guild_remove(self, guild: discord.Guild):
+        try:
+            if await GuildDataService.record_departure(guild.id):
+                self.bot.logger.info("Guild marked departed guild_id=%s", guild.id)
+        except Exception:
+            self.bot.logger.exception(
+                "Guild departure lifecycle handling failed guild_id=%s", guild.id
+            )
+
+    @Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        try:
+            if await GuildDataService.record_rejoin(guild.id):
+                self.bot.logger.info(
+                    "Guild departure state cleared guild_id=%s", guild.id
+                )
+        except Exception:
+            self.bot.logger.exception(
+                "Guild rejoin lifecycle handling failed guild_id=%s", guild.id
             )
 
 

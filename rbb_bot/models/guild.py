@@ -22,6 +22,7 @@ class Guild(Model, ClientMixin):
     custom_roles_enabled = fields.BooleanField(default=False)
     max_custom_roles = fields.IntField(default=2)
     reminders_enabled = fields.BooleanField(default=False)
+    departed_at = fields.DatetimeField(null=True, index=True)
 
     @property
     def guild(self) -> discord.Guild | None:
