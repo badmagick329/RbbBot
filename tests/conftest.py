@@ -10,6 +10,9 @@ from tests._database import get_test_database_url, validate_test_database_url
 os.environ["RBB_CONFIG_FILE"] = str(
     Path(__file__).parent / "fixtures" / "test_config.yaml"
 )
+os.environ.setdefault(
+    "RBB_DATA_ENCRYPTION_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+)
 
 
 def pytest_addoption(parser):

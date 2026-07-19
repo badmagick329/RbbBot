@@ -18,6 +18,8 @@ ENV_CREDENTIALS = {
     "search_key": "RBB_GOOGLE_SEARCH_KEY",
 }
 
+DATA_ENCRYPTION_KEY_ENV = "RBB_DATA_ENCRYPTION_KEY"
+
 
 class Creds(BaseModel):
     discord_token: str
@@ -26,6 +28,7 @@ class Creds(BaseModel):
     reddit_id: str
     reddit_agent: str
     search_key: str
+    data_encryption_key: str | None = None
 
 
 class Config(BaseModel):
@@ -74,3 +77,16 @@ def get_creds():
         return Creds(**creds)
 
     return _get_environment_creds()
+
+
+def get_data_encryption_key() -> str:
+    """Return the application data-encryption key without logging it."""
+    environment_key = os.environ.get(DATA_ENCRYPTION_KEY_ENV)
+    if environment_key:
+        return environment_key
+
+    file_key = get_creds().data_encryption_key
+    if file_key:
+        return file_key
+
+    raise RuntimeError(f"Missing required credential: {DATA_ENCRYPTION_KEY_ENV}")

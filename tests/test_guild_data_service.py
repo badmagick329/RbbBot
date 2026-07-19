@@ -64,7 +64,7 @@ async def test_rejoin_clears_departure_without_removing_configuration(test_datab
     await guild.refresh_from_db()
     assert guild.departed_at is None
     assert guild.prefix == "?"
-    assert await Tag.filter(guild=guild, trigger="configured").exists()
+    assert await Tag.by_id_or_trigger(guild, None, "configured") is not None
     assert await GuildDataService.record_rejoin(guild.id) is False
 
 

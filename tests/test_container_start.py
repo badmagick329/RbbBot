@@ -19,7 +19,9 @@ def test_startup_bootstraps_then_upgrades_before_starting_bot(monkeypatch):
 
     assert commands == [
         [container_start.sys.executable, "-m", "rbb_bot.migration_bootstrap"],
+        [container_start.sys.executable, "-m", "rbb_bot.data_encryption_preflight"],
         ["aerich", "upgrade"],
+        [container_start.sys.executable, "-m", "rbb_bot.data_encryption_migration"],
     ]
     assert exit_info.value.code == (
         container_start.sys.executable,
@@ -55,7 +57,11 @@ def test_dev_start_uses_local_creds_then_upgrades_before_starting_bot(monkeypatc
         dev_start.main()
 
     assert dev_start.os.environ["DB_URL"] == database_url
-    assert commands == [["aerich", "upgrade"]]
+    assert commands == [
+        [dev_start.sys.executable, "-m", "rbb_bot.data_encryption_preflight"],
+        ["aerich", "upgrade"],
+        [dev_start.sys.executable, "-m", "rbb_bot.data_encryption_migration"],
+    ]
     assert exit_info.value.code == (
         dev_start.sys.executable,
         [dev_start.sys.executable, "./rbb_bot/launcher.py"],
@@ -82,4 +88,8 @@ def test_dev_start_preserves_an_explicit_database_url(monkeypatch):
         dev_start.main()
 
     assert dev_start.os.environ["DB_URL"] == "postgres://explicit-url"
-    assert commands == [["aerich", "upgrade"]]
+    assert commands == [
+        [dev_start.sys.executable, "-m", "rbb_bot.data_encryption_preflight"],
+        ["aerich", "upgrade"],
+        [dev_start.sys.executable, "-m", "rbb_bot.data_encryption_migration"],
+    ]

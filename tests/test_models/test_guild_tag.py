@@ -15,9 +15,9 @@ async def test_guild_tags_and_responses_persist(test_database):
     tag = await Tag.create(guild=guild, trigger="hello", inline=True)
     await tag.responses.add(response)
 
-    saved_tag = await Tag.get(guild=guild, trigger="hello").prefetch_related(
-        "responses"
-    )
+    saved_tag = await Tag.by_id_or_trigger(guild, None, "hello")
+    assert saved_tag is not None
+    await saved_tag.fetch_related("responses")
 
     assert guild.prefix == "!"
     assert saved_tag.inline is True

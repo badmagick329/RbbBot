@@ -4,12 +4,13 @@ from tortoise import fields
 from tortoise.models import Model
 
 from rbb_bot.models import Guild
-from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
+from rbb_bot.models.encrypted import EncryptedModelMixin, EncryptedValue
 
 
-class Response(Model):
+class Response(EncryptedModelMixin, Model):
     id = fields.IntField(pk=True)
-    content = fields.CharField(max_length=DISCORD_MAX_MESSAGE)
+    content_ciphertext = fields.TextField(null=True)
+    content = EncryptedValue("content_ciphertext")
     guild = fields.ForeignKeyField("models.Guild", related_name="responses")
 
     class Meta:  # type: ignore
@@ -30,13 +31,23 @@ class Response(Model):
         if response_id:
             return await Response.filter(guild=guild, id=response_id)
         elif content:
-            return await Response.filter(guild=guild, content=content)
+            return [
+                response
+                for response in await Response.filter(guild=guild)
+                if response.content == content
+            ]
 
 
-class Tag(Model):
+class Tag(EncryptedModelMixin, Model):
     MAX_TRIGGER = 200
     id = fields.IntField(pk=True)
-    trigger = fields.CharField(max_length=MAX_TRIGGER)
+    trigger_ciphertext = fields.TextField(null=True)
+    trigger_lookup = fields.CharField(max_length=64, null=True)
+    trigger = EncryptedValue(
+        "trigger_ciphertext",
+        lookup_field="trigger_lookup",
+        normalize_lookup=lambda value: str(value).lower().strip(),
+    )
     inline = fields.BooleanField(default=False)
     guild = fields.ForeignKeyField("models.Guild", related_name="tags")
     responses = fields.ManyToManyField("models.Response", related_name="tags")
@@ -44,7 +55,7 @@ class Tag(Model):
     use_count = fields.IntField(default=0)
 
     class Meta:  # type: ignore
-        unique_together = ["trigger", "guild"]
+        unique_together = ["trigger_lookup", "guild"]
         ordering = ["id"]
 
     def __repr__(self):
@@ -65,4 +76,13 @@ class Tag(Model):
         if tag_id:
             return await Tag.get_or_none(guild=guild, id=tag_id)
         elif trigger:
-            return await Tag.get_or_none(guild=guild, trigger=trigger)
+            from rbb_bot.services.data_encryption_service import (
+                get_data_encryption_service,
+            )
+
+            return await Tag.get_or_none(
+                guild=guild,
+                trigger_lookup=get_data_encryption_service().lookup_token(
+                    trigger.lower().strip()
+                ),
+            )

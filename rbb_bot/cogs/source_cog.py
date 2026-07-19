@@ -9,6 +9,7 @@ from discord.ext.commands import Cog, Context
 from models import DiscordUser, SourceEntry
 
 from rbb_bot.settings.const import BotEmojis
+from rbb_bot.services.data_encryption_service import get_data_encryption_service
 from rbb_bot.utils.helpers import emoji_regex
 from rbb_bot.utils.views import ListView
 
@@ -57,7 +58,9 @@ class SourceCog(Cog):
             return await ctx.send_help(ctx.command)
 
         source_entries = (
-            await SourceEntry.filter(emoji_string=emote_string)
+            await SourceEntry.filter(
+                emoji_lookup=get_data_encryption_service().lookup_token(emote_string)
+            )
             .order_by("conf_message_id")
             .prefetch_related("user")
         )
@@ -171,7 +174,9 @@ class SourceCog(Cog):
             return await ctx.send("You are blacklisted from adding sources")
 
         if not edit_entry:
-            existing_entry = await SourceEntry.filter(emoji_string=emote_string)
+            existing_entry = await SourceEntry.filter(
+                emoji_lookup=get_data_encryption_service().lookup_token(emote_string)
+            )
             if existing_entry:
                 return await ctx.send(
                     "An entry for this emote already exists. "

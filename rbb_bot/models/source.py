@@ -1,24 +1,36 @@
 from tortoise import fields
 from tortoise.models import Model
 
+from rbb_bot.models.encrypted import EncryptedModelMixin, EncryptedValue
 from rbb_bot.settings.ids import CONF_CHANNEL_ID, CONF_GUILD_ID
 from rbb_bot.utils.mixins import ClientMixin
 
 
-class SourceEntry(Model, ClientMixin):
+class SourceEntry(EncryptedModelMixin, Model, ClientMixin):
     id = fields.IntField(pk=True)
-    emoji_string = fields.CharField(max_length=255)
-    emoji_url = fields.CharField(max_length=255, null=True)
-    source_url = fields.CharField(max_length=255, null=True)
-    event = fields.CharField(max_length=255, null=True)
+    emoji_string_ciphertext = fields.TextField(null=True)
+    emoji_lookup = fields.CharField(max_length=64, null=True, index=True)
+    emoji_string = EncryptedValue(
+        "emoji_string_ciphertext",
+        lookup_field="emoji_lookup",
+        normalize_lookup=str,
+    )
+    emoji_url_ciphertext = fields.TextField(null=True)
+    emoji_url = EncryptedValue("emoji_url_ciphertext")
+    source_url_ciphertext = fields.TextField(null=True)
+    source_url = EncryptedValue("source_url_ciphertext")
+    event_ciphertext = fields.TextField(null=True)
+    event = EncryptedValue("event_ciphertext")
     source_date = fields.DateField(null=True)
     guild_id = fields.BigIntField(null=True)
     channel_id = fields.BigIntField()
     message_id = fields.BigIntField()
-    jump_url = fields.CharField(max_length=255)
+    jump_url_ciphertext = fields.TextField(null=True)
+    jump_url = EncryptedValue("jump_url_ciphertext")
     user = fields.ForeignKeyField("models.DiscordUser", related_name="sources")
     conf_message_id = fields.BigIntField()
-    conf_jump_url = fields.CharField(max_length=255)
+    conf_jump_url_ciphertext = fields.TextField(null=True)
+    conf_jump_url = EncryptedValue("conf_jump_url_ciphertext")
 
     conf_channel_id = CONF_CHANNEL_ID
     conf_guild_id = CONF_GUILD_ID

@@ -36,7 +36,7 @@ async def test_user_tag_opt_out_migration_adds_default_and_index(test_database):
 
     await connection.execute_script(await migration.upgrade(connection))
     await connection.execute_script(
-        'INSERT INTO "discorduser" ("id", "cached_username") VALUES (123, \'test\');'
+        'INSERT INTO "discorduser" ("id") VALUES (123);'
     )
 
     _, rows = await connection.execute_query(

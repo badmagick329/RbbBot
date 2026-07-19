@@ -2,6 +2,8 @@ import discord
 from discord import Embed, Member, TextChannel
 from tortoise import fields
 from tortoise.models import Model
+
+from rbb_bot.models.encrypted import EncryptedModelMixin, EncryptedValue
 from tortoise.transactions import atomic
 
 from rbb_bot.settings.config import get_config
@@ -11,13 +13,15 @@ from rbb_bot.utils.mixins import ClientMixin
 default_prefix = get_config().default_prefix
 
 
-class Guild(Model, ClientMixin):
+class Guild(EncryptedModelMixin, Model, ClientMixin):
     _id = fields.IntField(pk=True)
     id = fields.BigIntField(unique=True)
-    prefix = fields.CharField(max_length=10, default=default_prefix)
+    prefix_ciphertext = fields.TextField(null=True)
+    prefix = EncryptedValue("prefix_ciphertext", default=default_prefix)
     emojis_channel_id = fields.BigIntField(null=True)
     greet_channel_id = fields.BigIntField(null=True)
-    emojis_channel_message = fields.CharField(max_length=DISCORD_MAX_MESSAGE, null=True)
+    emojis_channel_message_ciphertext = fields.TextField(null=True)
+    emojis_channel_message = EncryptedValue("emojis_channel_message_ciphertext")
     delete_emoji_messages = fields.BooleanField(default=True)
     custom_roles_enabled = fields.BooleanField(default=False)
     max_custom_roles = fields.IntField(default=2)
@@ -56,12 +60,14 @@ class Guild(Model, ClientMixin):
         )
 
 
-class Greeting(Model):
+class Greeting(EncryptedModelMixin, Model):
     id = fields.IntField(pk=True)
     guild = fields.ForeignKeyField("models.Guild", related_name="greetings")
-    title = fields.CharField(max_length=EMBED_MAX_TITLE, default="Welcome!")
-    description = fields.CharField(
-        max_length=EMBED_MAX_DESC, default="Welcome to the server!"
+    title_ciphertext = fields.TextField(null=True)
+    title = EncryptedValue("title_ciphertext", default="Welcome!")
+    description_ciphertext = fields.TextField(null=True)
+    description = EncryptedValue(
+        "description_ciphertext", default="Welcome to the server!"
     )
     show_member_count = fields.BooleanField(default=True)
 
@@ -90,12 +96,13 @@ class Greeting(Model):
         )
 
 
-class JoinResponse(Model):
+class JoinResponse(EncryptedModelMixin, Model):
     id = fields.IntField(pk=True)
     event = fields.ForeignKeyField(
         "models.JoinEvent", related_name="join_responses", on_delete=fields.CASCADE
     )
-    content = fields.CharField(max_length=DISCORD_MAX_MESSAGE, null=True)
+    content_ciphertext = fields.TextField(null=True)
+    content = EncryptedValue("content_ciphertext")
 
     def __repr__(self):
         return (
@@ -171,7 +178,14 @@ class JoinEvent(Model, ClientMixin):
             raise ValueError("JoinEvent channel is not set.")
         if len(response) > self.MAX_MESSAGE:
             raise ValueError(f"Response length exceeds {self.MAX_MESSAGE} characters.")
-        saved_response = await JoinResponse.get_or_none(event=self, content=response)
+        saved_response = next(
+            (
+                existing
+                for existing in await JoinResponse.filter(event=self)
+                if existing.content == response
+            ),
+            None,
+        )
         if saved_response is not None:
             return saved_response, False
         join_response = await JoinResponse.create(event=self, content=response)
@@ -187,8 +201,13 @@ class JoinEvent(Model, ClientMixin):
         if response_id is not None:
             response = await JoinResponse.get_or_none(event=self, id=response_id)
         else:
-            response = await JoinResponse.get_or_none(
-                event=self, content=response_content
+            response = next(
+                (
+                    existing
+                    for existing in await JoinResponse.filter(event=self)
+                    if existing.content == response_content
+                ),
+                None,
             )
         if response is None:
             return False

@@ -16,7 +16,9 @@ def main() -> None:
     if not os.environ.get("DB_URL"):
         os.environ["DB_URL"] = get_creds().db_url
 
+    run_command([sys.executable, "-m", "rbb_bot.data_encryption_preflight"])
     run_command(["aerich", "upgrade"])
+    run_command([sys.executable, "-m", "rbb_bot.data_encryption_migration"])
     os.execv(sys.executable, [sys.executable, "./rbb_bot/launcher.py"])
 
 

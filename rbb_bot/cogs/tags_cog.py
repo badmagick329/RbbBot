@@ -4,7 +4,6 @@ from discord import Embed, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from models import Guild, Response, Tag
-from tortoise.expressions import Q
 from tortoise.functions import Count
 from tortoise.transactions import atomic
 from utils.helpers import truncate
@@ -110,7 +109,7 @@ class TagsCog(Cog):
 
         @atomic()
         async def add_tag(guild, trigger, response_content, inline) -> Optional[Tag]:
-            saved_tag = await Tag.filter(guild=guild, trigger=trigger).first()
+            saved_tag = await Tag.by_id_or_trigger(guild, None, trigger)
             created = False
             if not saved_tag:
                 created = True
@@ -118,9 +117,14 @@ class TagsCog(Cog):
                     guild=guild, trigger=trigger, inline=inline
                 )
 
-            response = await saved_tag.responses.filter(
-                guild=guild, content=response_content
-            ).first()
+            response = next(
+                (
+                    item
+                    for item in await saved_tag.responses.filter(guild=guild)
+                    if item.content == response_content
+                ),
+                None,
+            )
             if not response:
                 response = await Response.create(guild=guild, content=response_content)
                 await saved_tag.responses.add(response)
@@ -268,14 +272,12 @@ class TagsCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-        responses = await Response.filter(content__icontains="https://gfycat.com")
-        filters = list()
-        gfycat_filter = Q(content__icontains="https://gfycat.com") | Q(
-            content__icontains="https://www.gfycat.com"
-        )
-        filters.append(gfycat_filter)
-        filters.append(Q(guild=guild))
-        responses = await Response.filter(*filters)
+        responses = [
+            response
+            for response in await Response.filter(guild=guild)
+            if "https://gfycat.com" in response.content
+            or "https://www.gfycat.com" in response.content
+        ]
         num_responses = len(responses)
         if not num_responses:
             return await ctx.send("No responses using gfycat urls found")
@@ -418,10 +420,10 @@ class TagsCog(Cog):
                 f"Trigger can't be longer than {Tag.MAX_TRIGGER} characters"
             )
 
-        if tag := await Tag.get_or_none(trigger=new_trigger):
+        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
+        if tag := await Tag.by_id_or_trigger(guild, None, new_trigger):
             return await ctx.send(f"Tag with trigger `{new_trigger}` already exists")
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
         tag = await Tag.by_id_or_trigger(guild, tag_id, old_trigger)
         if not tag:
             return await ctx.send("Tag not found")

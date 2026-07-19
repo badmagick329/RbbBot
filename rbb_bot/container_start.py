@@ -17,7 +17,9 @@ def main() -> None:
     if bootstrap == "1":
         run_command([sys.executable, "-m", "rbb_bot.migration_bootstrap"])
 
+    run_command([sys.executable, "-m", "rbb_bot.data_encryption_preflight"])
     run_command(["aerich", "upgrade"])
+    run_command([sys.executable, "-m", "rbb_bot.data_encryption_migration"])
     os.execv(sys.executable, [sys.executable, "./rbb_bot/launcher.py"])
 
 
