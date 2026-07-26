@@ -33,6 +33,7 @@ class RbbBot(commands.Bot):
         ]
         self.guild_prefixes = dict()
         self.logger_task = None
+        self.logging_ready = asyncio.Event()
         self.bot_tasks = dict()
         intents = discord.Intents.default()
         intents.members = True
@@ -88,6 +89,7 @@ class RbbBot(commands.Bot):
         )
         self.logger.addHandler(discord_log_handler)
         self.logger_task = asyncio.create_task(discord_log_handler.start_logging())
+        self.logging_ready.set()
 
     async def on_connect(self):
         self.logger.info(f"Connected! Latency: {self.latency * 1000:.2f}ms")

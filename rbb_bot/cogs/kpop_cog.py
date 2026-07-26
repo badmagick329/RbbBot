@@ -107,11 +107,26 @@ class KpopCog(Cog):
 
     @tasks.loop(hours=6)
     async def update_comebacks_task(self) -> None:
-        await self.scraper.scrape()
+        try:
+            await self.scraper.scrape()
+        except Exception:
+            # Do not let one failed run permanently stop the six-hour task.
+            # logger.exception includes the traceback and is forwarded to the
+            # operational Discord log channel by the normal log handler.
+            self.bot.logger.exception("Scheduled release scraper failed")
+
+    @update_comebacks_task.error
+    async def update_comebacks_task_error(self, error: Exception) -> None:
+        """Report a task-level failure that escaped the scheduled run."""
+        self.bot.logger.error(
+            "Scheduled release scraper task stopped unexpectedly",
+            exc_info=(type(error), error, error.__traceback__),
+        )
 
     @update_comebacks_task.before_loop
     async def before_update_comebacks_task(self) -> None:
         await self.bot.wait_until_ready()
+        await self.bot.logging_ready.wait()
 
     async def cog_load(self) -> None:
         self.bot.logger.debug("kpop Cog loaded!")

@@ -156,10 +156,14 @@ class Scraper:
         if not urls:
             urls = self.generate_urls()[-1:]
 
-        if from_json:
-            saved_cbs = self.cbs_from_json(self.JSON_FILE)
-        else:
-            saved_cbs = await self.cbs_from_db()
+        try:
+            if from_json:
+                saved_cbs = self.cbs_from_json(self.JSON_FILE)
+            else:
+                saved_cbs = await self.cbs_from_db()
+        except Exception:
+            self.logger.exception("Unable to load releases before scraping")
+            return
 
         for i, url in enumerate(urls):
             try:
@@ -167,16 +171,16 @@ class Scraper:
                 cbs = await self.scrape_url(url)
                 new_cbs = [cb.to_dict() for cb in cbs]
                 new_cbs = await self.extract_youtube_urls(saved_cbs, new_cbs)
-            except Exception as e:
-                self.logger.error(f"Error scraping {url}\n{e}")
+            except Exception:
+                self.logger.exception("Error processing a release-scraper source")
                 return
             try:
                 self.logger.debug(
                     f"Merging {len(new_cbs)} releases with {len(saved_cbs)} releases"
                 )
                 merged_cbs = self.merge_cbs(saved_cbs, new_cbs)
-            except Exception as e:
-                self.logger.error(f"Error merging\n{e}")
+            except Exception:
+                self.logger.exception("Error merging release-scraper results")
                 return
         self.updating = True
         try:
@@ -184,10 +188,11 @@ class Scraper:
                 self.save_to_json(merged_cbs, self.JSON_FILE)  # type: ignore
             else:
                 await self.save_to_db(merged_cbs)  # type: ignore
-        except Exception as e:
-            self.logger.error(f"Error saving {e}", exc_info=e, stack_info=True)
+        except Exception:
+            self.logger.exception("Error saving release-scraper results")
             return
-        self.updating = False
+        finally:
+            self.updating = False
         self.logger.info("Update complete")
 
     async def scrape_url(self, url: str) -> list[PyRelease]:
@@ -212,8 +217,8 @@ class Scraper:
 
             html = wiki_page.content_html
             release_list = self.get_release_list(html, month, year)
-        except Exception as e:
-            self.logger.error(f"Error scraping {url}\n{e}")
+        except Exception:
+            self.logger.exception("Error retrieving the Reddit release wiki page")
         return release_list
 
     @staticmethod
