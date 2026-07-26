@@ -7,7 +7,7 @@ from discord import Emoji, Forbidden, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.utils import sleep_until, utcnow
-from models import Guild
+from rbb_bot.models import Guild
 from settings.const import DISCORD_MAX_MESSAGE
 from utils.exceptions import NotOk, TimeoutError
 from utils.helpers import emoji_regex, http_get

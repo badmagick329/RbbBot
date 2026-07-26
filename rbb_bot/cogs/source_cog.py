@@ -6,7 +6,7 @@ from typing import Optional
 from discord import Embed, Emoji, RawReactionActionEvent
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from models import DiscordUser, SourceEntry
+from rbb_bot.models import DiscordUser, SourceEntry
 
 from rbb_bot.settings.const import BotEmojis
 from rbb_bot.services.data_encryption_service import get_data_encryption_service

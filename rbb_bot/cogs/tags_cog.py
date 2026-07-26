@@ -3,7 +3,7 @@ from typing import Optional
 from discord import Embed, Message, errors
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from models import Guild, Response, Tag
+from rbb_bot.models import Guild, Response, Tag
 from tortoise.functions import Count
 from tortoise.transactions import atomic
 from utils.helpers import truncate

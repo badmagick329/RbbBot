@@ -7,7 +7,7 @@ from discord import Activity, ActivityType, Message
 from discord.ext import commands
 from discord.ext.commands import Context
 from lib.discord_log_handler import DiscordLogHandler
-from models import Guild
+from rbb_bot.models import Guild
 from tortoise import Tortoise
 from utils.help_command import EmbedHelpCommand
 from utils.views import ConfirmView
@@ -61,7 +61,9 @@ class RbbBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         self.logger.info("Setting up RbbBot")
-        await Tortoise.init(db_url=self.creds.db_url, modules={"models": ["models"]})
+        await Tortoise.init(
+            db_url=self.creds.db_url, modules={"models": ["rbb_bot.models"]}
+        )
         await Tortoise.generate_schemas(safe=True)
         ClientMixin.inject_client(self)
 

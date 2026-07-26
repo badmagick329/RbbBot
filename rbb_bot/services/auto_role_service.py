@@ -5,7 +5,7 @@ from typing import Iterable
 import discord
 from core.errors import AutoRoleServiceError
 from core.result import Result
-from models.auto_role import AutoRole
+from rbb_bot.models.auto_role import AutoRole
 
 
 @dataclass

@@ -7,7 +7,7 @@ from discord import Color, Embed, Role
 from discord.errors import Forbidden
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from models import Guild
+from rbb_bot.models import Guild
 from utils.views import ListView
 
 from rbb_bot.settings.const import FilePaths

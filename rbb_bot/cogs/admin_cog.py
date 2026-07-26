@@ -15,7 +15,7 @@ from discord.ext.commands.errors import (
     MissingRequiredArgument,
     RoleNotFound,
 )
-from models import DiskCache
+from rbb_bot.models import DiskCache
 
 from rbb_bot.settings.const import BotEmojis
 from rbb_bot.services.guild_data_service import GuildDataService

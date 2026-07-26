@@ -5,8 +5,8 @@ from typing import Literal
 import discord
 from core.errors import GuildLoggingServiceError
 from core.result import Result
-from models.guild import Guild
-from models.guild_logging import GuildLogging
+from rbb_bot.models.guild import Guild
+from rbb_bot.models.guild_logging import GuildLogging
 
 
 @dataclass

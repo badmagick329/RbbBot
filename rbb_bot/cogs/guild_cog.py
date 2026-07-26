@@ -6,7 +6,7 @@ import discord
 from discord import Embed, Member, Message, Role, TextChannel
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
-from models import Greeting, Guild, JoinEvent
+from rbb_bot.models import Greeting, Guild, JoinEvent
 from services.auto_role_service import AutoRoleService
 from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE, BotEmojis
 from utils.helpers import truncate
