@@ -7,6 +7,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from rbb_bot.settings.const import PRIVACY_POLICY_URL
 from rbb_bot.services.source_confirmation_service import SourceConfirmationService
 from rbb_bot.services.user_data_service import UserDataService
 
@@ -80,6 +81,12 @@ class PrivacyCog(
             "Here is your stored data.",
             file=discord.File(io.BytesIO(payload), filename="rbb-user-data.json"),
             ephemeral=True,
+        )
+
+    @app_commands.command(name="policy", description="View RBB's Privacy Policy.")
+    async def policy(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            f"RBB's Privacy Policy: {PRIVACY_POLICY_URL}", ephemeral=True
         )
 
     @app_commands.command(
