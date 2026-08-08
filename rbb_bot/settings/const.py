@@ -9,7 +9,7 @@ MAX_ATTACHMENTS = 10
 BOT_MAX_PREFIX = 10
 MAX_EMBED_FIELD_VALUE = 1024
 PRIVACY_POLICY_URL = (
-    "https://mgck.ink/uploads/fileuploader/admin/d9d246a12cb047cb89a37c4b713dfbdc.html"
+    "https://mgck.ink/uploads/fileuploader/admin/13850d52496c47b998fb2d8154c2befa.html"
 )
 
 
