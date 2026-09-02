@@ -4,7 +4,6 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
 
 from rbb_bot.models import Guild
-from rbb_bot.presentation.discord import MemberOnboardingCog
 from rbb_bot.services.guild_data_service import GuildDataService
 from rbb_bot.services.source_confirmation_service import SourceConfirmationService
 from rbb_bot.settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE
@@ -141,4 +140,3 @@ class GuildCog(Cog):
 
 async def setup(bot):
     await bot.add_cog(GuildCog(bot))
-    await bot.add_cog(MemberOnboardingCog(bot))

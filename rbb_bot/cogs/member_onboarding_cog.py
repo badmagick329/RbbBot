@@ -650,3 +650,7 @@ class MemberOnboardingCog(Cog):
                     failure.traceback,
                 ),
             )
+
+
+async def setup(bot):
+    await bot.add_cog(MemberOnboardingCog(bot))
