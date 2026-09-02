@@ -6,7 +6,7 @@ import discord
 from discord import Activity, ActivityType, Message
 from discord.ext import commands
 from discord.ext.commands import Context
-from lib.discord_log_handler import DiscordLogHandler
+from rbb_bot.lib.discord_log_handler import DiscordLogHandler
 from rbb_bot.models import Guild
 from tortoise import Tortoise
 from rbb_bot.utils.help_command import EmbedHelpCommand
