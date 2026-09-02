@@ -1,5 +1,5 @@
 import discord
-from discord import Embed, Member, TextChannel
+from discord import TextChannel
 from tortoise import fields
 from tortoise.models import Model
 
@@ -73,15 +73,6 @@ class Greeting(EncryptedModelMixin, Model):
 
     MAX_TITLE = EMBED_MAX_TITLE - 100
     MAX_DESC = EMBED_MAX_DESC - 100
-
-    def create_embed(self, member: Member) -> Embed:
-        title = self.title.replace("{username}", member.name)
-        description = self.description.replace("{mention}", member.mention)
-        embed = Embed(title=title, description=description)
-        embed.set_thumbnail(url=member.display_avatar)
-        if self.show_member_count:
-            embed.set_footer(text=f"Member #{member.guild.member_count}")
-        return embed
 
     def __repr__(self):
         return self.__str__()

@@ -1,0 +1,1 @@
+"""Business entities and rules."""

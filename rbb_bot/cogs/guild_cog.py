@@ -3,17 +3,21 @@ import re
 from typing import Optional
 
 import discord
-from discord import Embed, Member, Message, Role, TextChannel
+from discord import Embed, Member, Role, TextChannel
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
+from rbb_bot.application.member_onboarding import HandleMemberJoin, MemberJoinAction
+from rbb_bot.domain.member_onboarding import GreetingTemplate
+from rbb_bot.infrastructure.member_onboarding import DiscordMemberOnboardingActions
 from rbb_bot.models import Greeting, Guild, JoinEvent
-from services.auto_role_service import AutoRoleService
-from settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE, BotEmojis
-from utils.helpers import truncate
-from utils.views import ListView
+from rbb_bot.services.auto_role_service import AutoRoleService
+from rbb_bot.settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE, BotEmojis
+from rbb_bot.utils.helpers import truncate
+from rbb_bot.utils.views import ListView
 
 from rbb_bot.services.guild_data_service import GuildDataService
 from rbb_bot.services.source_confirmation_service import SourceConfirmationService
+from rbb_bot.views.member_onboarding import create_greeting_embed
 
 
 class MessagesList(ListView):
@@ -219,7 +223,12 @@ class GuildCog(Cog):
         to_send = f"Message updated"
         if not guild.greet_channel_id:
             to_send = f"{to_send}. You can set the welcome channel with `{ctx.prefix}greet enable <channel>`"
-        await ctx.send(to_send, embed=greeting.create_embed(ctx.author))
+        template = GreetingTemplate(
+            title=greeting.title,
+            description=greeting.description,
+            show_member_count=greeting.show_member_count,
+        )
+        await ctx.send(to_send, embed=create_greeting_embed(template, ctx.author))
 
     @greet.command(brief="Preview current embeded welcome message")
     async def preview(self, ctx: Context):
@@ -231,7 +240,12 @@ class GuildCog(Cog):
 
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         greeting, _ = await Greeting.get_or_create(guild=guild)
-        await ctx.send(embed=greeting.create_embed(ctx.author))
+        template = GreetingTemplate(
+            title=greeting.title,
+            description=greeting.description,
+            show_member_count=greeting.show_member_count,
+        )
+        await ctx.send(embed=create_greeting_embed(template, ctx.author))
 
     @commands.hybrid_command(brief="Tell me to send a message in a channel")
     @commands.guild_only()
@@ -727,29 +741,6 @@ class GuildCog(Cog):
     # ----End of Commands----
     # -----------------------
 
-    async def handle_greeting(self, guild: Guild, member: Member) -> Message | None:
-        if not guild.greet_channel_id:
-            return None
-        greeting = await Greeting.get_or_none(guild=guild)
-        if not greeting:
-            return None
-        channel = await guild.greet_channel()
-        if not channel:
-            return None
-        return await channel.send(embed=greeting.create_embed(member))
-
-    async def handle_join_event(self, guild: Guild) -> Message | None:
-        join_event = await JoinEvent.get_or_none(guild=guild)
-        if not join_event:
-            return None
-        channel = join_event.channel
-        if not channel:
-            return None
-        messages = await join_event.responses_as_str()
-        if not messages:
-            return None
-        return await channel.send(random.choice(messages))
-
     async def retrieve_urls(self, channel: TextChannel, attachments=True) -> list[str]:
         URL_REGEX = re.compile(r"https?://\S+\.\S+")
         urls = list()
@@ -759,59 +750,26 @@ class GuildCog(Cog):
                 urls.extend(a.url for a in message.attachments)
         return urls
 
-    async def handle_auto_role(self, member: Member) -> None:
-        result = await AutoRoleService.list_with_cleanup(member.guild.id)
-        if result.is_err:
-            self.bot.logger.error(f"Error retrieving auto roles: {result.unwrap_err()}")
-            return
-
-        existing_roles = result.unwrap()
-        if not existing_roles:
-            return
-
-        bot_member = member.guild.me
-        if bot_member is None:
-            self.bot.logger.error(
-                f"Bot member unavailable for auto roles in guild {member.guild.id}"
-            )
-            return
-
-        if not bot_member.guild_permissions.manage_roles:
-            self.bot.logger.warning(
-                f"Missing `Manage Roles` permission in {member.guild.name} for auto roles"
-            )
-            return
-
-        await member.add_roles(*existing_roles)
-
     @Cog.listener()
     async def on_member_join(self, member: Member):
-        guild = await Guild.get_or_none(id=member.guild.id)
-        if not guild:
-            return
-
-        try:
-            await self.handle_greeting(guild, member)
-        except Exception:
-            self.bot.logger.exception(
-                "Member join greeting failed; continuing with remaining join actions "
-                f"guild_id={member.guild.id} member_id={member.id}"
-            )
-
-        try:
-            await self.handle_join_event(guild)
-        except Exception:
-            self.bot.logger.exception(
-                "Member join event failed; continuing with remaining join actions "
-                f"guild_id={member.guild.id} member_id={member.id}"
-            )
-
-        try:
-            await self.handle_auto_role(member)
-        except Exception:
-            self.bot.logger.exception(
-                "Member join autorole failed "
-                f"guild_id={member.guild.id} member_id={member.id}"
+        actions = DiscordMemberOnboardingActions(member, self.bot.logger)
+        failures = await HandleMemberJoin(actions).execute()
+        failure_messages = {
+            MemberJoinAction.GREETING: "Member join greeting failed",
+            MemberJoinAction.JOIN_RESPONSE: "Member join response failed",
+            MemberJoinAction.AUTO_ROLES: "Member join auto roles failed",
+        }
+        for failure in failures:
+            self.bot.logger.error(
+                "%s; continuing with remaining join actions guild_id=%s member_id=%s",
+                failure_messages[failure.action],
+                member.guild.id,
+                member.id,
+                exc_info=(
+                    type(failure.error),
+                    failure.error,
+                    failure.traceback,
+                ),
             )
 
     @Cog.listener()
