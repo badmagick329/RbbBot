@@ -6,8 +6,8 @@ from discord.ext.commands import Cog, Context
 from rbb_bot.models import Guild, Response, Tag
 from tortoise.functions import Count
 from tortoise.transactions import atomic
-from utils.helpers import truncate
-from utils.views import ListView
+from rbb_bot.utils.helpers import truncate
+from rbb_bot.utils.views import ListView
 
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, BotEmojis
 from rbb_bot.services.tag_service import TagService

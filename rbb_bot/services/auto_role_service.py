@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import discord
-from core.errors import AutoRoleServiceError
-from core.result import Result
+from rbb_bot.core.errors import AutoRoleServiceError
+from rbb_bot.core.result import Result
 from rbb_bot.models.auto_role import AutoRole
 
 

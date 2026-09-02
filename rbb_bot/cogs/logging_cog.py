@@ -4,8 +4,8 @@ from typing import Optional
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from services.guild_logging_service import GuildLoggingService
-from settings.const import MAX_EMBED_FIELD_VALUE
+from rbb_bot.services.guild_logging_service import GuildLoggingService
+from rbb_bot.settings.const import MAX_EMBED_FIELD_VALUE
 
 from rbb_bot.core.formatted_timestamps import MemberTimestamps, MessageTimestamps
 

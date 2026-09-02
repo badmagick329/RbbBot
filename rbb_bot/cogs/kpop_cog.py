@@ -12,9 +12,9 @@ from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
 from rbb_bot.models import Release
 from tortoise.expressions import Q
-from utils.helpers import http_get, truncate
-from utils.scraper import Scraper
-from utils.views import ListView, SearchResult, SearchResultsView
+from rbb_bot.utils.helpers import http_get, truncate
+from rbb_bot.utils.scraper import Scraper
+from rbb_bot.utils.views import ListView, SearchResult, SearchResultsView
 
 
 class VideoList(ListView):

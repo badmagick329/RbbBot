@@ -9,8 +9,8 @@ from discord.ext.commands import Context
 from lib.discord_log_handler import DiscordLogHandler
 from rbb_bot.models import Guild
 from tortoise import Tortoise
-from utils.help_command import EmbedHelpCommand
-from utils.views import ConfirmView
+from rbb_bot.utils.help_command import EmbedHelpCommand
+from rbb_bot.utils.views import ConfirmView
 
 from rbb_bot.settings.config import Config, Creds
 from rbb_bot.settings.ids import LOGGER_CHANNEL_ID, MY_ID

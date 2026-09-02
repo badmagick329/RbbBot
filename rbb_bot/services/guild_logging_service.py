@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 import discord
-from core.errors import GuildLoggingServiceError
-from core.result import Result
+from rbb_bot.core.errors import GuildLoggingServiceError
+from rbb_bot.core.result import Result
 from rbb_bot.models.guild import Guild
 from rbb_bot.models.guild_logging import GuildLogging
 

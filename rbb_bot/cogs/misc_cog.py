@@ -9,7 +9,7 @@ from discord import User
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
-from utils.helpers import (
+from rbb_bot.utils.helpers import (
     channel_regex,
     emoji_regex,
     emoji_url,
@@ -18,7 +18,7 @@ from utils.helpers import (
     truncate,
     user_regex,
 )
-from utils.views import SearchResult, SearchResultsView
+from rbb_bot.utils.views import SearchResult, SearchResultsView
 
 
 class MiscCog(Cog):

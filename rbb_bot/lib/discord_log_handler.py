@@ -3,7 +3,7 @@ import logging
 
 import discord
 from discord.ext import commands
-from utils.helpers import large_send
+from rbb_bot.utils.helpers import large_send
 
 
 class DiscordLogHandler(logging.Handler):

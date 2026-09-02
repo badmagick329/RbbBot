@@ -10,8 +10,8 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.ui import Button, View
 from PIL import Image, UnidentifiedImageError
-from utils.exceptions import TimeoutError
-from utils.helpers import http_get, url_to_filename
+from rbb_bot.utils.exceptions import TimeoutError
+from rbb_bot.utils.helpers import http_get, url_to_filename
 
 SMALL = 5
 MEDIUM = 10

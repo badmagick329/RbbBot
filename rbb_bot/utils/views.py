@@ -7,7 +7,7 @@ from discord import ButtonStyle, Embed, Interaction
 from discord.ext import menus
 from discord.ext.commands import Context
 from discord.ui import Button, View
-from settings.const import BotEmojis
+from rbb_bot.settings.const import BotEmojis
 
 
 class ConfirmView(View):
