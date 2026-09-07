@@ -2,7 +2,7 @@ from tortoise import fields
 from tortoise.models import Model
 
 from rbb_bot.models.encrypted import EncryptedModelMixin, EncryptedValue
-from rbb_bot.settings.ids import CONF_CHANNEL_ID, CONF_GUILD_ID
+from rbb_bot.settings.config import get_discord_settings
 from rbb_bot.utils.mixins import ClientMixin
 
 
@@ -32,8 +32,14 @@ class SourceEntry(EncryptedModelMixin, Model, ClientMixin):
     conf_jump_url_ciphertext = fields.TextField(null=True)
     conf_jump_url = EncryptedValue("conf_jump_url_ciphertext")
 
-    conf_channel_id = CONF_CHANNEL_ID
-    conf_guild_id = CONF_GUILD_ID
+    @property
+    def conf_channel_id(self):
+        return get_discord_settings().confirmation_channel_id
+
+    @property
+    def conf_guild_id(self):
+        return get_discord_settings().confirmation_guild_id
+
     MAX_CHAR_FIELD = 255
 
     def __repr__(self):

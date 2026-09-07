@@ -3,8 +3,10 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
-from rbb_bot.settings.config import get_creds
+from dotenv import load_dotenv
+from rbb_bot.settings.config import validate_runtime_settings
 
 
 def run_command(command: list[str]) -> None:
@@ -12,9 +14,9 @@ def run_command(command: list[str]) -> None:
 
 
 def main() -> None:
-    """Use the local development database unless DB_URL is explicitly supplied."""
-    if not os.environ.get("DB_URL"):
-        os.environ["DB_URL"] = get_creds().db_url
+    """Load development settings only in this explicit local entry point."""
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+    validate_runtime_settings()
 
     run_command([sys.executable, "-m", "rbb_bot.data_encryption_preflight"])
     run_command(["aerich", "upgrade"])

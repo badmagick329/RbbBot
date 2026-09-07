@@ -25,6 +25,6 @@ Run the development entry point instead of invoking `launcher.py` directly:
 poetry run python -m rbb_bot.dev_start
 ```
 
-It reads the local development database URL from `rbb_bot/settings/creds.yaml`,
+It reads development settings from the ignored root `.env` file,
 applies pending Aerich migrations, then starts the normal bot launcher. An
 explicit `DB_URL` environment variable takes precedence when needed.

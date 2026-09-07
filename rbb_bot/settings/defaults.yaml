@@ -1,0 +1,14 @@
+debug: False
+default_prefix: "."
+headers:
+  User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:67.0) Gecko/20100101 Firefox/67.0"
+  Accept-Language: "en-US,en;q=0.9,en-GB;q=0.8"
+  Accept-Encoding: "gzip, deflate"
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
+  Accept-Charset: "utf-8"
+ig_headers:
+  User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36"
+  X-IG-App-ID: "936619743392459"
+kprofiles_url: https://customsearch.googleapis.com/customsearch/v1?key={apikey}&cx=96f6805b9d47943f7&q={query}
+wiki_url: https://customsearch.googleapis.com/customsearch/v1?key={apikey}&cx=03f43755558824d6f&q={query}
+google_url: https://customsearch.googleapis.com/customsearch/v1?key={apikey}&cx=b3de6e1c2b58f4a6e&q={query}

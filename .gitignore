@@ -27,3 +27,8 @@ rbb_bot.log*
 **/temp/*.png
 
 notes/
+deployment/
+tests/test_release_workflow.py
+.release/
+.env.*
+!.env.example

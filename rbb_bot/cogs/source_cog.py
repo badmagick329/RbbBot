@@ -1,3 +1,4 @@
+from rbb_bot.settings.config import get_discord_settings
 import re
 from datetime import date as Date
 from datetime import datetime
@@ -345,7 +346,7 @@ class SourceCog(Cog):
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         if payload.member.bot:
             return
-        if payload.channel_id != SourceEntry.conf_channel_id:
+        if payload.channel_id != get_discord_settings().confirmation_channel_id:
             return
         if payload.emoji.name == BotEmojis.CROSS:
             await self.delete_via_reaction(payload)
@@ -355,7 +356,7 @@ class SourceCog(Cog):
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
-        if payload.channel_id != SourceEntry.conf_channel_id:
+        if payload.channel_id != get_discord_settings().confirmation_channel_id:
             return
         if payload.emoji.name == BotEmojis.HAMMER:
             await self.ban_via_reaction(payload, undo=True)

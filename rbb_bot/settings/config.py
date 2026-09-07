@@ -2,12 +2,11 @@ import os
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, BaseSettings, Field
 
 CONFIG_FILE = Path(
-    os.environ.get("RBB_CONFIG_FILE", Path(__file__).parent / "config.yaml")
+    os.environ.get("RBB_CONFIG_FILE", Path(__file__).parent / "defaults.yaml")
 )
-DEFAULT_CREDS_FILE = Path(__file__).parent / "creds.yaml"
 
 ENV_CREDENTIALS = {
     "discord_token": "RBB_DISCORD_TOKEN",
@@ -28,7 +27,6 @@ class Creds(BaseModel):
     reddit_id: str
     reddit_agent: str
     search_key: str
-    data_encryption_key: str | None = None
 
 
 class Config(BaseModel):
@@ -41,17 +39,32 @@ class Config(BaseModel):
     google_url: str
 
 
+class DiscordSettings(BaseSettings):
+    """Select Discord destinations at startup so the image is environment-independent."""
+
+    owner_id: int = Field(..., gt=0, env="RBB_OWNER_ID")
+    logger_channel_id: int = Field(..., gt=0, env="RBB_LOGGER_CHANNEL_ID")
+    confirmation_channel_id: int = Field(..., gt=0, env="RBB_CONFIRMATION_CHANNEL_ID")
+    confirmation_guild_id: int = Field(..., gt=0, env="RBB_CONFIRMATION_GUILD_ID")
+
+
+def get_discord_settings() -> DiscordSettings:
+    return DiscordSettings()
+
+
 def get_config():
     with open(CONFIG_FILE, "r") as f:
         config = yaml.safe_load(f)
+    for field, variable in (
+        ("debug", "RBB_DEBUG"),
+        ("default_prefix", "RBB_DEFAULT_PREFIX"),
+    ):
+        if variable in os.environ:
+            config[field] = os.environ[variable]
     return Config(**config)
 
 
-def _creds_file() -> Path:
-    return Path(os.environ.get("RBB_CREDS_FILE", DEFAULT_CREDS_FILE))
-
-
-def _get_environment_creds() -> Creds:
+def get_creds() -> Creds:
     missing = [
         environment_name
         for environment_name in ENV_CREDENTIALS.values()
@@ -69,24 +82,18 @@ def _get_environment_creds() -> Creds:
     return Creds(**values)
 
 
-def get_creds():
-    creds_file = _creds_file()
-    if creds_file.exists():
-        with open(creds_file, "r") as f:
-            creds = yaml.safe_load(f)
-        return Creds(**creds)
-
-    return _get_environment_creds()
-
-
 def get_data_encryption_key() -> str:
     """Return the application data-encryption key without logging it."""
     environment_key = os.environ.get(DATA_ENCRYPTION_KEY_ENV)
     if environment_key:
         return environment_key
 
-    file_key = get_creds().data_encryption_key
-    if file_key:
-        return file_key
-
     raise RuntimeError(f"Missing required credential: {DATA_ENCRYPTION_KEY_ENV}")
+
+
+def validate_runtime_settings() -> None:
+    """Reject an incomplete deployment before startup can migrate the database."""
+    get_config()
+    get_creds()
+    get_discord_settings()
+    get_data_encryption_key()

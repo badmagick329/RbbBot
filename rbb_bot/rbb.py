@@ -13,7 +13,7 @@ from rbb_bot.utils.help_command import EmbedHelpCommand
 from rbb_bot.utils.views import ConfirmView
 
 from rbb_bot.settings.config import Config, Creds
-from rbb_bot.settings.ids import LOGGER_CHANNEL_ID, MY_ID
+from rbb_bot.settings.config import get_discord_settings
 from rbb_bot.utils.error_logging import format_error_context
 from rbb_bot.utils.mixins import ClientMixin
 
@@ -23,6 +23,7 @@ class RbbBot(commands.Bot):
         self, config: Config, creds: Creds, logger, web_client, *args, **kwargs
     ):
         self.config = config
+        self.discord_settings = get_discord_settings()
         self.creds = creds
         self.logger = logger
         self.web_client = web_client
@@ -48,7 +49,7 @@ class RbbBot(commands.Bot):
             intents=intents,
             allowed_mentions=allowed_mentions,
             case_insensitive=True,
-            owner_id=MY_ID,
+            owner_id=self.discord_settings.owner_id,
             help_command=EmbedHelpCommand(),
             *args,
             **kwargs,
@@ -81,8 +82,8 @@ class RbbBot(commands.Bot):
         await self.wait_until_ready()
         discord_log_handler = DiscordLogHandler(
             bot=self,
-            logger_channel_id=LOGGER_CHANNEL_ID,
-            my_id=MY_ID,
+            logger_channel_id=self.discord_settings.logger_channel_id,
+            my_id=self.discord_settings.owner_id,
             logger=self.logger,
         )
         discord_log_handler.setLevel(logging.INFO)

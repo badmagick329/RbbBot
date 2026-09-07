@@ -3,6 +3,12 @@ import pytest
 from rbb_bot import container_start, dev_start
 
 
+@pytest.fixture(autouse=True)
+def isolate_settings(monkeypatch):
+    monkeypatch.setattr(container_start, "validate_runtime_settings", lambda: None)
+    monkeypatch.setattr(dev_start, "validate_runtime_settings", lambda: None)
+
+
 def test_startup_bootstraps_then_upgrades_before_starting_bot(monkeypatch):
     commands = []
 
@@ -36,6 +42,16 @@ def test_startup_rejects_an_invalid_bootstrap_value(monkeypatch):
         container_start.main()
 
 
+def test_incomplete_runtime_settings_prevent_migrations(monkeypatch):
+    monkeypatch.delenv("AERICH_BOOTSTRAP", raising=False)
+    def missing_settings():
+        raise RuntimeError("Missing runtime settings")
+    monkeypatch.setattr(container_start, "validate_runtime_settings", missing_settings)
+    monkeypatch.setattr(container_start, "run_command", lambda command: pytest.fail("Must not migrate"))
+    with pytest.raises(RuntimeError, match="Missing runtime settings"):
+        container_start.main()
+
+
 def test_dev_start_uses_local_creds_then_upgrades_before_starting_bot(monkeypatch):
     commands = []
     database_url = "postgres://local-dev-url"
@@ -43,8 +59,8 @@ def test_dev_start_uses_local_creds_then_upgrades_before_starting_bot(monkeypatc
     monkeypatch.delenv("DB_URL", raising=False)
     monkeypatch.setattr(
         dev_start,
-        "get_creds",
-        lambda: type("Creds", (), {"db_url": database_url})(),
+        "load_dotenv",
+        lambda path, override: monkeypatch.setenv("DB_URL", database_url),
     )
     monkeypatch.setattr(dev_start, "run_command", commands.append)
     monkeypatch.setattr(
@@ -74,8 +90,8 @@ def test_dev_start_preserves_an_explicit_database_url(monkeypatch):
     monkeypatch.setenv("DB_URL", "postgres://explicit-url")
     monkeypatch.setattr(
         dev_start,
-        "get_creds",
-        lambda: pytest.fail("local credentials should not be read"),
+        "load_dotenv",
+        lambda path, override: None,
     )
     monkeypatch.setattr(dev_start, "run_command", commands.append)
     monkeypatch.setattr(
