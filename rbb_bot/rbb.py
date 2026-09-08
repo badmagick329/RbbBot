@@ -115,9 +115,10 @@ class RbbBot(commands.Bot):
 
     async def close(self):
         self.logger.info("Closing!")
+        # Unload cogs and await their workers before closing their dependencies.
+        await super().close()
         await self.web_client.close()
         await Tortoise.close_connections()
-        await super().close()
 
     async def process_commands(self, message: Message, /) -> None:
         if message.author.bot:

@@ -1,46 +1,25 @@
-import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
-import dateparser
-import discord
-from aioscheduler import TimedScheduler
 from discord import TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from discord.utils import format_dt
-from rbb_bot.models import DiscordUser, Guild, Reminder
+from rbb_bot.application.reminders.use_cases import (
+    DEFAULT_TEXT,
+    MAX_TEXT,
+    CreateReminderRequest,
+    CreateReminder,
+    GetReminder,
+    CancelReminder,
+    DeliverReminder,
+)
+from rbb_bot.infrastructure.reminders.repository import TortoiseReminderRepository
+from rbb_bot.infrastructure.reminders.discord_delivery import DiscordReminderDelivery
+from rbb_bot.infrastructure.reminders.worker import ReminderWorker
+from rbb_bot.infrastructure.reminders.time_parser import parse_reminder_time
+from rbb_bot.views.reminders import RemindersList, detailed_time, reminder_summary
 
 from rbb_bot.utils.helpers import truncate
-from rbb_bot.utils.views import ListView
-
-
-class RemindersList(ListView):
-    def create_embed(self, reminders: list[Reminder]) -> discord.Embed:
-        assert reminders, "No reminders to create embed from"
-
-        user = reminders[0].discord_user.user
-        embed = discord.Embed(
-            title=f"{user}'s reminders", color=discord.Color.blurple()
-        )
-        embed.set_thumbnail(url=user.display_avatar.url)
-
-        for reminder in reminders:
-            embed.add_field(
-                name=f"[{reminder.id}] {truncate(reminder.text, 50)}",
-                value=f"Created at {format_dt(reminder.created_at, style='f')}",
-                inline=False,
-            )
-
-            channel = (
-                f"Sending in {reminder.channel.mention}" if reminder.channel else ""
-            )
-
-            embed.add_field(
-                name="Due",
-                value=f"{reminder.detailed_format()} {channel}",
-            )
-        return embed
 
 
 class RemindersCog(Cog):
@@ -54,45 +33,21 @@ class RemindersCog(Cog):
             "`2022 10 31 14:00 PT` - 2022-10-31 14:00 Pacific Time\n"
             "Other date formats like `2022/10/31` or `31-10-2022` are also supported"
         )
-        self.scheduler = None
+        self.repository = TortoiseReminderRepository()
+        self.create_reminder = CreateReminder(self.repository)
+        self.get_reminder = GetReminder(self.repository)
+        self.cancel_reminder = CancelReminder(self.repository)
+        self.worker = ReminderWorker(
+            self.repository,
+            DeliverReminder(self.repository, DiscordReminderDelivery(bot)),
+            bot,
+        )
 
     async def cog_load(self) -> None:
-        self.scheduler = TimedScheduler(prefer_utc=True)
-        self.scheduler.start()
-        load_task = asyncio.create_task(self.load_reminders())
-        load_task.add_done_callback(self.load_error)
-        self.bot.logger.debug("RemindersCog Cog loaded!")
+        self.worker.start()
 
     async def cog_unload(self) -> None:
-        self.scheduler._task.cancel()
-        self.bot.logger.debug("RemindersCog Cog unloaded!")
-
-    def load_error(self, task: asyncio.Task):
-        exc = task.exception()
-        if exc:
-            self.bot.logger.error(
-                f"Error loading reminders: {exc}", exc_info=exc, stack_info=True
-            )
-
-    async def load_reminders(self):
-        self.bot.logger.debug("Waiting for bot to be ready")
-        await self.bot.wait_until_ready()
-        self.bot.logger.debug(f"Scheduling reminders")
-        try:
-            reminders = await Reminder.all()
-            for reminder in reminders:
-                if reminder.is_due:
-                    await self.send_reminder(reminder.id, late=True)
-                    continue
-
-                self.scheduler.schedule(
-                    self.send_reminder(reminder.id),
-                    reminder.due_time.replace(tzinfo=None),
-                )
-        except Exception as e:
-            self.bot.logger.error(
-                f"Error scheduling reminders: {e}", exc_info=e, stack_info=True
-            )
+        await self.worker.close()
 
     @commands.hybrid_group(
         brief="Set and manage reminders",
@@ -106,10 +61,9 @@ class RemindersCog(Cog):
 
     @remind.command(brief="Enable reminder messages in this server")
     @commands.has_permissions(manage_guild=True)
+    @commands.guild_only()
     async def enable(self, ctx: Context, enabled: Optional[bool] = True):
-        await Guild.update_or_create(
-            id=ctx.guild.id, defaults={"reminders_enabled": enabled}
-        )
+        await self.repository.set_channel_enabled(ctx.guild.id, enabled)
         await ctx.send(
             f"Reminders {'enabled' if enabled else 'disabled'} for {ctx.guild}"
         )
@@ -139,35 +93,27 @@ class RemindersCog(Cog):
             await ctx.interaction.response.defer()
 
         get_confirmation = True
-        guild = None
-        if text and len(text) > Reminder.MAX_TEXT:
+        if text and len(text) > MAX_TEXT:
             return await ctx.send(
-                f"Reminder text must be less than {Reminder.MAX_TEXT} characters"
+                f"Reminder text must be at most {MAX_TEXT} characters"
             )
 
         if ctx.guild:
-            guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-            if channel and not guild.reminders_enabled:
-                prompt = f"Reminder are not enabled in {ctx.guild}. Would you like to be DM'd instead?"
+            if channel and not await self.repository.channel_enabled(ctx.guild.id):
+                prompt = f"Reminders are not enabled in {ctx.guild}. Would you like to be DM'd instead?"
                 if not (await self.bot.get_confirmation(ctx, prompt)):
                     return
                 channel = None
                 get_confirmation = False
 
-        settings = {
-            "PREFER_DATES_FROM": "future",
-        }
-        parsed_date = dateparser.parse(time, settings=settings)
-        parsed_date: datetime
-        if not parsed_date:
+        try:
+            due_time = parse_reminder_time(time, datetime.now(timezone.utc))
+        except ValueError:
             return await ctx.send(
                 f"Please specify a valid time. Examples:\n{self.time_examples}"
             )
 
-        due_time = parsed_date.astimezone(timezone.utc)
-        due_time_str = (
-            f"{format_dt(due_time, style='f')} ({format_dt(due_time, style='R')})"
-        )
+        due_time_str = detailed_time(due_time)
 
         if get_confirmation:
             if due_time < datetime.now(timezone.utc):
@@ -188,24 +134,24 @@ class RemindersCog(Cog):
         if due_time < datetime.now(timezone.utc):
             return await ctx.send("Due time has passed now :(")
 
-        user, _ = await DiscordUser.get_or_create(id=ctx.author.id)
-
-        reminder = await Reminder.create(
-            discord_user=user,
-            due_time=due_time,
-            channel_id=channel.id if channel else None,
-            guild=guild,
-            text=truncate(text, Reminder.MAX_TEXT) if text else Reminder.DEFAULT_TEXT,
-        )
+        try:
+            await self.create_reminder.execute(
+                CreateReminderRequest(
+                    user_id=ctx.author.id,
+                    due_time=due_time,
+                    guild_id=ctx.guild.id if ctx.guild else None,
+                    channel_id=channel.id if channel else None,
+                    text=text or DEFAULT_TEXT,
+                ),
+                datetime.now(timezone.utc),
+            )
+        except ValueError as error:
+            await ctx.send(str(error))
+            return
 
         await ctx.send(
             f"Reminder set{' for ' + due_time_str if not get_confirmation else ''}. "
             f"Check your reminders with `{ctx.prefix}remind list`."
-        )
-
-        self.scheduler.schedule(
-            self.send_reminder(reminder.id),
-            due_time.replace(tzinfo=None),
         )
 
     @remind.command(brief="List your reminders")
@@ -217,11 +163,7 @@ class RemindersCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        reminders = (
-            await Reminder.filter(discord_user__id=ctx.author.id)
-            .all()
-            .prefetch_related("discord_user", "guild")
-        )
+        reminders = await self.repository.list_for_user(ctx.author.id)
         if not reminders:
             await ctx.send("You don't have any reminders set.")
             return
@@ -239,9 +181,7 @@ class RemindersCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        reminder = await Reminder.filter(
-            id=reminder_id, discord_user__id=ctx.author.id
-        ).first()
+        reminder = await self.get_reminder.execute(reminder_id, ctx.author.id)
         if not reminder:
             await ctx.send("Reminder not found")
             return
@@ -261,9 +201,7 @@ class RemindersCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        reminder = await Reminder.filter(
-            id=reminder_id, discord_user__id=ctx.author.id
-        ).first()
+        reminder = await self.get_reminder.execute(reminder_id, ctx.author.id)
         if not reminder:
             await ctx.send(
                 "I couldn't find a reminder with that ID. Check your reminders with "
@@ -272,57 +210,13 @@ class RemindersCog(Cog):
             return
 
         if not (
-            await self.bot.get_confirmation(ctx, f"Remove reminder\n{str(reminder)}?")
+            await self.bot.get_confirmation(
+                ctx, f"Remove reminder\n{reminder_summary(reminder)}?"
+            )
         ):
             return
-        await reminder.delete()
-        await ctx.send("Reminder deleted")
-
-    async def send_reminder(self, reminder_id: int, late=False):
-        reminder = (
-            await Reminder.filter(id=reminder_id)
-            .first()
-            .prefetch_related("discord_user", "guild")
-        )
-        user = reminder.discord_user.user
-        message_content = "Sorry for the late reminder. " if late else ""
-        send_to = user
-        channel = reminder.channel
-
-        if reminder.channel and not reminder.guild.reminders_enabled:
-            message_content = (
-                f"{message_content}"
-                f"Could not send reminder in {reminder.channel}. "
-                f"The server has disabled reminders"
-            )
-        elif reminder.channel_id and not channel:
-            message_content = (
-                f"Could not send reminder in set channel. It may have been deleted"
-            )
-        elif reminder.channel:
-            try:
-                send_to = reminder.channel
-            except Exception as e:
-                if isinstance(e, discord.Forbidden):
-                    message_content = (
-                        f"{message_content}"
-                        f"Could not send reminder in {reminder.channel}. "
-                        f"Reminders may have been disabled in the server"
-                    )
-                else:
-                    await self.bot.send_error(
-                        exc=e, comment="Reminder channel not found"
-                    )
-                    message_content = f"Failed to send reminder to set channel"
-
-        message_content = (
-            f"{message_content}{reminder.reminder_text}"
-            if message_content
-            else reminder.reminder_text
-        )
-        await send_to.send(message_content)
-
-        await reminder.delete()
+        deleted = await self.cancel_reminder.execute(reminder_id, ctx.author.id)
+        await ctx.send("Reminder deleted" if deleted else "Reminder no longer pending")
 
 
 async def setup(bot):
