@@ -103,7 +103,6 @@ class KpopCog(Cog):
             logger=self.bot.logger,
             creds=self.bot.creds,
         )
-        self.update_comebacks_task.start()
 
     @tasks.loop(hours=6)
     async def update_comebacks_task(self) -> None:
@@ -129,11 +128,15 @@ class KpopCog(Cog):
         await self.bot.logging_ready.wait()
 
     async def cog_load(self) -> None:
+        self.update_comebacks_task.start()
         self.bot.logger.debug("kpop Cog loaded!")
 
     async def cog_unload(self) -> None:
-        await self.scraper.reddit.close()
+        task = self.update_comebacks_task.get_task()
         self.update_comebacks_task.cancel()
+        if task is not None:
+            await asyncio.gather(task, return_exceptions=True)
+        await self.scraper.reddit.close()
         self.bot.logger.debug("kpop Cog unloaded!")
 
     async def update_comebacks(self, ctx: Context, urls: Optional[str] = None) -> None:

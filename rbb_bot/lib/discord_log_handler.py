@@ -35,10 +35,6 @@ class DiscordLogHandler(logging.Handler):
         self.logger = logger
         self.message_queue = asyncio.Queue()
 
-    async def start_logging(self):
-        await self.init()
-        await self.run()
-
     async def init(self):
         if not self.bot:
             return
@@ -78,7 +74,7 @@ class DiscordLogHandler(logging.Handler):
         if not self.bot:
             return
         msg = self.format(record)
-        asyncio.create_task(self.message_queue.put((msg, record.levelno)))
+        self.message_queue.put_nowait((msg, record.levelno))
 
     async def get_log_channel(
         self,

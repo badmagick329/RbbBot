@@ -1,33 +1,71 @@
 # RBB Bot
 
-## Production migrations
+## Existing databases and deployment
 
-The container runs `aerich upgrade` before starting the bot. A failed migration
-prevents the bot from starting.
+Production remains a manual Dokploy deployment. `deployment/build_prod.ps1`
+builds committed code, uploads and loads the image, and prints `RBB_IMAGE_TAG`.
+Set that tag in Dokploy and redeploy using `notes/dokploy/docker-compose.yaml`.
+Preparing the image does not run migrations or restart production.
 
-Production was initially deployed without Aerich history. For the first image
-that contains this migration flow only, set `AERICH_BOOTSTRAP=1` in Dokploy.
-The bootstrap verifies the known legacy schema, records migrations 43--48
-without executing their historical SQL, then applies pending migrations.
+Container and development startup both run `python -m rbb_bot.upgrade_database`
+before launching the bot. It validates Aerich history, verifies the encryption
+key, applies pending migrations, then verifies/converts encrypted data. Failure
+stops startup. The bot itself never creates or repairs tables.
 
-After the deployment has successfully started, remove `AERICH_BOOTSTRAP` from
-Dokploy and redeploy or restart the service. Leaving it enabled intentionally
-prevents later starts, because the baseline may only be created once.
+For an existing database, retain its volume and `RBB_DATA_ENCRYPTION_KEY`.
+Check `SELECT version FROM aerich WHERE app = 'models' ORDER BY id;` against
+`migrations/models/` before deployment. History must be an uninterrupted prefix
+of this release's migration files. Missing history, gaps, or newer unknown
+versions stop startup rather than guessing the database state.
 
-Migration 49 permanently removes `commandlog`; its historical data is not
-recoverable.
+This lifecycle release adds no migration for existing databases. If older
+migrations are pending, take a database backup and verify its restore procedure
+with the original encryption key first. Image rollback does not reverse database
+changes. Migration 53 is irreversible and requires encryption conversion to have
+completed in the earlier encryption release; do not skip that staged upgrade.
 
-## Development startup
+`AERICH_BOOTSTRAP=1` is only the historical one-time path for the specifically
+validated legacy schema and empty Aerich table. It records migrations 43-48.
+It is not fresh-database initialization or a repair command. Do not enable it
+on current production, and remove it after any authorized legacy baseline.
 
-Run the development entry point instead of invoking `launcher.py` directly:
+## Fresh database initialization
+
+Create a dedicated empty Postgres database and supply `DB_URL` and
+`RBB_DATA_ENCRYPTION_KEY`. For local development, put them in `.env` and run:
 
 ```powershell
+poetry run python -m rbb_bot.initialize_database --env-file .env
 poetry run python -m rbb_bot.dev_start
 ```
 
-It reads development settings from the ignored root `.env` file,
-applies pending Aerich migrations, then starts the normal bot launcher. An
-explicit `DB_URL` environment variable takes precedence when needed.
+For a new container deployment, run `python -m rbb_bot.initialize_database` once
+in the prepared image with those environment variables, before starting the bot.
+Use the same database network and environment as the bot. Do not run this command
+against the existing production database.
+
+Initialization refuses any existing relation in the public schema. It installs
+the frozen schema through migration 53, records the corresponding Aerich history,
+and creates encryption metadata in one transaction. A failure rolls everything
+back. Normal startup subsequently applies any newer migrations.
+
+The frozen SQL and model snapshot in `rbb_bot/infrastructure/database/` are baseline
+assets, not generated on startup. Future schema changes belong in numbered
+`migrations/models/` files. Keep the baseline unchanged and test both fresh
+initialization followed by upgrades and upgrades containing existing data.
+
+## Development and shutdown
+
+Use `poetry run python -m rbb_bot.dev_start`. It loads the ignored `.env`, keeping
+already-set environment variables, then runs the shared upgrade path and launcher.
+Avoid launching the bot directly, which bypasses upgrades. The explicit initializer
+loads a file only when `--env-file` is provided; production reads process variables.
+
+Docker SIGTERM and console interrupts now trigger awaited shutdown. Logging,
+scheduled scraping, guild cleanup, emoji posts, and reminder delivery stop before
+their dependent clients close. The launcher owns the shared HTTP session and local
+log handler; the bot owns its database connections and Discord logging task.
+Discord logging failures are reported locally and do not block the scraper forever.
 
 ## Reminders refactor deployment
 
@@ -45,8 +83,8 @@ Normal container startup still runs the encryption preflight, Aerich upgrades,
 and encryption conversion before launching the bot. Before deployment, check the
 actual Aerich history for the target database against the previous release;
 this refactor does not make an older, unconverted database ready for migration 53.
-Do not enable `AERICH_BOOTSTRAP` on an already-baselined database. Fresh-database
-initialization and the existing schema-generation behavior are unchanged here.
+Do not enable `AERICH_BOOTSTRAP` on an already-baselined database. Fresh databases
+use the explicit initialization command above.
 
 The worker checks due reminders every 30 seconds and retries failed deliveries
 on subsequent polls. Unavailable or forbidden channels fall back to DMs;

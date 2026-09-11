@@ -509,7 +509,6 @@ async def init():
     await Tortoise.init(
         db_url=get_creds().db_url, modules={"models": ["rbb_bot.models"]}
     )
-    await Tortoise.generate_schemas(safe=True)
 
 
 async def simple_update():

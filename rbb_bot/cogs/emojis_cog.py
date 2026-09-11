@@ -18,14 +18,18 @@ class EmojisCog(Cog):
         self.bot = bot
         # Maps guild id to a datetime object of when updated emojis should be posted
         self.post_datetimes = dict()
+        self.post_tasks = set()
         self.UPDATE_DELAY = 30
 
     async def cog_load(self):
-        self.bot.bot_tasks.setdefault("post_datetimes", dict())
-        self.post_datetimes = self.bot.bot_tasks["post_datetimes"]
         self.bot.logger.debug("EmojisCog loaded!")
 
     async def cog_unload(self):
+        tasks = tuple(self.post_tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.post_datetimes.clear()
         self.bot.logger.debug("EmojisCog unloaded!")
 
     @staticmethod
@@ -348,6 +352,11 @@ class EmojisCog(Cog):
             await sleep_until(self.post_datetimes[guild.id])
             await self.post_updated_emojis(guild, discord_guild)
 
+    def post_finished(self, task):
+        self.post_tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            self.bot.logger.error("Emoji update failed", exc_info=task.exception())
+
     @Cog.listener()
     async def on_guild_emojis_update(
         self, guild: Guild, before: list[Emoji], after: list[Emoji]
@@ -363,7 +372,9 @@ class EmojisCog(Cog):
             self.post_datetimes[guild.id] = utcnow() + timedelta(
                 seconds=self.UPDATE_DELAY
             )
-            asyncio.create_task(self.post_updated_emojis(guild_settings, guild))
+            task = asyncio.create_task(self.post_updated_emojis(guild_settings, guild))
+            self.post_tasks.add(task)
+            task.add_done_callback(self.post_finished)
         else:
             self.post_datetimes[guild.id] = utcnow() + timedelta(
                 seconds=self.UPDATE_DELAY

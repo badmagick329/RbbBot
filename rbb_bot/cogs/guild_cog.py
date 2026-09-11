@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord import TextChannel
 from discord.ext import commands, tasks
@@ -19,7 +20,10 @@ class GuildCog(Cog):
         self.bot.logger.debug("GuildCog loaded!")
 
     async def cog_unload(self):
+        task = self.guild_cleanup_task.get_task()
         self.guild_cleanup_task.cancel()
+        if task is not None:
+            await asyncio.gather(task, return_exceptions=True)
         self.bot.logger.debug("GuildCog unloaded!")
 
     async def delete_source_confirmation_messages(

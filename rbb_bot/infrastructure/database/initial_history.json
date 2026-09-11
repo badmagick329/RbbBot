@@ -1,0 +1,2968 @@
+{
+  "versions": [
+    "43_20221227113530_None.py",
+    "44_20221227113844_command_log.py",
+    "45_20221228171301_bot updates.py",
+    "46_20221228201445_source_update.py",
+    "47_20221228204800_source_model.py",
+    "48_20230530172725_None.py",
+    "49_20260718_remove_command_log.py",
+    "50_20260718_guild_lifecycle.py",
+    "51_20260718_user_tag_opt_out.py",
+    "52_20260719_add_application_encryption.py",
+    "53_20260719_remove_legacy_plaintext_columns.py"
+  ],
+  "content": {
+    "models.Artist": {
+      "name": "models.Artist",
+      "app": "models",
+      "table": "artist",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "name",
+          "field_type": "CharField",
+          "db_column": "name",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 510
+          },
+          "db_field_types": {
+            "": "VARCHAR(510)"
+          }
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [
+        {
+          "name": "releases",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Release",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        }
+      ],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.AutoRole": {
+      "name": "models.AutoRole",
+      "app": "models",
+      "table": "autorole",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [
+        [
+          "guild_id",
+          "role_id"
+        ]
+      ],
+      "indexes": [],
+      "pk_field": {
+        "name": "_id",
+        "field_type": "IntField",
+        "db_column": "_id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "guild_id",
+          "field_type": "BigIntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "role_id",
+          "field_type": "BigIntField",
+          "db_column": "role_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.BotIssue": {
+      "name": "models.BotIssue",
+      "app": "models",
+      "table": "botissue",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "message_ciphertext",
+          "field_type": "TextField",
+          "db_column": "message_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "created_at",
+          "field_type": "DatetimeField",
+          "db_column": "created_at",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "readOnly": true
+          },
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": true,
+          "auto_now": false
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.BotUpdate": {
+      "name": "models.BotUpdate",
+      "app": "models",
+      "table": "botupdate",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "message_ciphertext",
+          "field_type": "TextField",
+          "db_column": "message_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "created_at",
+          "field_type": "DatetimeField",
+          "db_column": "created_at",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "readOnly": true
+          },
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": true,
+          "auto_now": false
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.DiscordUser": {
+      "name": "models.DiscordUser",
+      "app": "models",
+      "table": "discorduser",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "_id",
+        "field_type": "IntField",
+        "db_column": "_id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "id",
+          "field_type": "BigIntField",
+          "db_column": "id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": true,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "cached_username_ciphertext",
+          "field_type": "TextField",
+          "db_column": "cached_username_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "blacklist_ciphertext",
+          "field_type": "TextField",
+          "db_column": "blacklist_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "tag_opt_out",
+          "field_type": "BooleanField",
+          "db_column": "tag_opt_out",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [
+        {
+          "name": "reminders",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Reminder",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "sources",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.SourceEntry",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        }
+      ],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.DiskCache": {
+      "name": "models.DiskCache",
+      "app": "models",
+      "table": "diskcache",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [
+        [
+          "key"
+        ]
+      ],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "key",
+          "field_type": "CharField",
+          "db_column": "key",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 510
+          },
+          "db_field_types": {
+            "": "VARCHAR(510)"
+          }
+        },
+        {
+          "name": "value",
+          "field_type": "JSONField",
+          "db_column": "value",
+          "python_type": "Union[dict, list]",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "JSON",
+            "mssql": "NVARCHAR(MAX)",
+            "oracle": "NCLOB",
+            "postgres": "JSONB"
+          }
+        },
+        {
+          "name": "accessed_at",
+          "field_type": "DatetimeField",
+          "db_column": "accessed_at",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "readOnly": true
+          },
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": true,
+          "auto_now": false
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.EncryptionMetadata": {
+      "name": "models.EncryptionMetadata",
+      "app": "models",
+      "table": "encryptionmetadata",
+      "abstract": false,
+      "description": "Singleton state used to validate the configured encryption key at startup.",
+      "docstring": "Singleton state used to validate the configured encryption key at startup.",
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "sentinel",
+          "field_type": "TextField",
+          "db_column": "sentinel",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "state",
+          "field_type": "CharField",
+          "db_column": "state",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 20
+          },
+          "db_field_types": {
+            "": "VARCHAR(20)"
+          }
+        },
+        {
+          "name": "format_version",
+          "field_type": "IntField",
+          "db_column": "format_version",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": 1,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -2147483648,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.Greeting": {
+      "name": "models.Greeting",
+      "app": "models",
+      "table": "greeting",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "title_ciphertext",
+          "field_type": "TextField",
+          "db_column": "title_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "description_ciphertext",
+          "field_type": "TextField",
+          "db_column": "description_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "show_member_count",
+          "field_type": "BooleanField",
+          "db_column": "show_member_count",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": true,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "guild_id",
+          "field_type": "IntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "guild",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Guild",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "guild_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.Guild": {
+      "name": "models.Guild",
+      "app": "models",
+      "table": "guild",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "_id",
+        "field_type": "IntField",
+        "db_column": "_id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "id",
+          "field_type": "BigIntField",
+          "db_column": "id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": true,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "prefix_ciphertext",
+          "field_type": "TextField",
+          "db_column": "prefix_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "emojis_channel_id",
+          "field_type": "BigIntField",
+          "db_column": "emojis_channel_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "greet_channel_id",
+          "field_type": "BigIntField",
+          "db_column": "greet_channel_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "emojis_channel_message_ciphertext",
+          "field_type": "TextField",
+          "db_column": "emojis_channel_message_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "delete_emoji_messages",
+          "field_type": "BooleanField",
+          "db_column": "delete_emoji_messages",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": true,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "custom_roles_enabled",
+          "field_type": "BooleanField",
+          "db_column": "custom_roles_enabled",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "max_custom_roles",
+          "field_type": "IntField",
+          "db_column": "max_custom_roles",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": 2,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -2147483648,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        },
+        {
+          "name": "reminders_enabled",
+          "field_type": "BooleanField",
+          "db_column": "reminders_enabled",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "departed_at",
+          "field_type": "DatetimeField",
+          "db_column": "departed_at",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": false,
+          "auto_now": false
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [
+        {
+          "name": "greetings",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Greeting",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "logging",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.GuildLogging",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "join_event",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.JoinEvent",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "reminders",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Reminder",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "responses",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Response",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "tags",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Tag",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        }
+      ],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.GuildLogging": {
+      "name": "models.GuildLogging",
+      "app": "models",
+      "table": "guildlogging",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "_id",
+        "field_type": "IntField",
+        "db_column": "_id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "channel_id",
+          "field_type": "BigIntField",
+          "db_column": "channel_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": true,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "message_removed_enabled",
+          "field_type": "BooleanField",
+          "db_column": "message_removed_enabled",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "message_edited_enabled",
+          "field_type": "BooleanField",
+          "db_column": "message_edited_enabled",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "member_join_enabled",
+          "field_type": "BooleanField",
+          "db_column": "member_join_enabled",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "member_leave_enabled",
+          "field_type": "BooleanField",
+          "db_column": "member_leave_enabled",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "guild_model_id",
+          "field_type": "IntField",
+          "db_column": "guild_model_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "guild_model",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Guild",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "guild_model_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.JoinEvent": {
+      "name": "models.JoinEvent",
+      "app": "models",
+      "table": "joinevent",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "_channel_id",
+          "field_type": "BigIntField",
+          "db_column": "_channel_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "guild_id",
+          "field_type": "IntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "guild",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Guild",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "guild_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [
+        {
+          "name": "join_responses",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.JoinResponse",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        },
+        {
+          "name": "join_roles",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.JoinRole",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        }
+      ],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": [
+        {
+          "name": "_responses",
+          "field_type": "ManyToManyFieldInstance",
+          "python_type": "models.JoinResponse",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "model_name": "models.JoinResponse",
+          "related_name": "join_events",
+          "forward_key": "joinresponse_id",
+          "backward_key": "joinevent_id",
+          "through": "joinevent_joinresponse",
+          "on_delete": "CASCADE",
+          "_generated": false
+        },
+        {
+          "name": "_roles",
+          "field_type": "ManyToManyFieldInstance",
+          "python_type": "models.JoinRole",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "model_name": "models.JoinRole",
+          "related_name": "join_events",
+          "forward_key": "joinrole_id",
+          "backward_key": "joinevent_id",
+          "through": "joinevent_joinrole",
+          "on_delete": "CASCADE",
+          "_generated": false
+        }
+      ]
+    },
+    "models.JoinResponse": {
+      "name": "models.JoinResponse",
+      "app": "models",
+      "table": "joinresponse",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "content_ciphertext",
+          "field_type": "TextField",
+          "db_column": "content_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "event_id",
+          "field_type": "IntField",
+          "db_column": "event_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "event",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.JoinEvent",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "event_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": [
+        {
+          "name": "join_events",
+          "field_type": "ManyToManyFieldInstance",
+          "python_type": "models.JoinEvent",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "model_name": "models.JoinEvent",
+          "related_name": "_responses",
+          "forward_key": "joinevent_id",
+          "backward_key": "joinresponse_id",
+          "through": "joinevent_joinresponse",
+          "on_delete": "CASCADE",
+          "_generated": true
+        }
+      ]
+    },
+    "models.JoinRole": {
+      "name": "models.JoinRole",
+      "app": "models",
+      "table": "joinrole",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "role_id",
+          "field_type": "BigIntField",
+          "db_column": "role_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "event_id",
+          "field_type": "IntField",
+          "db_column": "event_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "event",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.JoinEvent",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "event_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": [
+        {
+          "name": "join_events",
+          "field_type": "ManyToManyFieldInstance",
+          "python_type": "models.JoinEvent",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "model_name": "models.JoinEvent",
+          "related_name": "_roles",
+          "forward_key": "joinevent_id",
+          "backward_key": "joinrole_id",
+          "through": "joinevent_joinrole",
+          "on_delete": "CASCADE",
+          "_generated": true
+        }
+      ]
+    },
+    "models.Release": {
+      "name": "models.Release",
+      "app": "models",
+      "table": "release",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "album_title",
+          "field_type": "CharField",
+          "db_column": "album_title",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 510
+          },
+          "db_field_types": {
+            "": "VARCHAR(510)"
+          }
+        },
+        {
+          "name": "title",
+          "field_type": "CharField",
+          "db_column": "title",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 510
+          },
+          "db_field_types": {
+            "": "VARCHAR(510)"
+          }
+        },
+        {
+          "name": "release_date",
+          "field_type": "DateField",
+          "db_column": "release_date",
+          "python_type": "datetime.date",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "DATE"
+          }
+        },
+        {
+          "name": "release_time",
+          "field_type": "DatetimeField",
+          "db_column": "release_time",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": false,
+          "auto_now": false
+        },
+        {
+          "name": "urls",
+          "field_type": "JSONField",
+          "db_column": "urls",
+          "python_type": "Union[dict, list]",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "JSON",
+            "mssql": "NVARCHAR(MAX)",
+            "oracle": "NCLOB",
+            "postgres": "JSONB"
+          }
+        },
+        {
+          "name": "reddit_urls",
+          "field_type": "JSONField",
+          "db_column": "reddit_urls",
+          "python_type": "Union[dict, list]",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "JSON",
+            "mssql": "NVARCHAR(MAX)",
+            "oracle": "NCLOB",
+            "postgres": "JSONB"
+          }
+        },
+        {
+          "name": "timezone",
+          "field_type": "CharField",
+          "db_column": "timezone",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": "Asia/Seoul",
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 30
+          },
+          "db_field_types": {
+            "": "VARCHAR(30)"
+          }
+        },
+        {
+          "name": "artist_id",
+          "field_type": "IntField",
+          "db_column": "artist_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        },
+        {
+          "name": "release_type_id",
+          "field_type": "IntField",
+          "db_column": "release_type_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "artist",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Artist",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "artist_id",
+          "on_delete": "CASCADE"
+        },
+        {
+          "name": "release_type",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.ReleaseType",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "release_type_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.ReleaseType": {
+      "name": "models.ReleaseType",
+      "app": "models",
+      "table": "releasetype",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "name",
+          "field_type": "CharField",
+          "db_column": "name",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 255
+          },
+          "db_field_types": {
+            "": "VARCHAR(255)"
+          }
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [
+        {
+          "name": "releases",
+          "field_type": "BackwardFKRelation",
+          "python_type": "models.Release",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true
+        }
+      ],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.Reminder": {
+      "name": "models.Reminder",
+      "app": "models",
+      "table": "reminder",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "channel_id",
+          "field_type": "BigIntField",
+          "db_column": "channel_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "text_ciphertext",
+          "field_type": "TextField",
+          "db_column": "text_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "due_time",
+          "field_type": "DatetimeField",
+          "db_column": "due_time",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": false,
+          "auto_now": false
+        },
+        {
+          "name": "created_at",
+          "field_type": "DatetimeField",
+          "db_column": "created_at",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "readOnly": true
+          },
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": true,
+          "auto_now": false
+        },
+        {
+          "name": "discord_user_id",
+          "field_type": "IntField",
+          "db_column": "discord_user_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        },
+        {
+          "name": "guild_id",
+          "field_type": "IntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "discord_user",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.DiscordUser",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "discord_user_id",
+          "on_delete": "CASCADE"
+        },
+        {
+          "name": "guild",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Guild",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "guild_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.Response": {
+      "name": "models.Response",
+      "app": "models",
+      "table": "response",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "content_ciphertext",
+          "field_type": "TextField",
+          "db_column": "content_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "guild_id",
+          "field_type": "IntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "guild",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Guild",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "guild_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": [
+        {
+          "name": "tags",
+          "field_type": "ManyToManyFieldInstance",
+          "python_type": "models.Tag",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "model_name": "models.Tag",
+          "related_name": "responses",
+          "forward_key": "tag_id",
+          "backward_key": "response_id",
+          "through": "tag_response",
+          "on_delete": "CASCADE",
+          "_generated": true
+        }
+      ]
+    },
+    "models.SourceEntry": {
+      "name": "models.SourceEntry",
+      "app": "models",
+      "table": "sourceentry",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "emoji_string_ciphertext",
+          "field_type": "TextField",
+          "db_column": "emoji_string_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "emoji_lookup",
+          "field_type": "CharField",
+          "db_column": "emoji_lookup",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": true,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 64
+          },
+          "db_field_types": {
+            "": "VARCHAR(64)"
+          }
+        },
+        {
+          "name": "emoji_url_ciphertext",
+          "field_type": "TextField",
+          "db_column": "emoji_url_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "source_url_ciphertext",
+          "field_type": "TextField",
+          "db_column": "source_url_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "event_ciphertext",
+          "field_type": "TextField",
+          "db_column": "event_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "source_date",
+          "field_type": "DateField",
+          "db_column": "source_date",
+          "python_type": "datetime.date",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "DATE"
+          }
+        },
+        {
+          "name": "guild_id",
+          "field_type": "BigIntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "channel_id",
+          "field_type": "BigIntField",
+          "db_column": "channel_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "message_id",
+          "field_type": "BigIntField",
+          "db_column": "message_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "jump_url_ciphertext",
+          "field_type": "TextField",
+          "db_column": "jump_url_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "conf_message_id",
+          "field_type": "BigIntField",
+          "db_column": "conf_message_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -9223372036854775808,
+            "le": 9223372036854775807
+          },
+          "db_field_types": {
+            "": "BIGINT",
+            "oracle": "INT"
+          }
+        },
+        {
+          "name": "conf_jump_url_ciphertext",
+          "field_type": "TextField",
+          "db_column": "conf_jump_url_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "user_id",
+          "field_type": "IntField",
+          "db_column": "user_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "user",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.DiscordUser",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "user_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    },
+    "models.Tag": {
+      "name": "models.Tag",
+      "app": "models",
+      "table": "tag",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [
+        [
+          "trigger_lookup",
+          "guild"
+        ]
+      ],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "trigger_ciphertext",
+          "field_type": "TextField",
+          "db_column": "trigger_ciphertext",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "TEXT",
+            "mssql": "NVARCHAR(MAX)",
+            "mysql": "LONGTEXT",
+            "oracle": "NCLOB"
+          }
+        },
+        {
+          "name": "trigger_lookup",
+          "field_type": "CharField",
+          "db_column": "trigger_lookup",
+          "python_type": "str",
+          "generated": false,
+          "nullable": true,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 64
+          },
+          "db_field_types": {
+            "": "VARCHAR(64)"
+          }
+        },
+        {
+          "name": "inline",
+          "field_type": "BooleanField",
+          "db_column": "inline",
+          "python_type": "bool",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": false,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "BOOL",
+            "mssql": "BIT",
+            "oracle": "NUMBER(1)",
+            "sqlite": "INT"
+          }
+        },
+        {
+          "name": "created_at",
+          "field_type": "DatetimeField",
+          "db_column": "created_at",
+          "python_type": "datetime.datetime",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "readOnly": true
+          },
+          "db_field_types": {
+            "": "TIMESTAMP",
+            "mssql": "DATETIME2",
+            "mysql": "DATETIME(6)",
+            "oracle": "TIMESTAMP WITH TIME ZONE",
+            "postgres": "TIMESTAMPTZ"
+          },
+          "auto_now_add": true,
+          "auto_now": false
+        },
+        {
+          "name": "use_count",
+          "field_type": "IntField",
+          "db_column": "use_count",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": 0,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": -2147483648,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        },
+        {
+          "name": "guild_id",
+          "field_type": "IntField",
+          "db_column": "guild_id",
+          "python_type": "int",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "ge": 1,
+            "le": 2147483647
+          },
+          "db_field_types": {
+            "": "INT"
+          }
+        }
+      ],
+      "fk_fields": [
+        {
+          "name": "guild",
+          "field_type": "ForeignKeyFieldInstance",
+          "python_type": "models.Guild",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "raw_field": "guild_id",
+          "on_delete": "CASCADE"
+        }
+      ],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": [
+        {
+          "name": "responses",
+          "field_type": "ManyToManyFieldInstance",
+          "python_type": "models.Response",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_constraint": true,
+          "model_name": "models.Response",
+          "related_name": "tags",
+          "forward_key": "response_id",
+          "backward_key": "tag_id",
+          "through": "tag_response",
+          "on_delete": "CASCADE",
+          "_generated": false
+        }
+      ]
+    },
+    "models.Aerich": {
+      "name": "models.Aerich",
+      "app": "models",
+      "table": "aerich",
+      "abstract": false,
+      "description": null,
+      "docstring": null,
+      "unique_together": [],
+      "indexes": [],
+      "pk_field": {
+        "name": "id",
+        "field_type": "IntField",
+        "db_column": "id",
+        "python_type": "int",
+        "generated": true,
+        "nullable": false,
+        "unique": true,
+        "indexed": true,
+        "default": null,
+        "description": null,
+        "docstring": null,
+        "constraints": {
+          "ge": 1,
+          "le": 2147483647
+        },
+        "db_field_types": {
+          "": "INT"
+        }
+      },
+      "data_fields": [
+        {
+          "name": "version",
+          "field_type": "CharField",
+          "db_column": "version",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 255
+          },
+          "db_field_types": {
+            "": "VARCHAR(255)"
+          }
+        },
+        {
+          "name": "app",
+          "field_type": "CharField",
+          "db_column": "app",
+          "python_type": "str",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {
+            "max_length": 100
+          },
+          "db_field_types": {
+            "": "VARCHAR(100)"
+          }
+        },
+        {
+          "name": "content",
+          "field_type": "JSONField",
+          "db_column": "content",
+          "python_type": "Union[dict, list]",
+          "generated": false,
+          "nullable": false,
+          "unique": false,
+          "indexed": false,
+          "default": null,
+          "description": null,
+          "docstring": null,
+          "constraints": {},
+          "db_field_types": {
+            "": "JSON",
+            "mssql": "NVARCHAR(MAX)",
+            "oracle": "NCLOB",
+            "postgres": "JSONB"
+          }
+        }
+      ],
+      "fk_fields": [],
+      "backward_fk_fields": [],
+      "o2o_fields": [],
+      "backward_o2o_fields": [],
+      "m2m_fields": []
+    }
+  }
+}

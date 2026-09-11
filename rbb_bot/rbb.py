@@ -33,9 +33,9 @@ class RbbBot(commands.Bot):
             if not c.stem.startswith("_")
         ]
         self.guild_prefixes = dict()
-        self.logger_task = None
+        self.logging_task = None
+        self._shutdown_task = None
         self.logging_ready = asyncio.Event()
-        self.bot_tasks = dict()
         intents = discord.Intents.default()
         intents.members = True
         intents.message_content = True
@@ -65,7 +65,6 @@ class RbbBot(commands.Bot):
         await Tortoise.init(
             db_url=self.creds.db_url, modules={"models": ["rbb_bot.models"]}
         )
-        await Tortoise.generate_schemas(safe=True)
         ClientMixin.inject_client(self)
 
         for guild in await Guild.all():
@@ -76,23 +75,42 @@ class RbbBot(commands.Bot):
             await self.load_extension(f"rbb_bot.cogs.{cog}")
         await self.load_extension("jishaku")
         self.logger.debug("Cogs loaded!")
-        asyncio.create_task(self.setup_logging())
+        self.logging_task = asyncio.create_task(
+            self.setup_logging(), name="discord-logging"
+        )
 
     async def setup_logging(self):
-        await self.wait_until_ready()
-        discord_log_handler = DiscordLogHandler(
-            bot=self,
-            logger_channel_id=self.discord_settings.logger_channel_id,
-            my_id=self.discord_settings.owner_id,
-            logger=self.logger,
-        )
-        discord_log_handler.setLevel(logging.INFO)
-        discord_log_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
-        self.logger.addHandler(discord_log_handler)
-        self.logger_task = asyncio.create_task(discord_log_handler.start_logging())
-        self.logging_ready.set()
+        """Own channel setup and delivery as one task, including partial startup failure."""
+        handler = None
+        try:
+            await self.wait_until_ready()
+            handler = DiscordLogHandler(
+                bot=self,
+                logger_channel_id=self.discord_settings.logger_channel_id,
+                my_id=self.discord_settings.owner_id,
+                logger=self.logger,
+            )
+            handler.setLevel(logging.INFO)
+            handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                )
+            )
+            await handler.init()
+            self.logger.addHandler(handler)
+            self.logging_ready.set()
+            await handler.run()
+        except Exception:
+            # Report through the local handler even if Discord logging failed.
+            if handler is not None:
+                self.logger.removeHandler(handler)
+            self.logger.exception("Discord logging stopped")
+        finally:
+            if handler is not None:
+                self.logger.removeHandler(handler)
+                handler.close()
+            # Scraping may proceed after a failed logging setup as well.
+            self.logging_ready.set()
 
     async def on_connect(self):
         self.logger.info(f"Connected! Latency: {self.latency * 1000:.2f}ms")
@@ -114,11 +132,25 @@ class RbbBot(commands.Bot):
         self.logger.info("RbbBot ready!")
 
     async def close(self):
+        """Discord and the context manager may both request shutdown."""
+        if self._shutdown_task is None:
+            self._shutdown_task = asyncio.create_task(
+                self._close_resources(), name="bot-shutdown"
+            )
+        await asyncio.shield(self._shutdown_task)
+
+    async def _close_resources(self):
         self.logger.info("Closing!")
-        # Unload cogs and await their workers before closing their dependencies.
-        await super().close()
-        await self.web_client.close()
-        await Tortoise.close_connections()
+        try:
+            if self.logging_task is not None:
+                self.logging_task.cancel()
+                await asyncio.gather(self.logging_task, return_exceptions=True)
+            # Bot.close unloads cogs before closing Discord's own HTTP client.
+            await super().close()
+        finally:
+            ClientMixin.inject_client(None)
+            await Tortoise.close_connections()
+        # The launcher owns web_client and closes it after the bot context exits.
 
     async def process_commands(self, message: Message, /) -> None:
         if message.author.bot:
