@@ -50,6 +50,11 @@ class UserDataService:
         user = await cls._model("DiscordUser").get_or_none(id=user_id)
         reminders = await cls._model("Reminder").filter(discord_user__id=user_id)
         sources = await cls._model("SourceEntry").filter(user__id=user_id)
+        custom_roles = (
+            await cls._model("CustomRole")
+            .filter(owner__id=user_id)
+            .prefetch_related("guild")
+        )
 
         def reminder_data(reminder) -> dict:
             return {
@@ -90,6 +95,10 @@ class UserDataService:
             ),
             "reminders": [reminder_data(reminder) for reminder in reminders],
             "source_entries": [source_data(source) for source in sources],
+            "custom_roles": [
+                {"role_id": role.role_id, "guild_id": role.guild.id}
+                for role in custom_roles
+            ],
         }
 
     @classmethod

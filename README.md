@@ -136,3 +136,35 @@ member failures, and reports partial results. Each join action runs independentl
 
 After deployment, preview an existing greeting and welcome message, check the
 auto-role list, and verify all three actions on a member join.
+
+## Role ownership and media safety deployment
+
+Migration 54 adds an empty `customrole` table recording the guild and owner of
+newly created custom roles. It does not modify existing settings, encrypted data,
+or Discord roles. Container and development startup apply it through the normal
+upgrade path; fresh initialization still installs the frozen migration-53 baseline
+and startup then applies migration 54. Keep the baseline assets unchanged.
+
+Prepare the committed image with `deployment/build_prod.ps1`, retain the database
+volume and encryption key, then promote its tag manually in Dokploy. Back up the
+database and verify recovery before upgrading. Do not enable `AERICH_BOOTSTRAP`.
+Older images reject newer migration history, so image-only rollback after migration
+54 is not supported. Prefer a forward fix; a coordinated rollback requires restoring
+the pre-upgrade backup or explicitly downgrading migration 54, which drops ownership
+records and restores the older role-deletion behavior.
+
+Existing Discord roles are deliberately not adopted: their creator cannot be
+reliably inferred from names or member counts. They remain available but must be
+managed manually. New role removal, pruning, clearing, and member-departure cleanup
+only delete recorded roles with no holders other than their recorded owner.
+User-data export includes ownership records; user-data deletion removes those
+records without deleting Discord roles. Guild-data deletion also removes records.
+
+Public downloads reject private and special-use addresses, validate DNS answers
+used by the connection and every redirect, and use an isolated session. Responses
+are limited to 10 MiB and five redirects within the request timeout. HTTP-compressed
+responses are rejected; ordinary image file compression is supported. Cropping
+normalizes grayscale and palette images while preserving transparency.
+
+After deployment, create and remove a new custom role, verify an existing untracked
+role is preserved, check cleanup on member departure, and crop a grayscale image.

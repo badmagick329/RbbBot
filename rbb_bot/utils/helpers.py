@@ -8,7 +8,6 @@ from urllib.parse import unquote_plus, urlparse
 
 import discord
 import pendulum
-from aiohttp import ClientSession
 from discord.ext import commands
 
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
@@ -89,25 +88,15 @@ async def large_send(channel: discord.TextChannel | discord.DMChannel, msg: str)
         await channel.send(msg)
 
 
-async def http_get(
-    web_client: ClientSession,
-    url: str,
-    timeout: float = 5.0,
-    as_text=False,
-    as_json=False,
-) -> bytes | str:
-    async def _get(u):
-        async with web_client.get(u) as resp:
-            if resp.status != 200:
-                raise NotOk(resp.status)
-            if as_text:
-                return await resp.text()
-            if as_json:
-                return await resp.json()
-            return await resp.read()
+async def http_get(url: str, timeout: float = 5.0, as_text=False, as_json=False):
+    from rbb_bot.infrastructure.http.public_download import download
 
     try:
-        return await asyncio.wait_for(_get(url), timeout=timeout)
+        # Bound the whole redirect chain, not just each individual request.
+        return await asyncio.wait_for(
+            download(url, timeout=timeout, as_text=as_text, as_json=as_json),
+            timeout=timeout,
+        )
     except asyncio.TimeoutError:
         raise TimeoutError
 

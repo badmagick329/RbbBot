@@ -6,6 +6,7 @@ from tortoise import Tortoise
 
 from rbb_bot.infrastructure.database.lifecycle import (
     ASSETS,
+    MIGRATIONS,
     DatabaseStateError,
     initialize_empty_database,
     validate_migration_history,
@@ -48,9 +49,13 @@ async def test_fresh_initialization_then_normal_upgrade_is_repeatable(test_datab
     _, rows = await Tortoise.get_connection("default").execute_query(
         "SELECT version FROM aerich ORDER BY id"
     )
-    assert [r["version"] for r in rows] == json.loads(
-        (ASSETS / "initial_history.json").read_text()
-    )["versions"]
+    assert [r["version"] for r in rows] == [
+        p.name
+        for p in sorted(
+            (MIGRATIONS / "models").glob("*.py"),
+            key=lambda p: int(p.name.split("_")[0]),
+        )
+    ]
     assert await Reminder.all() == []
 
 

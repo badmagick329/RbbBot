@@ -1,3 +1,4 @@
+from rbb_bot.infrastructure.http.public_download import UnsafeDownload
 import asyncio
 from datetime import timedelta
 from typing import Optional
@@ -106,8 +107,8 @@ class EmojisCog(Cog):
 
         # Download image
         try:
-            image = await http_get(self.bot.web_client, url)
-        except NotOk:
+            image = await http_get(url)
+        except (NotOk, UnsafeDownload):
             return await ctx.send("Error fetching image")
         except TimeoutError:
             return await ctx.send("Timed out fetching image")

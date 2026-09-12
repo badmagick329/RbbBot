@@ -11,6 +11,7 @@ from discord.ext.commands import Cog, Context
 from discord.ui import Button, View
 from PIL import Image, UnidentifiedImageError
 from rbb_bot.utils.exceptions import TimeoutError
+from rbb_bot.infrastructure.http.public_download import UnsafeDownload
 from rbb_bot.utils.helpers import http_get, url_to_filename
 
 SMALL = 5
@@ -54,7 +55,7 @@ class CropButton(Button):
 
     async def adjust_image(self, interaction: Interaction, image: Image):
         self.view.listening = False
-        image_data = np.asarray(image)
+        image_data = np.asarray(normalize_image(image))
         width, height = image.size
         if width < X_LARGE * 2 or height < X_LARGE * 2:
             await self.view.stop_view()
@@ -223,9 +224,7 @@ class MediaCog(Cog):
                 new_image = crop_image(image)
             except Exception as e:
                 await ctx.send(f"Could not crop image {filename}")
-                await self.bot.send_error(
-                    ctx, e, comment="Error in crop_image()"
-                )
+                await self.bot.send_error(ctx, e, comment="Error in crop_image()")
                 continue
             arr = BytesIO()
             new_image.save(arr, format=str(image.format))
@@ -285,8 +284,11 @@ class MediaCog(Cog):
         if not img:
             return await ctx.send("No image found")
         filename = url_to_filename(url)
-        image_bytes = BytesIO(await http_get(self.bot.web_client, url))
-        image = Image.open(image_bytes)
+        image_bytes = BytesIO()
+        img.save(
+            image_bytes, format=img.format, save_all=getattr(img, "is_animated", False)
+        )
+        image = img
         init_text = CropView.init_message.format(
             width=image.size[0], height=image.size[1]
         )
@@ -298,9 +300,10 @@ class MediaCog(Cog):
 
     async def get_image(self, url: str) -> Image.Image | None:
         try:
-            img = Image.open(BytesIO(await http_get(self.bot.web_client, url)))
+            img = Image.open(BytesIO(await http_get(url)))
+            img.load()
             return img
-        except (InvalidURL, UnidentifiedImageError, TimeoutError):
+        except (InvalidURL, UnidentifiedImageError, TimeoutError, UnsafeDownload):
             return None
         except Exception as e:
             await self.bot.send_error(exc=e, comment="Error fetching image")
@@ -362,9 +365,7 @@ class MediaCog(Cog):
                 new_image = image.transpose(rotate_by)
             except Exception as e:
                 await ctx.send(f"Could not rotate image {filename}")
-                await self.bot.send_error(
-                    ctx, e, comment="Error rotating"
-                )
+                await self.bot.send_error(ctx, e, comment="Error rotating")
                 continue
             arr = BytesIO()
             new_image.save(arr, format=str(image.format))
@@ -373,9 +374,7 @@ class MediaCog(Cog):
                 await ctx.send(file=discord.File(arr, filename=filename))
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(
-                    ctx, e, comment="Error while sending"
-                )
+                await self.bot.send_error(ctx, e, comment="Error while sending")
 
     @edit_image.command(name="flip", brief="Flip images horizontally or vertically")
     @commands.cooldown(2, 5, commands.BucketType.user)
@@ -417,9 +416,7 @@ class MediaCog(Cog):
                 )
             except Exception as e:
                 await ctx.send(f"Could not flip image {filename}")
-                await self.bot.send_error(
-                    ctx, e, comment="Error flipping"
-                )
+                await self.bot.send_error(ctx, e, comment="Error flipping")
                 continue
             arr = BytesIO()
             new_image.save(arr, format=str(image.format))
@@ -428,9 +425,7 @@ class MediaCog(Cog):
                 await ctx.send(file=discord.File(arr, filename=filename))
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(
-                    ctx, e, comment="Error while sending"
-                )
+                await self.bot.send_error(ctx, e, comment="Error while sending")
 
     @edit_image.command(name="webp", brief="Convert images from webp to png")
     @commands.cooldown(2, 5, commands.BucketType.user)
@@ -469,9 +464,7 @@ class MediaCog(Cog):
                 await ctx.send(file=discord_file)
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(
-                    ctx, e, comment="Error while sending"
-                )
+                await self.bot.send_error(ctx, e, comment="Error while sending")
                 continue
 
     async def get_images_and_names(
@@ -502,6 +495,13 @@ async def setup(bot):
     await bot.add_cog(MediaCog(bot))
 
 
+def normalize_image(image):
+    """Cropping needs color channels; retain transparency from palette and grayscale inputs."""
+    return image.convert(
+        "RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB"
+    )
+
+
 def crop_image(img: Image.Image, threshold: int = 10) -> Image.Image:
     """
     Take an image and crop the solid line borders around it
@@ -513,7 +513,7 @@ def crop_image(img: Image.Image, threshold: int = 10) -> Image.Image:
     threshold : int
         The threshold for considering 2 pixels to be the same color
     """
-    img_data = np.asarray(img)
+    img_data = np.asarray(normalize_image(img))
     mid_height = img_data.shape[0] // 2
     height = img_data.shape[0]
     width = img_data.shape[1]

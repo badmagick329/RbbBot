@@ -247,6 +247,7 @@ class AdminCog(Cog):
             MissingPermissions,
             BadArgument,
             MissingRequiredArgument,
+            commands.MaxConcurrencyReached,
         )
         if isinstance(error, errors):
             return await ctx.send(f"{BotEmojis.CROSS} {error}")

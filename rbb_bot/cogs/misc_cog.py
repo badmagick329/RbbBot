@@ -134,7 +134,7 @@ class MiscCog(Cog):
         avatar = user.display_avatar
 
         if download_avatar:
-            avatar_bytes = await http_get(self.bot.web_client, avatar.url)
+            avatar_bytes = await http_get(avatar.url)
             avatar_bytes = BytesIO(avatar_bytes)
             filename = f"{user.name}{'.gif' if avatar.is_animated() else '.png'}"
             return await ctx.send(file=discord.File(avatar_bytes, filename=filename))
@@ -201,7 +201,7 @@ class MiscCog(Cog):
         if download_icon:
             if not guild.icon:
                 return await ctx.send("This server has no icon.")
-            icon_bytes = await http_get(self.bot.web_client, guild.icon.url)
+            icon_bytes = await http_get(guild.icon.url)
             icon_bytes = BytesIO(icon_bytes)
             filename = f"{guild.name}{'.gif' if guild.icon.is_animated() else '.png'}"
             return await ctx.send(file=discord.File(icon_bytes, filename=filename))
@@ -236,7 +236,7 @@ class MiscCog(Cog):
     #     """
     #     query = urllib.parse.quote(query)
     #     url = self.wiki_url.format(apikey=self.search_key, query=query)
-    #     response = await http_get(self.bot.web_client, url, as_json=True)
+    #     response = await http_get(url, as_json=True)
     #     search_results = [SearchResult(item) for item in response["items"][:5]]
     #     view = SearchResultsView(ctx, search_results, 1)
     #     view.embed = view.create_embed(view.current_chunk)

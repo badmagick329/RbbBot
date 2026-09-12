@@ -124,7 +124,7 @@ async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
     migration_models.mkdir(parents=True)
     source_models = Path(__file__).parents[1] / "migrations" / "models"
     for migration_file in source_models.glob("*.py"):
-        if migration_file.name.startswith("53_"):
+        if int(migration_file.name.split("_")[0]) >= 53:
             continue
         shutil.copy(migration_file, migration_models / migration_file.name)
 

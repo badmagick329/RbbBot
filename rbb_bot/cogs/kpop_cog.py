@@ -219,7 +219,6 @@ class KpopCog(Cog):
         """
         query = urllib.parse.quote(query)
         html = await http_get(
-            self.bot.web_client,
             f"https://www.youtube.com/results?search_query={query}",
             as_text=True,
         )
@@ -250,7 +249,7 @@ class KpopCog(Cog):
         """
         query = urllib.parse.quote(query)
         url = self.kprofiles_url.format(apikey=self.search_key, query=query)
-        response = await http_get(self.bot.web_client, url, as_json=True)
+        response = await http_get(url, as_json=True)
         search_results = [SearchResult(item) for item in response["items"][:5]]
         view = SearchResultsView(ctx, search_results, 1)
         view.embed = view.create_embed(view.current_chunk)

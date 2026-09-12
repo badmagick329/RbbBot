@@ -46,6 +46,7 @@ async def test_export_returns_all_declared_user_data(test_database):
         "discord_user": None,
         "reminders": [],
         "source_entries": [],
+        "custom_roles": [],
     }
 
     exported = await UserDataService.export(user.id)

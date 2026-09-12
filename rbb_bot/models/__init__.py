@@ -9,3 +9,4 @@ from .reminders import Reminder
 from .source import SourceEntry
 from .tag import Response, Tag
 from .user import DiscordUser
+from .custom_role import CustomRole

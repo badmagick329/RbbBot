@@ -113,7 +113,7 @@ class PrivacyCog(
     )
     async def delete(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            "This permanently deletes your reminders, source submissions, source "
+            "This permanently deletes your custom-role ownership records, reminders, source submissions, source "
             "confirmation messages, blacklist state, cached username, and tag preference.",
             view=PrivacyDeleteView(self, interaction.user.id),
             ephemeral=True,

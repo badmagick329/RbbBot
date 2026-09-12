@@ -4,13 +4,14 @@ from typing import Literal
 
 import discord
 from discord import Color, Embed, Role
-from discord.errors import Forbidden
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from rbb_bot.models import Guild
+from rbb_bot.infrastructure.custom_roles.repository import CustomRoleRepository
 from rbb_bot.utils.views import ListView
 
 from rbb_bot.settings.const import FilePaths
+
 
 class ColorsList(ListView):
     def create_embed(self, colors: list[tuple[str, str]]) -> Embed:
@@ -25,6 +26,7 @@ class ColorsList(ListView):
 class RolesCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.ownership = CustomRoleRepository()
         with open(FilePaths.COLORS_FILE, "r", encoding="utf-8") as f:
             self.colors_dict = json.load(f)
 
@@ -47,7 +49,7 @@ class RolesCog(Cog):
         Manage unique roles for this server
 
         When enabled, users can create unique custom roles for themselves.
-        These roles will be deleted when the user removes them as long as
+        Only roles recorded as created by this bot can be removed, and only when
         they are not manually assigned to more than one user.
         I will need `manage roles` permission for this.
         The role assigned to me will also need to be positioned above other users' roles.
@@ -56,13 +58,14 @@ class RolesCog(Cog):
             await ctx.send_help(ctx.command)
 
     @roles.command(brief="help")
+    @commands.guild_only()
     async def help(self, ctx: Context):
         """
         Information about this command
         """
         info = (
             "When enabled, users can create unique custom roles for themselves. "
-            "These roles will be deleted when the user removes them as long as "
+            "Only roles recorded as created by this bot can be removed, and only when "
             "they are not manually assigned to more than one user. "
         )
         embed = Embed(title="Roles Help", description=info)
@@ -74,6 +77,7 @@ class RolesCog(Cog):
         await ctx.send(embed=embed)
 
     @roles.command(brief="Enable unique roles for this server")
+    @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
     async def enable(self, ctx: Context, enabled: bool):
         """
@@ -97,6 +101,7 @@ class RolesCog(Cog):
         )
 
     @roles.command(name="max", brief="Set maximum number of unique roles per user")
+    @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
     async def max_(self, ctx: Context, max_roles: Literal[1, 2, 3, 4, 5]):
         """
@@ -120,6 +125,7 @@ class RolesCog(Cog):
         await ctx.send(f"Maximum number of unique roles per user is now {max_roles}")
 
     @roles.command(brief="Remove unused roles")
+    @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def prune(self, ctx: Context):
@@ -129,53 +135,71 @@ class RolesCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        final_message = list()
-        for role in ctx.guild.roles:
-            if not role.members:
-                try:
-                    await role.delete()
-                    final_message.append(f"Deleted role {role.name}")
-                except Forbidden as e:
-                    final_message.append(
-                        f"Error deleting role {role.mention}. I may not have permission to remove it"
-                    )
-                    break
-        if final_message:
-            await ctx.send("\n".join(final_message))
-        else:
-            await ctx.send("No unused roles found")
+        deleted = await self._delete_tracked_roles(ctx.guild, unused_only=True)
+        await ctx.send(f"Deleted {deleted} unused bot-created roles")
 
-    @roles.command(brief="Clear all unique roles belonging to users")
+    @roles.command(brief="Clear bot-created custom roles")
+    @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.has_permissions(manage_roles=True)
     async def clear(self, ctx: Context):
-        """
-        Clear all unique roles belonging to users
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-
         prompt = (
-            "Are you sure you want to delete **all** unique roles belonging to users? "
-            "Unique roles are roles that are assigned to a single user each. "
-            "This may include roles created by others. **This action cannot be undone.** Bots will be unaffected."
+            "Delete all recorded bot-created custom roles that are unused or held only by their owner? "
+            "Shared roles and roles without ownership records will be preserved. This cannot be undone."
         )
-        if not (await self.bot.get_confirmation(ctx, prompt)):
+        if not await self.bot.get_confirmation(ctx, prompt):
             return await ctx.send("Cancelled")
+        deleted = await self._delete_tracked_roles(ctx.guild)
+        await ctx.send(f"Deleted {deleted} bot-created roles")
 
-        deleted_count = 0
-        for role in [r for r in ctx.guild.roles if len(r.members) == 1]:
-            if role.members[0].bot:
+    async def _tracked_roles(self, guild, owner_id=None):
+        # Role.members is derived from the member cache, not a Discord API count.
+        if not guild.chunked:
+            await guild.chunk()
+        records = await self.ownership.list(guild.id, owner_id)
+        roles = {role.id: role for role in guild.roles}
+        if any(record.role_id not in roles for record in records):
+            roles = {role.id: role for role in await guild.fetch_roles()}
+        result = []
+        for record in records:
+            role = roles.get(record.role_id)
+            if role is None:
+                await self.ownership.forget(guild.id, record.role_id)
+            else:
+                result.append((record, role))
+        return result
+
+    async def _delete_recorded_role(self, guild, role):
+        try:
+            await role.delete(reason="Removing recorded bot-created custom role")
+        except discord.NotFound:
+            pass
+        await self.ownership.forget(guild.id, role.id)
+
+    async def _delete_tracked_roles(self, guild, owner_id=None, unused_only=False):
+        deleted = 0
+        for record, role in await self._tracked_roles(guild, owner_id):
+            if not record.permits_deletion(
+                (member.id for member in role.members),
+                managed=role.managed,
+                default=role.is_default(),
+            ):
+                continue
+            if unused_only and role.members:
                 continue
             try:
-                await role.delete()
-                deleted_count += 1
-            except Forbidden as e:
-                return await ctx.send(
-                    f"Error deleting role {role.mention}. I may not have permission to remove it"
+                await self._delete_recorded_role(guild, role)
+                deleted += 1
+            except discord.HTTPException:
+                # Preserve ownership so a later prune can retry failed deletions.
+                self.bot.logger.exception(
+                    "Custom role deletion failed guild_id=%s role_id=%s",
+                    guild.id,
+                    role.id,
                 )
-
-        await ctx.send(f"Deleted {deleted_count} roles")
+        return deleted
 
     def parse_color_input(self, color_input: str):
         """
@@ -191,6 +215,7 @@ class RolesCog(Cog):
                 return discord.Color(int(hex_code[1:], 16))
 
     @roles.command(brief="Show a list of available colors")
+    @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
     async def colors(self, ctx: Context):
         """
@@ -201,7 +226,9 @@ class RolesCog(Cog):
         view.message = await ctx.send(embed=view.embed, view=view)
 
     @roles.command(brief="Create a unique role for yourself")
+    @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @commands.max_concurrency(1, per=commands.BucketType.member, wait=False)
     async def add(self, ctx: Context, color: str, *, name: str):
         """
         Create a unique role for yourself
@@ -220,22 +247,16 @@ class RolesCog(Cog):
         if not guild.custom_roles_enabled:
             return await ctx.send("Custom roles are not enabled for this server")
 
-        unique_roles = [
-            r for r in ctx.guild.roles if r in ctx.author.roles and len(r.members) == 1
-        ]
-        if len(unique_roles) >= guild.max_custom_roles:
-            to_send = (
-                f"You already have {guild.max_custom_roles} unique roles. "
-                f"{' '.join(r.mention for r in unique_roles)}. "
-                f"You can remove one of these roles with `{ctx.prefix}roles remove <role>`"
+        tracked = await self._tracked_roles(ctx.guild, ctx.author.id)
+        # Count untracked sole-holder roles too: erasing ownership data must not
+        # let a member bypass the server's role limit.
+        unique_ids = {record.role_id for record, _ in tracked} | {
+            role.id for role in ctx.author.roles if len(role.members) == 1
+        }
+        if len(unique_ids) >= guild.max_custom_roles:
+            return await ctx.send(
+                f"You already have {guild.max_custom_roles} unique roles. Remove one or ask a server administrator for help."
             )
-            if guild.max_custom_roles < 5:
-                to_send = (
-                    f"{to_send}\nAlternatively you can ask someone with `manage roles` "
-                    "permission to increase the "
-                    f"maximum number of unique roles per user with `{ctx.prefix}roles max <number>`"
-                )
-            return await ctx.send(to_send)
 
         name = name.strip()
         if len(name) > 100:
@@ -266,6 +287,11 @@ class RolesCog(Cog):
             reason=f"Created by {ctx.author} ({ctx.author.id})",
         )
 
+        try:
+            await self.ownership.record(ctx.guild.id, ctx.author.id, role.id)
+        except Exception:
+            await role.delete(reason="Could not record custom role ownership")
+            raise
         await ctx.author.add_roles(role)
         await ctx.send(f"Created role {role.mention}")
 
@@ -283,6 +309,7 @@ class RolesCog(Cog):
             )
 
     @roles.command(brief="Remove a unique role")
+    @commands.guild_only()
     async def remove(self, ctx: Context, *, role: Role):
         """
         Remove a unique role
@@ -299,33 +326,30 @@ class RolesCog(Cog):
         if not guild.custom_roles_enabled:
             return await ctx.send("Custom roles are not enabled for this server")
 
-        if role not in ctx.author.roles:
+        tracked = await self._tracked_roles(ctx.guild, ctx.author.id)
+        ownership = next(
+            (record for record, _ in tracked if record.role_id == role.id), None
+        )
+        if ownership is None:
             return await ctx.send(
-                "You do not have this role. You can only remove roles assigned to you and no one else"
+                "You can only remove bot-created roles recorded as yours"
             )
-
-        if len(role.members) > 1:
+        if not ownership.permits_deletion(
+            (member.id for member in role.members),
+            managed=role.managed,
+            default=role.is_default(),
+        ):
             return await ctx.send(
-                "This role is assigned to multiple users. "
-                "It cannot be deleted automatically."
+                "This role is shared or managed and cannot be deleted automatically"
             )
-
-        await role.delete(reason=f"Deleted by {ctx.author} ({ctx.author.id})")
-        await ctx.send(f"Deleted role")
+        await self._delete_recorded_role(ctx.guild, role)
+        await ctx.send("Deleted role")
 
     @Cog.listener()
-    async def on_member_leave(self, member):
-        guild, _ = await Guild.get_or_create(id=member.guild.id)
-        if not guild.custom_roles_enabled:
-            return
-
-        for role in member.roles:
-            if len(role.members) > 1:
-                continue
-            try:
-                await role.delete(reason=f"Deleted because {member} left the server")
-            except discord.Forbidden:
-                pass
+    async def on_member_remove(self, member):
+        guild = await Guild.get_or_none(id=member.guild.id)
+        if guild is not None and guild.custom_roles_enabled:
+            await self._delete_tracked_roles(member.guild, owner_id=member.id)
 
 
 async def setup(bot):

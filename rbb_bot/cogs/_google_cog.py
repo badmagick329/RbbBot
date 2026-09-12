@@ -71,7 +71,7 @@ class GoogleCog(Cog):
         url = self.google_url.format(apikey=self.api_key, query=query)
         if image_only:
             url += "&searchType=image"
-        response = await http_get(self.bot.web_client, url, as_json=True)
+        response = await http_get(url, as_json=True)
         search_results = [
             GoogleResult(item, image_only) for item in response["items"][:10]
         ]
