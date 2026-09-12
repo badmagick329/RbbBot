@@ -1,86 +1,108 @@
-import random
-from logging import Logger
+import re
 
-from discord import Member
+import discord
 
-from rbb_bot.domain.member_onboarding import GreetingTemplate
-from rbb_bot.models import Greeting, Guild, JoinEvent
-from rbb_bot.services.auto_role_service import AutoRoleService
+from rbb_bot.application.member_onboarding.contracts import RoleInfo, MemberInfo
+from rbb_bot.domain.member_onboarding.configuration import OnboardingInputError
 from rbb_bot.views.member_onboarding import create_greeting_embed
 
 
-class DiscordMemberOnboardingActions:
-    """Fulfil onboarding actions through Discord and the current ORM models."""
+class DiscordOnboarding:
+    """Resolve cache misses through Discord without rewriting stored configuration."""
 
-    def __init__(self, member: Member, logger: Logger) -> None:
+    def __init__(self, bot, member=None):
+        self.bot = bot
         self.member = member
-        self.logger = logger
-        self._guild_loaded = False
-        self._guild: Guild | None = None
 
-    async def _stored_guild(self) -> Guild | None:
-        if not self._guild_loaded:
-            self._guild = await Guild.get_or_none(id=self.member.guild.id)
-            self._guild_loaded = True
-        return self._guild
+    async def _channel(self, channel_id):
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(channel_id)
+        return channel
 
-    async def send_greeting(self) -> None:
-        guild = await self._stored_guild()
-        if guild is None or not guild.greet_channel_id:
-            return
+    async def channel_exists(self, guild_id: int, channel_id: int) -> bool:
+        try:
+            channel = await self._channel(channel_id)
+        except discord.NotFound:
+            return False
+        return isinstance(channel, discord.TextChannel) and channel.guild.id == guild_id
 
-        greeting = await Greeting.get_or_none(guild=guild)
-        if greeting is None:
-            return
+    async def can_send_messages(self, guild_id: int, channel_id: int) -> bool:
+        channel = await self._channel(channel_id)
+        permissions = channel.permissions_for(self.bot.get_guild(guild_id).me)
+        return permissions.view_channel and permissions.send_messages
 
-        channel = await guild.greet_channel()
-        if channel is not None:
-            template = GreetingTemplate(
-                title=greeting.title,
-                description=greeting.description,
-                show_member_count=greeting.show_member_count,
-            )
-            await channel.send(embed=create_greeting_embed(template, self.member))
+    async def send_greeting(self, channel_id, template):
+        channel = await self._channel(channel_id)
+        await channel.send(embed=create_greeting_embed(template, self.member))
 
-    async def send_join_response(self) -> None:
-        guild = await self._stored_guild()
+    async def send_welcome(self, channel_id, content):
+        channel = await self._channel(channel_id)
+        await channel.send(content)
+
+    async def roles(self, guild_id, ids):
+        guild = self.bot.get_guild(guild_id)
         if guild is None:
-            return
-
-        join_event = await JoinEvent.get_or_none(guild=guild)
-        if join_event is None or join_event.channel is None:
-            return
-
-        messages = await join_event.responses_as_str()
-        if messages:
-            await join_event.channel.send(random.choice(messages))
-
-    async def apply_auto_roles(self) -> None:
-        guild = await self._stored_guild()
-        if guild is None:
-            return
-
-        result = await AutoRoleService.list_with_cleanup(self.member.guild.id)
-        if result.is_err:
-            raise result.unwrap_err()
-
-        roles = result.unwrap()
-        if not roles:
-            return
-
-        bot_member = self.member.guild.me
-        if bot_member is None:
-            self.logger.error(
-                "Bot member unavailable for auto roles in guild %s",
-                self.member.guild.id,
+            raise OnboardingInputError("Guild is unavailable")
+        roles = {role.id: role for role in guild.roles}
+        if any(role_id not in roles for role_id in ids):
+            roles = {role.id: role for role in await guild.fetch_roles()}
+        bot_member = guild.me
+        can_manage = (
+            bot_member is not None and bot_member.guild_permissions.manage_roles
+        )
+        return tuple(
+            RoleInfo(
+                role.id,
+                role.name,
+                bool(
+                    can_manage
+                    and not role.is_default()
+                    and not role.managed
+                    and role < bot_member.top_role
+                ),
             )
-            return
+            for role_id in ids
+            if (role := roles.get(role_id)) is not None
+        )
 
-        if not bot_member.guild_permissions.manage_roles:
-            self.logger.warning(
-                "Missing `Manage Roles` permission in %s for auto roles",
-                self.member.guild.name,
+    async def apply_roles(self, guild_id, member_id, role_ids):
+        guild = self.bot.get_guild(guild_id)
+        if guild.me is None or not guild.me.guild_permissions.manage_roles:
+            raise OnboardingInputError(
+                "I need the Manage Roles permission to apply auto roles"
             )
-            return
+        member = (
+            self.member
+            if self.member is not None and self.member.id == member_id
+            else guild.get_member(member_id)
+        )
+        if member is None:
+            member = await guild.fetch_member(member_id)
+        # Discord object IDs let the API report a role deleted after resolution.
+        await member.add_roles(
+            *(discord.Object(id=role_id) for role_id in role_ids),
+            reason="Auto role assignment",
+        )
 
-        await self.member.add_roles(*roles)
+
+class DiscordWelcomeUrls:
+    def __init__(self, bot):
+        self.discord = DiscordOnboarding(bot)
+
+    async def urls(self, guild_id, channel_id, attachments):
+        channel = await self.discord._channel(channel_id)
+        if channel.guild.id != guild_id:
+            raise OnboardingInputError("The source channel must belong to this server")
+        urls = []
+        async for message in channel.history(limit=None):
+            urls.extend(re.findall(r"https?://\S+\.\S+", message.content))
+            if attachments:
+                urls.extend(attachment.url for attachment in message.attachments)
+        return tuple(urls)
+
+
+def member_info(member) -> MemberInfo:
+    return MemberInfo(
+        member.id, member.bot, frozenset(role.id for role in member.roles)
+    )

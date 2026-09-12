@@ -1,654 +1,328 @@
 import random
-import re
+from functools import wraps
 from typing import Optional
 
-from discord import Embed, Member, Role, TextChannel
+from discord import HTTPException, Member, Role, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from rbb_bot.application.member_onboarding import HandleMemberJoin, MemberJoinAction
-from rbb_bot.domain.member_onboarding import GreetingTemplate
-from rbb_bot.infrastructure.member_onboarding import DiscordMemberOnboardingActions
-from rbb_bot.models import Greeting, Guild, JoinEvent
-from rbb_bot.services.auto_role_service import AutoRoleService
-from rbb_bot.settings.const import BotEmojis
-from rbb_bot.utils.helpers import truncate
-from rbb_bot.utils.views import ListView
 
-from rbb_bot.views.member_onboarding import create_greeting_embed
+from rbb_bot.application.member_onboarding import HandleMemberJoin
+from rbb_bot.application.member_onboarding.configure_greeting import (
+    ConfigureGreeting,
+    UpdateGreeting,
+)
+from rbb_bot.application.member_onboarding.welcome_messages import (
+    ConfigureWelcomeMessages,
+    ImportWelcomeUrls,
+)
+from rbb_bot.application.member_onboarding.auto_roles import (
+    ConfigureAutoRoles,
+    ApplyAutoRoles,
+)
+from rbb_bot.application.member_onboarding.join_actions import ConfiguredJoinActions
+from rbb_bot.domain.member_onboarding.configuration import (
+    DEFAULT_GREETING,
+    OnboardingInputError,
+)
+from rbb_bot.infrastructure.member_onboarding.repository import (
+    TortoiseOnboardingRepository,
+)
+from rbb_bot.infrastructure.member_onboarding.discord_actions import (
+    DiscordOnboarding,
+    DiscordWelcomeUrls,
+    member_info,
+)
+from rbb_bot.views.member_onboarding import (
+    create_greeting_embed,
+    MessagesList,
+    role_embed,
+    assignment_summary,
+)
 
 
-class MessagesList(ListView):
-    def create_embed(self, ids_and_responses: list[str]) -> Embed:
-        header = ""
-        if len(self.view_chunks) > 1:
-            header += f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
-        header += f"{len(self.list_items)} {'Messages' if len(self.list_items) > 1 else 'Message'} found"
-        embed = Embed(title=header)
+def configuration_command(permission):
+    """Apply authorization to every hybrid subcommand and translate feature input errors."""
 
-        for id_and_response in ids_and_responses:
-            id, response = id_and_response
-            embed.add_field(name=id, value=response, inline=False)
-        return embed
+    def decorate(callback):
+        @wraps(callback)
+        async def invoke(self, ctx, *args, **kwargs):
+            if ctx.interaction:
+                await ctx.interaction.response.defer()
+            try:
+                return await callback(self, ctx, *args, **kwargs)
+            except OnboardingInputError as error:
+                raise commands.BadArgument(str(error)) from error
+
+        return commands.guild_only()(
+            commands.has_permissions(**{permission: True})(invoke)
+        )
+
+    return decorate
 
 
 class MemberOnboardingCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.repository = TortoiseOnboardingRepository()
+        discord = self.discord = DiscordOnboarding(bot)
+        self.greetings = ConfigureGreeting(self.repository, discord)
+        self.messages = ConfigureWelcomeMessages(self.repository, discord)
+        self.import_urls = ImportWelcomeUrls(self.messages, DiscordWelcomeUrls(bot))
+        self.roles = ConfigureAutoRoles(self.repository, discord)
+        self.assign_roles = ApplyAutoRoles(self.roles, discord)
 
-    @commands.hybrid_group(brief="Set an embeded welcome message for new members")
-    @commands.has_permissions(manage_guild=True)
+    @commands.hybrid_group(brief="Configure embedded greetings")
     @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
     async def greet(self, ctx: Context):
-        """
-        Set an embeded welcome message for new members
-        """
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @greet.command(brief="Enable embeded welcome messages in the given channel")
+    @greet.command(brief="Enable embedded greetings in a channel")
+    @configuration_command("manage_guild")
     async def enable(self, ctx: Context, channel: TextChannel):
-        """
-        Enable embeded welcome messages in the given channel
-
-        Parameters
-        ----------
-        channel: TextChannel
-            The channel to send welcome messages in (Required)
-        """
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            return await ctx.send("This command can only be used in a server.")
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if guild.greet_channel_id == channel.id:
-            return await ctx.send(
-                "Welcome messages are already enabled in this channel"
-            )
-        guild.greet_channel_id = channel.id  # type: ignore
-        await guild.save()
+        await self.greetings.set_channel(ctx.guild.id, channel.id)
         await ctx.send(f"Set the welcome channel to {channel.mention}")
 
-    @greet.command(brief="Disable embeded welcome messages")
+    @greet.command(brief="Disable embedded greetings")
+    @configuration_command("manage_guild")
     async def disable(self, ctx: Context):
-        """
-        Disable embeded welcome messages
-        """
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            return await ctx.send("This command can only be used in a server.")
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if guild.greet_channel_id is None:
-            return await ctx.send("Welcome messages are already disabled")
-        guild.greet_channel_id = None
-        await guild.save()
+        await self.greetings.set_channel(ctx.guild.id, None)
         await ctx.send("Removed welcome channel")
 
-    @greet.command(name="setup", brief="Setup embded welcome message")
+    @greet.command(name="setup", brief="Set the embedded greeting template")
+    @configuration_command("manage_guild")
     async def setup_message(
         self,
         ctx: Context,
-        title: Optional[str],
-        message: Optional[str],
-        show_member_count: Optional[bool] = True,
+        title: Optional[str] = None,
+        message: Optional[str] = None,
+        show_member_count: bool = True,
     ):
-        """
-        Setup embeded welcome message
-
-        Parameters
-        ----------
-        title: str
-            Title. Type {username} to mention username (Optional)
-        message: str
-            The message to send. Type {mention} to include mention (Optional)
-        show_member_count: bool
-            Whether to show the member count. (Default: True)
-        """
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        greeting, _ = await Greeting.get_or_create(guild=guild)
-        if title:
-            if len(title) > Greeting.MAX_TITLE:
-                return await ctx.send(
-                    f"Title must be less than {Greeting.MAX_TITLE} characters"
-                )
-            greeting.title = title
-        if message:
-            if len(message) > Greeting.MAX_DESC:
-                return await ctx.send(
-                    f"Message must be less than {Greeting.MAX_DESC} characters"
-                )
-            greeting.description = message
-        greeting.show_member_count = show_member_count
-        await greeting.save()
-        to_send = f"Message updated"
-        if not guild.greet_channel_id:
-            to_send = f"{to_send}. You can set the welcome channel with `{ctx.prefix}greet enable <channel>`"
-        template = GreetingTemplate(
-            title=greeting.title,
-            description=greeting.description,
-            show_member_count=greeting.show_member_count,
+        """Use {username} in the title and {mention} in the message."""
+        settings = await self.greetings.execute(
+            UpdateGreeting(ctx.guild.id, title, message, show_member_count)
         )
-        await ctx.send(to_send, embed=create_greeting_embed(template, ctx.author))
+        text = "Message updated"
+        if settings.channel_id is None:
+            text += f". Set the channel with `{ctx.prefix}greet enable <channel>`"
+        await ctx.send(text, embed=create_greeting_embed(settings.template, ctx.author))
 
-    @greet.command(brief="Preview current embeded welcome message")
+    @greet.command(brief="Preview the current embedded greeting")
+    @configuration_command("manage_guild")
     async def preview(self, ctx: Context):
-        """
-        Preview current embeded welcome message
-        """
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        greeting, _ = await Greeting.get_or_create(guild=guild)
-        template = GreetingTemplate(
-            title=greeting.title,
-            description=greeting.description,
-            show_member_count=greeting.show_member_count,
+        settings = await self.greetings.read(ctx.guild.id)
+        await ctx.send(
+            embed=create_greeting_embed(
+                settings.template or DEFAULT_GREETING, ctx.author
+            )
         )
-        await ctx.send(embed=create_greeting_embed(template, ctx.author))
 
-    @commands.hybrid_group(brief="Setup welcome messages for new members")
-    @commands.has_permissions(manage_guild=True)
+    @commands.hybrid_group(brief="Configure random welcome messages")
     @commands.guild_only()
+    @commands.has_permissions(manage_guild=True)
     async def welcome(self, ctx: Context):
-        """
-        Setup welcome messages for new members
-        """
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @welcome.command(brief="Show or set channel for welcome messages", name="channel")
-    @commands.guild_only()
-    async def welcome_channel(self, ctx: Context, channel: Optional[TextChannel]):
-        """
-        Show or set channel for welcome messages
-
-        Parameters
-        ----------
-        channel: TextChannel (Optional)
-            The channel to send welcome messages in. Skip to show current channel
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        if channel is None:
-            if join_event.channel is None:
-                return await ctx.send("No welcome channel set")
+    @welcome.command(name="channel", brief="Show or set the welcome channel")
+    @configuration_command("manage_guild")
+    async def welcome_channel(
+        self, ctx: Context, channel: Optional[TextChannel] = None
+    ):
+        if channel is not None:
+            await self.messages.set_channel(ctx.guild.id, channel.id)
+            warning = await self._welcome_delivery_warning(ctx.guild.id, channel.id)
             return await ctx.send(
-                f"Welcome messages will be sent in {join_event.channel.mention}"
+                f"Set the welcome channel to {channel.mention}{warning}"
             )
-        if join_event.channel_id == channel.id:
-            return await ctx.send(
-                "Welcome messages are already enabled in this channel"
-            )
-        join_event.set_channel(channel)
-        await join_event.save()
-        perm_message = ""
-        need_permission = (
-            join_event.channel
-            and not join_event.channel.permissions_for(ctx.guild.me).send_messages
+        settings = await self.messages.read(ctx.guild.id)
+        await ctx.send(
+            f"Welcome channel: <#{settings.channel_id}>"
+            if settings.channel_id
+            else "No welcome channel set"
         )
-        if need_permission:
-            perm_message = (
-                f"\nI don't have permissions to send messages there right now"
-            )
-        await ctx.send(f"Set the welcome channel to {channel.mention}{perm_message}")
 
-    @welcome.command(brief="Disable welcome messages in this channel", name="disable")
-    @commands.guild_only()
+    @welcome.command(name="disable", brief="Disable welcome messages")
+    @configuration_command("manage_guild")
     async def welcome_disable(self, ctx: Context):
-        """
-        Disable welcome messages in this channel
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        if join_event.channel_id is None:
-            return await ctx.send("Welcome messages are already disabled")
-        join_event.set_channel(None)
-        await join_event.save()
+        await self.messages.set_channel(ctx.guild.id, None)
         await ctx.send("Disabled welcome messages")
 
-    @welcome.command(brief="Add a welcome message for new members", name="message")
-    @commands.guild_only()
+    @welcome.command(name="message", brief="Add a welcome message")
+    @configuration_command("manage_guild")
     async def welcome_message(self, ctx: Context, message: str):
-        """
-        Add a welcome message for new members
-
-        Parameters
-        ----------
-        message: str
-            Add to the list of welcome messages. One of these will be randomly
-            picked when someone joins
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        if join_event.channel_id is None:
-            return await ctx.send("No channel assigned for welcome messages.")
-        if join_event.channel is None:
-            join_event.set_channel(None)
-            await join_event.save()
-            return await ctx.send("Assigned channel no longer exists. Please reassign.")
-        message = message.strip()
-        if not message:
-            return await ctx.send("Message cannot be empty")
-        if len(message) > JoinEvent.MAX_MESSAGE:
-            return await ctx.send(
-                f"Message must be less than {JoinEvent.MAX_MESSAGE} characters"
-            )
-        _, added = await join_event.add_response(message)
-        await join_event.save()
+        added = await self.messages.add(ctx.guild.id, (message,))
+        text = "Message added" if added else "Message already exists"
         if added:
-            await ctx.send(f"Message added {BotEmojis.TICK}")
-            need_permission = (
-                join_event.channel
-                and not join_event.channel.permissions_for(ctx.guild.me).send_messages
+            settings = await self.messages.read(ctx.guild.id)
+            text += await self._welcome_delivery_warning(
+                ctx.guild.id, settings.channel_id
             )
-            if need_permission:
-                await ctx.send(
-                    f"I don't have permissions to send messages in the assigned channel right now"
-                )
-        else:
-            await ctx.send("Message already exists")
+        await ctx.send(text)
 
-    @welcome.command(
-        brief="Add all urls from a channel as welcome messages",
-        name="add_urls",
-    )
-    @commands.guild_only()
+    async def _welcome_delivery_warning(self, guild_id, channel_id):
+        """A delivery advisory must not hide a successful configuration save."""
+        if channel_id is None:
+            return "\nWelcome delivery is currently disabled"
+        try:
+            can_send = await self.discord.can_send_messages(guild_id, channel_id)
+        except (HTTPException, OSError, TimeoutError):
+            return "\nI couldn't verify delivery permissions in the assigned channel right now"
+        if can_send:
+            return ""
+        return "\nI don't have permissions to send messages in the assigned channel right now"
+
+    @welcome.command(name="add_urls", brief="Import URLs from channel history")
+    @configuration_command("manage_guild")
     async def welcome_add_urls(
-        self,
-        ctx: Context,
-        channel: TextChannel,
-        include_attachments: Optional[bool] = True,
+        self, ctx: Context, channel: TextChannel, include_attachments: bool = True
     ):
-        """
-        Add all urls from a channel as welcome messages
-
-        Parameters
-        ----------
-        channel: TextChannel
-            The channel to read urls from. Duplicates will be ignored
-        include_attachments: bool (Optional)
-            Whether to include attachments in the urls. Defaults to True
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        if join_event.channel_id is None:
-            return await ctx.send("No channel assigned for welcome messages.")
-        if join_event.channel is None:
-            join_event.set_channel(None)
-            await join_event.save()
-            return await ctx.send("Assigned channel no longer exists. Please reassign.")
-        urls = await self.retrieve_urls(
-            channel=channel, attachments=include_attachments
+        count, total = await self.import_urls.execute(
+            ctx.guild.id, channel.id, include_attachments
         )
-        added_urls = 0
-        saved_urls = 0
-        for url in urls:
-            _, added = await join_event.add_response(url)
-            await join_event.save()
-            if added:
-                added_urls += 1
-            else:
-                saved_urls += 1
-        message = ""
-        if added_urls:
-            message += f"{added_urls} messages added {BotEmojis.TICK}\n"
-        if saved_urls:
-            message += f"{saved_urls} messages were already saved"
-        if not message:
-            return await ctx.send(f"No urls found")
-        await ctx.send(message)
+        await ctx.send(
+            f"{count} messages added; {total - count} already saved"
+            if total
+            else "No urls found"
+        )
 
     @welcome.command(
-        brief="Read urls from channel and remove them from welcome messages",
-        name="remove_urls",
+        name="remove_urls", brief="Remove welcome URLs found in channel history"
     )
-    @commands.guild_only()
+    @configuration_command("manage_guild")
     async def welcome_remove_urls(
-        self,
-        ctx: Context,
-        channel: TextChannel,
-        include_attachments: Optional[bool] = True,
+        self, ctx: Context, channel: TextChannel, include_attachments: bool = True
     ):
-        """
-        Read urls from channel and remove them from welcome messages
-
-        Parameters
-        ----------
-        channel: TextChannel
-            The channel to read urls from
-        include_attachments: bool (Optional)
-            Whether to include attachments in the urls. Defaults to True
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        if join_event.channel_id is None:
-            return await ctx.send("No channel assigned for welcome messages.")
-        if join_event.channel is None:
-            join_event.set_channel(None)
-            await join_event.save()
-            return await ctx.send("Assigned channel no longer exists. Please reassign.")
-        urls = await self.retrieve_urls(
-            channel=channel, attachments=include_attachments
+        count, total = await self.import_urls.execute(
+            ctx.guild.id, channel.id, include_attachments, remove=True
         )
-        removed_urls = 0
-        not_founds = 0
-        for url in urls:
-            removed = await join_event.remove_response(response_content=url)
-            if removed:
-                removed_urls += 1
-            else:
-                not_founds += 1
+        await ctx.send(f"{count} messages removed from {total} source URLs")
 
-        message = ""
-        if removed_urls:
-            message += f"{removed_urls} messages removed {BotEmojis.TICK}\n"
-        if not_founds:
-            message += f"{not_founds} messages were not found"
-        await ctx.send(message)
-
-    @welcome.command(brief="Clear all welcome messages", name="clear")
-    @commands.guild_only()
+    @welcome.command(name="clear", brief="Clear all welcome messages")
+    @configuration_command("manage_guild")
     async def welcome_clear(self, ctx: Context):
-        """
-        Clear all welcome messages
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        await join_event.remove_responses()
-        await join_event.save()
+        await self.messages.clear(ctx.guild.id)
         await ctx.send("Cleared all welcome messages")
 
-    @welcome.command(
-        brief="Remove a welcome message by id or message (case sensitive)",
-        name="remove",
-    )
-    @commands.guild_only()
+    @welcome.command(name="remove", brief="Remove a welcome message by ID or content")
+    @configuration_command("manage_guild")
     async def welcome_remove(
-        self, ctx: Context, message_id: Optional[int], message_content: Optional[str]
+        self,
+        ctx: Context,
+        message_id: Optional[int] = None,
+        message_content: Optional[str] = None,
     ):
-        """
-        Remove a welcome message by id or message (case sensitive)
+        count = await self.messages.remove(ctx.guild.id, message_id, message_content)
+        await ctx.send(
+            "Message removed"
+            if count
+            else "Message not found. Use `welcome list` to see message IDs"
+        )
 
-        Parameters
-        ----------
-        message_id: int (Optional)
-            The id of the message to remove
-        message_content: str (Optional)
-            The content of the message to remove
-        """
-        if not message_id and not message_content:
-            return await ctx.send("You must provide either an id or message")
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        removed = await join_event.remove_response(message_id, message_content)
-        if removed:
-            await ctx.send(f"Message removed {BotEmojis.TICK}")
-        else:
-            await ctx.send(
-                "Message not found. Use `welcome list` to see all messages and their ids"
-            )
-
-    @welcome.command(brief="List all welcome messages", name="list")
-    @commands.guild_only()
+    @welcome.command(name="list", brief="List welcome messages")
+    @configuration_command("manage_guild")
     async def welcome_list(self, ctx: Context):
-        """
-        List all welcome messages
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        if join_event.channel_id is None:
-            await ctx.send("No channel assigned for welcome messages.")
-        elif join_event.channel_id and join_event.channel is None:
-            join_event.set_channel(None)
-            await join_event.save()
-            await ctx.send("Assigned channel no longer exists. Removing assignment.")
-        messages = await join_event.responses()
-        if not messages:
-            # TODO:
-            # Command example
+        settings = await self.messages.read(ctx.guild.id)
+        if not settings.messages:
             return await ctx.send("No welcome messages set")
+        view = MessagesList(ctx, settings.messages)
+        view.message = await ctx.send(
+            embed=view.create_embed(view.current_chunk), view=view
+        )
 
-        message_list = []
-        for message in messages:
-            message_list.append(
-                (f"[{message.id}]", f"{truncate(message.content, 200)}")
-            )
-
-        # TODO:
-        # Show assigned channel
-        view = MessagesList(ctx, message_list)
-        embed = view.create_embed(view.current_chunk)
-        view.message = await ctx.send(embed=embed, view=view)
-
-    @welcome.command(
-        brief="Preview sending a welcome message in this channel", name="preview"
-    )
-    @commands.guild_only()
+    @welcome.command(name="preview", brief="Preview a random welcome message")
+    @configuration_command("manage_guild")
     async def welcome_preview(self, ctx: Context):
-        """
-        Preview sending a welcome message in this channel
-        """
-        if ctx.guild is None:
-            return
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.channel.permissions_for(ctx.guild.me).send_messages:
-            return
+        settings = await self.messages.read(ctx.guild.id)
+        await ctx.send(
+            random.choice(settings.messages).content
+            if settings.messages
+            else "No welcome messages"
+        )
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        join_event, _ = await JoinEvent.get_or_create(guild=guild)
-        messages = await join_event.responses_as_str()
-        if not messages:
-            return await ctx.send("No welcome messages")
-        await ctx.send(random.choice(messages))
-
-    @commands.hybrid_group(
-        brief="Manage auto roles for this server", invoke_without_command=True
-    )
+    @commands.hybrid_group(brief="Manage auto roles", invoke_without_command=True)
+    @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
     async def autorole(self, ctx: Context):
-        if not ctx.guild:
-            await ctx.send("This command can only be used in a server.")
-            return
-
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @autorole.command(
-        brief="Add a role that will be auto applied to new members", name="add"
-    )
+    @autorole.command(name="add", brief="Add an automatic role")
+    @configuration_command("manage_roles")
     async def add_role(self, ctx: Context, role: Role):
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            await ctx.send("This command can only be used in a server.")
-            return
-
-        result = await AutoRoleService.add_auto_role(ctx.guild.id, role.id)
-        if result.is_err:
-            self.bot.logger.error(f"Error adding auto role: {result.unwrap_err()}")
-            return await ctx.send(
-                f"Something went wrong while adding the role {role.mention}."
+        if ctx.author.id != ctx.guild.owner_id and role >= ctx.author.top_role:
+            raise OnboardingInputError(
+                "You can only configure auto roles below your highest role"
             )
-
-        message = result.unwrap()
-        if not ctx.guild.me.guild_permissions.manage_roles:
-            message += "\nI will need the `Manage Roles` permission to apply roles to new members."
-        await ctx.send(message)
-
-    @autorole.command(
-        brief="Apply auto roles to all members in the server", name="apply_all"
-    )
-    async def apply_all(self, ctx: Context, include_bots: bool = False):
-        """
-        Apply auto roles to all members in the server
-
-        Parameters
-        ----------
-        include_bots: bool
-            Whether to include bots in the auto role application. Defaults to False
-        """
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            return await ctx.send("This command can only be used in a server.")
-
-        if not ctx.guild.me.guild_permissions.manage_roles:
-            return await ctx.send(
-                "I need the `Manage Roles` permission to apply auto roles."
-            )
-
-        result = await AutoRoleService.apply_auto_roles(
-            ctx.guild.id, ctx.guild.members, include_bots=include_bots
+        added = await self.roles.add(ctx.guild.id, role.id)
+        await ctx.send(
+            f"{role.mention} added to auto role list"
+            if added
+            else "Role already exists in auto role list"
         )
-        if result.is_err:
-            self.bot.logger.error(f"Error applying auto roles: {result.unwrap_err()}")
-            return await ctx.send("Something went wrong while applying auto roles.")
 
-        await ctx.send(result.unwrap())
-
-    @autorole.command(brief="Remove a role from the auto role list", name="remove")
-    async def remove_role(self, ctx: Context, role: Role):
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            await ctx.send("This command can only be used in a server.")
-            return
-
-        result = await AutoRoleService.remove_auto_roles(ctx.guild.id, [role.id])
-        if result.is_err:
-            self.bot.logger.error(f"Error removing auto role: {result.unwrap_err()}")
-            return await ctx.send(
-                f"Something went wrong while removing the role {role.mention}."
-            )
-
-        message = result.unwrap()
-        if not ctx.guild.me.guild_permissions.manage_roles:
-            message += "\nI will need the `Manage Roles` permission to apply roles to new members."
-        await ctx.send(message)
-
-    @autorole.command(brief="List all auto roles", name="list")
-    async def list_roles(self, ctx: Context):
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            await ctx.send("This command can only be used in a server.")
-            return
-
-        result = await AutoRoleService.list_with_cleanup(ctx.guild.id)
-        if result.is_err:
-            self.bot.logger.error(f"Error retrieving auto roles: {result.unwrap_err()}")
-            return await ctx.send("Something went wrong while retrieving auto roles.")
-
-        existing_roles = result.unwrap()
-
-        if not existing_roles:
-            return await ctx.send("No auto roles set for this server.")
-
-        embed = Embed(title="Auto Roles", description="List of auto roles")
-        for role in existing_roles:
-            embed.add_field(
-                name=f"{role.name} `[{role.id}]`", value=f"{role.mention}", inline=False
-            )
-
-        await ctx.send(embed=embed)
-
-    @autorole.command(brief="Remove all auto roles from list")
-    async def remove_all(self, ctx: Context):
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
-        if not ctx.guild:
-            await ctx.send("This command can only be used in a server.")
-            return
-
-        result = await AutoRoleService.remove_all_auto_roles(ctx.guild.id)
-        if result.is_err:
+    @autorole.command(name="apply_all", brief="Apply auto roles to existing members")
+    @configuration_command("manage_roles")
+    async def apply_all(self, ctx: Context, include_bots: bool = False):
+        result = await self.assign_roles.execute(
+            ctx.guild.id,
+            tuple(member_info(member) for member in ctx.guild.members),
+            include_bots,
+        )
+        for member_id, error in result.failures:
             self.bot.logger.error(
-                f"Error removing all auto roles: {result.unwrap_err()}"
+                "Auto role assignment failed guild_id=%s member_id=%s",
+                ctx.guild.id,
+                member_id,
+                exc_info=error,
             )
-            return await ctx.send("Something went wrong while removing all auto roles.")
+        await ctx.send(assignment_summary(result))
 
-        await ctx.send(result.unwrap())
+    @autorole.command(name="remove", brief="Remove an automatic role")
+    @configuration_command("manage_roles")
+    async def remove_role(self, ctx: Context, role: Role):
+        count = await self.roles.remove(ctx.guild.id, (role.id,))
+        await ctx.send(
+            "Role removed from auto role list"
+            if count
+            else "Role not found in auto role list"
+        )
 
-    # -----------------------
-    # ----End of Commands----
-    # -----------------------
+    @autorole.command(name="list", brief="List automatic roles")
+    @configuration_command("manage_roles")
+    async def list_roles(self, ctx: Context):
+        roles = await self.roles.available(ctx.guild.id)
+        if not roles:
+            return await ctx.send("No auto roles set for this server")
+        await ctx.send(embed=role_embed(roles))
 
-    async def retrieve_urls(self, channel: TextChannel, attachments=True) -> list[str]:
-        URL_REGEX = re.compile(r"https?://\S+\.\S+")
-        urls = list()
-        async for message in channel.history(limit=None):
-            urls.extend(URL_REGEX.findall(message.content))
-            if attachments and message.attachments:
-                urls.extend(a.url for a in message.attachments)
-        return urls
+    @autorole.command(brief="Remove all automatic roles")
+    @configuration_command("manage_roles")
+    async def remove_all(self, ctx: Context):
+        await self.roles.clear(ctx.guild.id)
+        await ctx.send("All auto roles removed")
 
     @Cog.listener()
     async def on_member_join(self, member: Member):
-        actions = DiscordMemberOnboardingActions(member, self.bot.logger)
+        discord = DiscordOnboarding(self.bot, member)
+        roles = ApplyAutoRoles(ConfigureAutoRoles(self.repository, discord), discord)
+        actions = ConfiguredJoinActions(
+            member.guild.id,
+            member_info(member),
+            self.repository,
+            discord,
+            roles,
+            random.choice,
+        )
         failures = await HandleMemberJoin(actions).execute()
-        failure_messages = {
-            MemberJoinAction.GREETING: "Member join greeting failed",
-            MemberJoinAction.JOIN_RESPONSE: "Member join response failed",
-            MemberJoinAction.AUTO_ROLES: "Member join auto roles failed",
-        }
         for failure in failures:
             self.bot.logger.error(
-                "%s; continuing with remaining join actions guild_id=%s member_id=%s",
-                failure_messages[failure.action],
+                "Member join %s failed guild_id=%s member_id=%s",
+                failure.action.value,
                 member.guild.id,
                 member.id,
-                exc_info=(
-                    type(failure.error),
-                    failure.error,
-                    failure.traceback,
-                ),
+                exc_info=(type(failure.error), failure.error, failure.traceback),
             )
 
 

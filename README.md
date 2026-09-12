@@ -121,3 +121,18 @@ removal, opt-out, and emoji-channel exclusion. Run one bot process as before;
 the configuration cache is local to that process. Image rollback needs no data
 conversion for this refactor, subject to any other pending migrations applied
 at startup.
+
+## Member onboarding refactor deployment
+
+Greeting, welcome-message, and auto-role storage remains unchanged, including
+encrypted content and existing relationships. This refactor needs no new schema
+or data migration. Use the normal prepared-image and manual Dokploy deployment
+flow above with the existing database volume and encryption key.
+
+Channel cache misses now fetch from Discord without clearing saved settings.
+Auto roles are pruned only after Discord confirms they no longer exist. Role
+assignment checks bot permissions and hierarchy, continues after individual
+member failures, and reports partial results. Each join action runs independently.
+
+After deployment, preview an existing greeting and welcome message, check the
+auto-role list, and verify all three actions on a member join.

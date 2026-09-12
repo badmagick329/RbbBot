@@ -1,48 +1,11 @@
-import discord
 from tortoise import fields
 from tortoise.models import Model
 
-from rbb_bot.core.errors import ClientInitializationError
-from rbb_bot.utils.mixins import ClientMixin
 
-
-class AutoRole(Model, ClientMixin):
+class AutoRole(Model):
     _id = fields.IntField(pk=True)
     guild_id = fields.BigIntField()
     role_id = fields.BigIntField()
 
     class Meta:  # type: ignore
         unique_together = (("guild_id", "role_id"),)
-
-    @property
-    def guild(self) -> discord.Guild | None:
-        """
-        Returns the guild associated with this auto role.
-
-        Raises ClientInitializationError if the client is not initialized.
-        """
-        if not self.client:
-            raise ClientInitializationError("Client not initialized")
-        return self.client.get_guild(self.guild_id)
-
-    @property
-    def role(self) -> discord.Role | None:
-        """
-        Returns the role associated with this auto role if the associated guild and role are found.
-
-        Raises ClientInitializationError if the client is not initialized.
-        """
-        if not self.client:
-            raise ClientInitializationError("Client not initialized")
-
-        guild = self.guild
-        if not guild:
-            return None
-
-        return guild.get_role(self.role_id)
-
-    def __str__(self) -> str:
-        return f"<AutoRole(guild_id={self.guild_id}, role_id={self.role_id})>"
-
-    def __repr__(self) -> str:
-        return self.__str__()
