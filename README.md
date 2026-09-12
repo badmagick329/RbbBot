@@ -98,3 +98,26 @@ the prior compatible image, provided startup applied no other pending database
 migrations. Image rollback never reverses those migrations. For any pending
 schema changes, verify a database backup and restore procedure with the existing
 encryption key before deploying.
+
+## Tags refactor deployment
+
+This release changes no tag or response columns, relationships, encryption, or
+lookup tokens. Existing databases need no new migration for the tag refactor;
+use the normal prepared-image and Dokploy deployment flow above.
+
+Exact tags still take precedence over inline tags. Inline triggers match literal
+text at word boundaries, with tag ID order breaking ties. Opted-out users are
+skipped before message content is read, and command messages are excluded.
+Usage counts retain the existing behavior of counting selected responses before
+Discord delivery, so a failed send may still count as a use.
+
+Tag edits, response removal, emoji-channel changes, and guild cleanup invalidate
+cached configuration. The next matching request reloads it; ordinary matching
+uses the cache. Listing tags reads current usage counts without deleting empty
+tags. Removing a tag now preserves responses still shared with other tags.
+
+After deployment, check exact and inline responses, a trigger edit, response
+removal, opt-out, and emoji-channel exclusion. Run one bot process as before;
+the configuration cache is local to that process. Image rollback needs no data
+conversion for this refactor, subject to any other pending migrations applied
+at startup.

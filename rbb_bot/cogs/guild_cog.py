@@ -50,9 +50,9 @@ class GuildCog(Cog):
                     continue
                 if await GuildDataService.delete_guild_data(guild.id):
                     self.bot.guild_prefixes.pop(guild.id, None)
-                    tag_service = getattr(self.bot, "tag_service", None)
-                    if tag_service:
-                        tag_service.remove_guild(guild.id)
+                    tag_catalog = getattr(self.bot, "tag_catalog", None)
+                    if tag_catalog:
+                        tag_catalog.invalidate(guild.id)
                     deleted_guild_ids.append(guild.id)
                 else:
                     self.bot.logger.warning(

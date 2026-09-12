@@ -1,466 +1,274 @@
+import random
+from functools import wraps
 from typing import Optional
 
-from discord import Embed, Message, errors
+from discord import Message, errors
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from rbb_bot.models import Guild, Response, Tag
-from tortoise.functions import Count
-from tortoise.transactions import atomic
-from rbb_bot.utils.helpers import truncate
-from rbb_bot.utils.views import ListView
 
+from rbb_bot.application.tags.contracts import TagSelector
+from rbb_bot.application.tags.manage_tags import (
+    AddTag,
+    AddTagRequest,
+    FindTag,
+    ListTags,
+    RenameTag,
+    RenameTagRequest,
+    RemoveTag,
+    FindResponses,
+    FindGfycatResponses,
+    RemoveResponses,
+)
+from rbb_bot.application.tags.select_response import SelectTagResponse
+from rbb_bot.domain.tags.rules import TagInputError, normalize_trigger
+from rbb_bot.infrastructure.tags.catalog import CachedTagCatalog
+from rbb_bot.infrastructure.tags.preferences import StoredTagPreferences
+from rbb_bot.infrastructure.tags.repository import TortoiseTagRepository
 from rbb_bot.settings.const import DISCORD_MAX_MESSAGE, BotEmojis
-from rbb_bot.services.tag_service import TagService
-from rbb_bot.services.user_data_service import UserDataService
+from rbb_bot.utils.helpers import truncate
+from rbb_bot.views.tags import (
+    TagsList,
+    ResponsesList,
+    tag_list_items,
+    response_list_items,
+)
 
 
-class TagsList(ListView):
-    def create_embed(self, tags_and_responses: list[str]) -> Embed:
-        header = (
-            f"{len(self.list_items)} {'Tags' if len(self.list_items) > 1 else 'Tag'}"
-        )
-        embed = Embed(
-            title=f"Page {self.current_page + 1} of {len(self.view_chunks)}\n{header}"
-        )
+def tag_input(callback):
+    """Translate feature validation into the bot's existing command-error presentation."""
 
-        for tnr in tags_and_responses:
-            tag, response = tnr
-            embed.add_field(name=tag, value=response, inline=False)
+    @wraps(callback)
+    async def invoke(*args, **kwargs):
+        try:
+            return await callback(*args, **kwargs)
+        except TagInputError as error:
+            raise commands.BadArgument(str(error)) from error
 
-        return embed
-
-
-class ResponsesList(ListView):
-    def create_embed(self, ids_and_responses: list[str]) -> Embed:
-        header = f"{len(self.list_items)} {'Responses' if len(self.list_items) > 1 else 'Response'} found"
-        embed = Embed(
-            title=f"Page {self.current_page + 1} of {len(self.view_chunks)}\n{header}"
-        )
-
-        for id_and_response in ids_and_responses:
-            id, response = id_and_response
-            embed.add_field(name=id, value=response, inline=False)
-        return embed
+    return invoke
 
 
 class TagsCog(Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.tag_service = TagService()
-        self.bot.tag_service = self.tag_service
+        repository = TortoiseTagRepository()
+        self.catalog = CachedTagCatalog(repository)
+        self.add_tag = AddTag(repository, self.catalog)
+        self.find_tag = FindTag(repository)
+        self.tags = ListTags(repository)
+        self.rename_tag = RenameTag(repository, self.catalog)
+        self.delete_tag = RemoveTag(repository, self.catalog)
+        self.find_responses = FindResponses(repository)
+        self.gfycat_responses = FindGfycatResponses(repository)
+        self.delete_responses = RemoveResponses(repository, self.catalog)
+        self.select_response = SelectTagResponse(
+            self.catalog, repository, StoredTagPreferences(), random.choice
+        )
 
     async def cog_load(self):
-        await self.tag_service.load()
+        await self.catalog.load()
+        self.bot.tag_catalog = self.catalog
         self.bot.logger.debug("TagsCog loaded!")
 
     async def cog_unload(self):
-        if getattr(self.bot, "tag_service", None) is self.tag_service:
-            del self.bot.tag_service
+        if getattr(self.bot, "tag_catalog", None) is self.catalog:
+            del self.bot.tag_catalog
         self.bot.logger.debug("TagsCog unloaded!")
 
     @commands.hybrid_group(brief="Manage tags")
     @commands.guild_only()
     @commands.has_permissions(manage_messages=True)
     async def tag(self, ctx: Context):
-        """
-        Add, remove or edit tags for this server
-        """
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @tag.command(name="add", brief="Add a tag to this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.guild_only()
+    @tag_input
     async def add_(
         self, ctx: Context, trigger: str, response: str, inline: Optional[bool] = False
     ):
-        """
-        Add a tag to this server
-
-        Parameters
-        ----------
-        trigger: str
-            The text that triggers this response (Required)
-        response: str
-            The response that gets sent (Required)
-        inline: str
-            When False the trigger has to match the message exactly (Optional)
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        if len(trigger) > Tag.MAX_TRIGGER:
-            return await ctx.send(
-                f"{BotEmojis.CROSS} The trigger is too long. Max {Tag.MAX_TRIGGER} characters"
-            )
-        if len(response) > DISCORD_MAX_MESSAGE:
-            return await ctx.send(
-                f"{BotEmojis.CROSS} The response is too long. "
-                f"Max {DISCORD_MAX_MESSAGE} characters"
-            )
-
-        trigger = trigger.lower().strip()
-        if not trigger:
-            return await ctx.send("Trigger can't be empty")
-        response_content = response.strip()
-        if not response_content:
-            return await ctx.send("Response can't be empty")
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-
-        @atomic()
-        async def add_tag(guild, trigger, response_content, inline) -> Optional[Tag]:
-            saved_tag = await Tag.by_id_or_trigger(guild, None, trigger)
-            created = False
-            if not saved_tag:
-                created = True
-                saved_tag = await Tag.create(
-                    guild=guild, trigger=trigger, inline=inline
-                )
-
-            response = next(
-                (
-                    item
-                    for item in await saved_tag.responses.filter(guild=guild)
-                    if item.content == response_content
-                ),
-                None,
-            )
-            if not response:
-                response = await Response.create(guild=guild, content=response_content)
-                await saved_tag.responses.add(response)
-                await saved_tag.save()
-                return saved_tag, created
-            return None
-
-        result = await add_tag(guild, trigger, response_content, inline)
-        if result:
-            tag, created = result
-            await self.tag_service.refresh_guild(ctx.guild.id)
-            to_send = f"{BotEmojis.TICK} Tag `{tag.trigger}` {'created' if created else 'updated'}"
-            await ctx.send(to_send)
-        else:
+        result = await self.add_tag.execute(
+            AddTagRequest(ctx.guild.id, trigger, response, inline)
+        )
+        if result.status == "duplicate":
             await ctx.send("This response already exists under this tag")
+        else:
+            await ctx.send(
+                f"{BotEmojis.TICK} Tag `{result.tag.trigger}` {result.status}"
+            )
 
     @tag.group(name="remove", brief="Remove a tag or response")
     async def remove_(self, ctx: Context):
-        """
-        Remove a tag or response
-        """
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @remove_.command(
-        name="tag",
-        brief="Remove a tag from this server. Either trigger or tag_id is required",
-    )
+    @remove_.command(name="tag", brief="Remove a tag by trigger or ID")
     @commands.guild_only()
+    @tag_input
     async def remove_tag(
-        self, ctx: Context, trigger: Optional[str], tag_id: Optional[int]
+        self, ctx: Context, trigger: Optional[str] = None, tag_id: Optional[int] = None
     ):
-        """
-        Remove a tag from this server. Either trigger or tag_id is required
-
-        Parameters
-        ----------
-        trigger: str
-            The text that triggers this response (Optional)
-        tag_id: int
-            The id of the tag to remove (Optional)
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        if not trigger and not tag_id:
-            return await ctx.send("Either trigger or tag_id is required")
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-        tag = await Tag.by_id_or_trigger(guild, tag_id, trigger)
-        if not tag:
-            return await ctx.send(f"Tag not found")
-
-        @atomic()
-        async def remove(tag):
-            r_ids = await tag.responses.all().values_list("id", flat=True)
-            await Response.filter(id__in=r_ids).delete()
-            await tag.delete()
-
-        prompt = f"Are you sure you want to delete the tag `{trigger}`?"
-        if not (await self.bot.get_confirmation(ctx, prompt)):
+        tag = await self.find_tag.execute(TagSelector(ctx.guild.id, tag_id, trigger))
+        if tag is None:
+            return await ctx.send("Tag not found")
+        if not await self.bot.get_confirmation(
+            ctx, f"Are you sure you want to delete the tag `{tag.trigger}`?"
+        ):
             return
+        removed = await self.delete_tag.execute(ctx.guild.id, tag.id)
+        await ctx.send(
+            f"{BotEmojis.TICK} Tag `{tag.trigger}` removed"
+            if removed
+            else "Tag no longer exists"
+        )
 
-        await remove(tag)
-        await self.tag_service.refresh_guild(ctx.guild.id)
-        await ctx.send(f"{BotEmojis.TICK} Tag `{trigger}` removed")
-
-    @remove_.command(
-        name="response",
-        brief="Remove a response from this server. Either response or response_id is required",
-    )
+    @remove_.command(name="response", brief="Remove a response by content or ID")
     @commands.guild_only()
+    @tag_input
     async def remove_response(
-        self, ctx: Context, response: Optional[str], response_id: Optional[int]
+        self,
+        ctx: Context,
+        response: Optional[str] = None,
+        response_id: Optional[int] = None,
     ):
-        """
-        Remove a response from this server. Either response or response_id is required
-
-        Parameters
-        ----------
-        response: str
-            The response that gets sent (Optional)
-        response_id: int
-            The id of the response (Optional)
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        if not response and not response_id:
-            return await ctx.send("Either response or response_id is required")
-
-        response_content = response or None
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-
-        responses = await Response.by_id_or_content(
-            guild, response_id, response_content
+        responses = await self.find_responses.execute(
+            ctx.guild.id, response_id, response
         )
-
-        if not responses or len(responses) == 0:
+        if not responses:
             return await ctx.send("This response does not exist")
-
-        if not all(responses[0].content == r.content for r in responses):
-            self.bot.logger.warning("Inconsistent response content found")
-            for r in responses:
-                self.bot.logger.warning(f"Response: {r.content}")
-
-        response_content = responses[0].content
-        if not response_content:
-            self.bot.logger.warning(
-                f"No response content found. Query was {response=} {response_id=} in {guild.id=}"
-            )
-            return await ctx.send("No response content found 🤔")
-
-        @atomic()
-        async def remove(responses):
-            deleted_responses = await Response.filter(
-                id__in=[r.id for r in responses]
-            ).delete()
-            if deleted_responses:
-                remove_tags = (
-                    await Tag.filter(guild=guild)
-                    .annotate(response_count=Count("responses"))
-                    .filter(response_count=0)
-                    .all()
-                )
-                await Tag.filter(id__in=[t.id for t in remove_tags]).delete()
-
-        response_truncated = truncate(response_content, 300)
-        prompt = (
-            f"Are you sure you want to delete this response: {response_truncated} ?"
-        )
-        if not (await self.bot.get_confirmation(ctx, prompt)):
+        summary = truncate(responses[0].content, 300)
+        if not await self.bot.get_confirmation(
+            ctx, f"Are you sure you want to delete this response: {summary} ?"
+        ):
             return
-        await remove(responses)
-        await self.tag_service.refresh_guild(ctx.guild.id)
-        await ctx.send(f"{BotEmojis.TICK} Response `{response_truncated}` removed")
+        deleted = await self.delete_responses.execute(
+            ctx.guild.id, tuple(r.id for r in responses)
+        )
+        await ctx.send(
+            f"{BotEmojis.TICK} Response `{summary}` removed"
+            if deleted
+            else "Response no longer exists"
+        )
 
     @remove_.command(
-        name="gfycat",
-        brief="Remove responses using gfycat urls from the tags on this server",
+        name="gfycat", brief="Remove responses using gfycat urls from this server"
     )
     @commands.guild_only()
     async def remove_gfycat(self, ctx: Context):
-        """
-        Remove responses using gfycat urls from the tags on this server
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-        responses = [
-            response
-            for response in await Response.filter(guild=guild)
-            if "https://gfycat.com" in response.content
-            or "https://www.gfycat.com" in response.content
-        ]
-        num_responses = len(responses)
-        if not num_responses:
+        responses = await self.gfycat_responses.execute(ctx.guild.id)
+        if not responses:
             return await ctx.send("No responses using gfycat urls found")
-        responses_text = [f"Confirm removal of {num_responses} responses:", "```"]
-        for resp in responses:
-            responses_text.append(resp.content)
-        responses_text = "\n".join(responses_text)
-        prompt = truncate(responses_text, DISCORD_MAX_MESSAGE - 4)
-        prompt += "\n```"
-
-        @atomic()
-        async def remove(responses):
-            deleted_responses = await Response.filter(
-                id__in=[r.id for r in responses]
-            ).delete()
-            if deleted_responses:
-                remove_tags = (
-                    await Tag.filter(guild=guild)
-                    .annotate(response_count=Count("responses"))
-                    .filter(response_count=0)
-                    .all()
-                )
-                await Tag.filter(id__in=[t.id for t in remove_tags]).delete()
-
-        if not (await self.bot.get_confirmation(ctx, prompt)):
+        prompt = "\n".join(
+            [
+                f"Confirm removal of {len(responses)} responses:",
+                "```",
+                *(r.content for r in responses),
+            ]
+        )
+        prompt = truncate(prompt, DISCORD_MAX_MESSAGE - 4) + "\n```"
+        if not await self.bot.get_confirmation(ctx, prompt):
             return
-        await remove(responses)
-        await self.tag_service.refresh_guild(ctx.guild.id)
-        await ctx.send(f"{BotEmojis.TICK} {num_responses} responses removed")
+        deleted = await self.delete_responses.execute(
+            ctx.guild.id, tuple(r.id for r in responses)
+        )
+        await ctx.send(f"{BotEmojis.TICK} {deleted} responses removed")
 
     @tag.command(name="list", brief="List all tags for this server")
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.guild_only()
     async def list_tags(self, ctx: Context):
-        """
-        List all tags for this server
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-        tags = await Tag.filter(guild=guild).prefetch_related("responses").all()
+        tags = await self.tags.execute(ctx.guild.id)
         if not tags:
             return await ctx.send("No tags found")
+        view = TagsList(ctx, tag_list_items(tags))
+        view.message = await ctx.send(
+            embed=view.create_embed(view.current_chunk), view=view
+        )
 
-        tags_and_responses = []
-        for tag in tags:
-            response_str = truncate(tag.responses[0].content, 160)
-            if len(tag.responses) > 1:
-                response_str += f" and {len(tag.responses) - 1} more"
-
-            tags_and_responses.append(
-                (f"[{tag.id}] {tag.trigger}\nUsed {tag.use_count} times", response_str)
-            )
-
-        view = TagsList(ctx, tags_and_responses)
-        embed = view.create_embed(view.current_chunk)
-        view.message = await ctx.send(embed=embed, view=view)
-
-    @tag.command(
-        name="responses",
-        brief="List all responses for this tag. Either trigger or tag_id is required",
-    )
+    @tag.command(name="responses", brief="List responses for a tag by trigger or ID")
     @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
+    @tag_input
     async def list_responses(
-        self, ctx: Context, trigger: Optional[str], tag_id: Optional[int]
+        self, ctx: Context, trigger: Optional[str] = None, tag_id: Optional[int] = None
     ):
-        """
-        List all responses for this tag. Either trigger or tag_id is required
-
-        Parameters
-        ----------
-        trigger: str
-            The text that triggers this response (Optional)
-        tag_id: int
-            The id of the tag (Optional)
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        if not trigger and not tag_id:
-            return await ctx.send("Either trigger or tag_id is required")
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
+        tag = await self.find_tag.execute(TagSelector(ctx.guild.id, tag_id, trigger))
+        if tag is None:
+            return await ctx.send("Tag not found")
+        if not tag.responses:
+            return await ctx.send("No responses found for this tag")
+        view = ResponsesList(ctx, response_list_items(tag.responses))
+        view.message = await ctx.send(
+            embed=view.create_embed(view.current_chunk), view=view
+        )
 
-        tag = await Tag.by_id_or_trigger(guild, tag_id, trigger)
-        if not tag:
-            return await ctx.send(f"Tag not found")
-
-        responses = await tag.responses.all()
-        if not responses:
-            await tag.delete()
-            await self.bot.send_error(
-                ctx=ctx, message=f"No responses found for tag `{trigger}`"
-            )
-            return await ctx.send(
-                "No responses found for this tag. Tag has been deleted"
-            )
-
-        response_list = []
-        for response in responses:
-            response_list.append(
-                (f"[{response.id}]", f"{truncate(response.content, 160)}")
-            )
-
-        view = ResponsesList(ctx, response_list)
-        embed = view.create_embed(view.current_chunk)
-        view.message = await ctx.send(embed=embed, view=view)
-
-    @tag.command(
-        name="edit",
-        brief="Edit a tag's trigger. Either tag_id or old_trigger is required",
-    )
+    @tag.command(name="edit", brief="Edit a tag's trigger by ID or old trigger")
     @commands.guild_only()
+    @tag_input
     async def edit_tag(
         self,
         ctx: Context,
         new_trigger: str,
-        tag_id: Optional[int],
-        old_trigger: Optional[str],
+        tag_id: Optional[int] = None,
+        old_trigger: Optional[str] = None,
     ):
-        """
-        Edit a tag's trigger. Either tag_id or old_trigger is required
-
-        Parameters
-        ----------
-        new_trigger: str
-            The new trigger of the tag (Required)
-        tag_id: int
-            The id of the tag (Optional)
-        old_trigger: str
-            The old trigger of the tag (Optional)
-        """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        new_trigger = new_trigger.lower().strip()
-        if not tag_id and not old_trigger:
-            return await ctx.send("Either tag_id or old_trigger is required")
-
-        if len(new_trigger) > Tag.MAX_TRIGGER:
-            return await ctx.send(
-                f"Trigger can't be longer than {Tag.MAX_TRIGGER} characters"
-            )
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)  # type: ignore
-        if tag := await Tag.by_id_or_trigger(guild, None, new_trigger):
-            return await ctx.send(f"Tag with trigger `{new_trigger}` already exists")
-
-        tag = await Tag.by_id_or_trigger(guild, tag_id, old_trigger)
-        if not tag:
-            return await ctx.send("Tag not found")
-
-        prompt = (
-            f"Are you sure you want to edit the tag `{tag.trigger}` to `{new_trigger}`?"
+        new_trigger = normalize_trigger(new_trigger)
+        tag = await self.find_tag.execute(
+            TagSelector(ctx.guild.id, tag_id, old_trigger)
         )
-        if not (await self.bot.get_confirmation(ctx, prompt)):
+        if tag is None:
+            return await ctx.send("Tag not found")
+        if not await self.bot.get_confirmation(
+            ctx,
+            f"Are you sure you want to edit the tag `{tag.trigger}` to `{new_trigger}`?",
+        ):
             return
-        tag.trigger = new_trigger
-        await tag.save()
-        await self.tag_service.refresh_guild(ctx.guild.id)
-        await ctx.send(f"{BotEmojis.TICK} Tag `{tag.trigger}` edited")
+        result = await self.rename_tag.execute(
+            RenameTagRequest(ctx.guild.id, tag.id, new_trigger)
+        )
+        await ctx.send(
+            f"{BotEmojis.TICK} Tag `{result.trigger}` edited"
+            if result
+            else "Tag no longer exists"
+        )
 
     @Cog.listener()
     async def on_message(self, message: Message):
         if message.author.bot or not message.guild:
             return
-        if UserDataService.is_tag_opted_out(message.author.id):
+        # Check before requesting a context: it also reads message content.
+        if not self.select_response.accepts_author(message.author.id):
             return
         ctx = await self.bot.get_context(message)
         if ctx.invoked_with:
             return
-
-        tag = self.tag_service.match(
-            message.guild.id, message.channel.id, message.content
-        )
-        if tag:
-            try:
-                response = await self.tag_service.choose_response(tag)
+        try:
+            response = await self.select_response.execute(
+                message.guild.id, message.channel.id, message.author.id, message.content
+            )
+            if response is not None:
                 await message.channel.send(response)
-            except errors.Forbidden:
-                pass
-            except Exception as e:
-                await self.bot.send_error(
-                    ctx, e, comment="Error sending tag response", stack_info=e
-                )
+        except errors.Forbidden:
+            pass
+        except Exception as error:
+            await self.bot.send_error(
+                ctx, error, comment="Error sending tag response", stack_info=True
+            )
 
 
 async def setup(bot: commands.Bot):

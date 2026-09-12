@@ -1,3 +1,5 @@
+from rbb_bot.application.tags.contracts import TagSelector
+from rbb_bot.infrastructure.tags.repository import TortoiseTagRepository
 import base64
 
 import importlib.util
@@ -33,7 +35,7 @@ def load_release_b_migration():
 async def add_release_a_plaintext_columns(connection):
     """Make the final-schema fixture look like the completed Release A schema."""
     await connection.execute_script(
-        '''
+        """
         ALTER TABLE "guild" ADD COLUMN "prefix" VARCHAR(10);
         ALTER TABLE "guild" ADD COLUMN "emojis_channel_message" VARCHAR(2000);
         ALTER TABLE "greeting" ADD COLUMN "title" VARCHAR(256);
@@ -52,7 +54,7 @@ async def add_release_a_plaintext_columns(connection):
         ALTER TABLE "sourceentry" ADD COLUMN "conf_jump_url" VARCHAR(255);
         ALTER TABLE "botupdate" ADD COLUMN "message" TEXT;
         ALTER TABLE "botissue" ADD COLUMN "message" TEXT;
-        '''
+        """
     )
 
 
@@ -100,7 +102,9 @@ async def test_new_writes_store_ciphertext_and_preserve_model_behaviour(test_dat
     )
     assert rows == []
 
-    loaded_tag = await Tag.by_id_or_trigger(guild, None, "private trigger")
+    loaded_tag = await TortoiseTagRepository().find_tag(
+        TagSelector(guild.id, trigger="private trigger")
+    )
     assert loaded_tag is not None
     assert loaded_tag.trigger == "private trigger"
     assert response.content == "private response"

@@ -248,8 +248,8 @@ class EmojisCog(Cog):
         guild.emojis_channel_id = channel.id
         guild.delete_emoji_messages = delete_previous
         await guild.save()
-        if tag_service := getattr(self.bot, "tag_service", None):
-            await tag_service.refresh_guild(guild.id)
+        if tag_catalog := getattr(self.bot, "tag_catalog", None):
+            tag_catalog.invalidate(guild.id)
         await ctx.send(f"Assigned {guild.emojis_channel.mention} to post emotes in")
 
     @post.command(brief="Unassign the channel emotes are posted in")
@@ -263,8 +263,8 @@ class EmojisCog(Cog):
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         guild.emojis_channel_id = None
         await guild.save()
-        if tag_service := getattr(self.bot, "tag_service", None):
-            await tag_service.refresh_guild(guild.id)
+        if tag_catalog := getattr(self.bot, "tag_catalog", None):
+            tag_catalog.invalidate(guild.id)
         await ctx.send("Unassigned the channel emotes are posted in")
 
     @post.command(
