@@ -13,7 +13,7 @@ from discord.utils import format_dt
 from rbb_bot.models import Release
 from tortoise.expressions import Q
 from rbb_bot.utils.helpers import http_get, truncate
-from rbb_bot.utils.scraper import Scraper
+from rbb_bot.infrastructure.releases.scraper import Scraper
 from rbb_bot.utils.views import ListView, SearchResult, SearchResultsView
 
 
@@ -145,8 +145,10 @@ class KpopCog(Cog):
         else:
             urls = [u.strip() for u in urls.split(" ") if u.strip()]
         await ctx.send("Starting update...")
-        await self.scraper.scrape(urls=urls)
-        await ctx.send("Done!")
+        completed = await self.scraper.scrape(urls=urls)
+        await ctx.send(
+            "Done!" if completed else "Update failed; stored releases were preserved"
+        )
 
     @commands.hybrid_command(
         brief="Search through MV links stored in the database. "
@@ -173,9 +175,7 @@ class KpopCog(Cog):
                 await asyncio.sleep(1)
                 waited += 1
                 if waited > 3:
-                    self.bot.logger.error(
-                        comment="Scraper is taking too long to update"
-                    )
+                    self.bot.logger.error("Scraper is taking too long to update")
                     break
         if artist is None and release_name is None:
             return await ctx.send(
@@ -287,9 +287,7 @@ class KpopCog(Cog):
                 await asyncio.sleep(1)
                 waited += 1
                 if waited > 4:
-                    self.bot.logger.error(
-                        comment="Scraper is taking too long to update"
-                    )
+                    self.bot.logger.error("Scraper is taking too long to update")
                 break
 
         self.bot.logger.debug("Adding filters")

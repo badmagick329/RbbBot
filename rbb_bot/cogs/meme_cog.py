@@ -1,3 +1,4 @@
+from contextlib import closing
 from pathlib import Path
 from typing import Protocol
 
@@ -6,6 +7,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context
 
 from rbb_bot.memegifs.memegen import ElijahTerrific, IreneTweeting
+
 
 class MemeGenerator(Protocol):
     async def create(self, text: str) -> Path:
@@ -32,6 +34,7 @@ class MemeCog(Cog):
             await ctx.send_help(ctx.command)
 
     @meme.command(brief="Tweet meme")
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def tweet(self, ctx: commands.Context, *, text: str):
         if text.strip() == "":
             return await ctx.send("No text provided")
@@ -43,6 +46,7 @@ class MemeCog(Cog):
             return await ctx.send("Something went wrong 😕")
 
     @meme.command(brief="Elijah meme")
+    @commands.cooldown(2, 5, commands.BucketType.user)
     async def elijah(self, ctx: commands.Context, *, text: str):
         if text.strip() == "":
             return await ctx.send("No text provided")
@@ -53,16 +57,14 @@ class MemeCog(Cog):
             self.bot.logger.error(f"Error in meme elijah. {e}", exc_info=e)
             return await ctx.send("Something went wrong 😕")
 
-    async def create_and_send(
-        self, ctx: Context, memegen: MemeGenerator, text: str
-    ):
+    async def create_and_send(self, ctx: Context, memegen: MemeGenerator, text: str):
         async with ctx.typing():
             meme_file = await memegen.create(text)
-            await ctx.send(file=discord.File(meme_file))
-        try:
-            meme_file.unlink(missing_ok=True)
-        except Exception:
-            pass
+            try:
+                with closing(discord.File(meme_file)) as attachment:
+                    await ctx.send(file=attachment)
+            finally:
+                meme_file.unlink(missing_ok=True)
 
 
 async def setup(bot):

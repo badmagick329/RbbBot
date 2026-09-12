@@ -3,173 +3,15 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import discord
-import numpy as np
 from aiohttp.client_exceptions import InvalidURL
-from discord import ButtonStyle, Interaction
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from discord.ui import Button, View
 from PIL import Image, UnidentifiedImageError
 from rbb_bot.utils.exceptions import TimeoutError
 from rbb_bot.infrastructure.http.public_download import UnsafeDownload
 from rbb_bot.utils.helpers import http_get, url_to_filename
-
-SMALL = 5
-MEDIUM = 10
-LARGE = 25
-X_LARGE = 50
-XX_LARGE = 100
-
-LEFT = ".. from the left"
-RIGHT = ".. from the right"
-TOP = ".. from the top"
-BOTTOM = ".. from the bottom"
-
-
-class CropSizeButton(Button):
-    def __init__(self, selected: bool, size: int, *args, **kwargs):
-        label = f"Crop by {size} pixels.." if selected else size
-        self.selected = selected
-        self.crop_size = size
-        style = ButtonStyle.green if selected else ButtonStyle.grey
-        super().__init__(style=style, label=label, *args, **kwargs)
-
-    async def callback(self, interaction: Interaction):
-        if self.view is None:
-            return
-        self.view.selected_size = self.crop_size
-        self.view.update_size_buttons()
-        await interaction.response.edit_message(view=self.view)
-
-
-class CropButton(Button):
-    def __init__(self, direction: str, *args, **kwargs):
-        label = self.direction = direction
-        super().__init__(style=ButtonStyle.blurple, label=label, *args, **kwargs)
-
-    async def callback(self, interaction: Interaction):
-        await interaction.response.defer()
-        if not self.view.listening:
-            return
-        await self.adjust_image(interaction, self.view.image)
-
-    async def adjust_image(self, interaction: Interaction, image: Image):
-        self.view.listening = False
-        image_data = np.asarray(normalize_image(image))
-        width, height = image.size
-        if width < X_LARGE * 2 or height < X_LARGE * 2:
-            await self.view.stop_view()
-            return
-        size = self.view.selected_size
-        if self.direction == TOP:
-            image_data = image_data[size:, :, :]
-        if self.direction == RIGHT:
-            image_data = image_data[:, :-size, :]
-        if self.direction == BOTTOM:
-            image_data = image_data[:-size, :, :]
-        if self.direction == LEFT:
-            image_data = image_data[:, size:, :]
-        new_image = Image.fromarray(image_data)
-        buffer = BytesIO()
-        new_image.save(buffer, format=str(self.view.image.format))
-        buffer.seek(0)
-        await self.view.message.edit(
-            attachments=[discord.File(buffer, filename=self.view.filename)]
-        )
-        buffer.seek(0)
-        self.view.image = Image.open(BytesIO(buffer.read()))
-
-        self.view.crop_count += 1
-        if self.view.crop_count == self.view.MAX_CROPS:
-            await self.view.stop_view()
-            return
-        await self.view.message.edit(content=self.view.formatted_text, view=self.view)
-        self.view.listening = True
-
-
-class CropView(View):
-    MAX_CROPS = 10
-    init_message = (
-        "Select a crop size and then click a direction button to crop"
-        "\nWidth:{width} Height:{height}"
-    )
-
-    def __init__(self, ctx: Context, filename: str, timeout: int = 60):
-        self.ctx = ctx
-        self.image = None
-        self.message = None
-        self.filename = filename
-        self.listening = True
-        self.crop_count = 0
-        self.selected_size = SMALL
-        self.size_buttons = list()
-        super().__init__()
-        self.create_buttons()
-
-    def update_size_buttons(self):
-        for button in self.size_buttons:
-            button.selected = button.crop_size == self.selected_size
-            button.style = ButtonStyle.green if button.selected else ButtonStyle.grey
-            button.label = (
-                f"Crop by {button.crop_size} pixels.."
-                if button.selected
-                else button.crop_size
-            )
-
-    def create_buttons(self):
-        self.size_buttons = [
-            CropSizeButton(self.selected_size == SMALL, SMALL),
-            CropSizeButton(self.selected_size == MEDIUM, MEDIUM),
-            CropSizeButton(self.selected_size == LARGE, LARGE),
-            CropSizeButton(self.selected_size == X_LARGE, X_LARGE),
-            CropSizeButton(self.selected_size == XX_LARGE, XX_LARGE),
-        ]
-        for button in self.size_buttons:
-            self.add_item(button)
-
-        self.add_item(CropButton(LEFT, row=1))
-        self.add_item(CropButton(TOP, row=1))
-        self.add_item(CropButton(RIGHT, row=1))
-        self.add_item(CropButton(BOTTOM, row=1))
-
-    @property
-    def formatted_text(self):
-        if self.crop_count == 0:
-            crop_text = f"You can crop the image {self.MAX_CROPS} times"
-        else:
-            crop_text = (
-                f"You can crop the image {self.MAX_CROPS - self.crop_count} more times"
-            )
-        return (
-            f"{self.init_message.format(width=self.image.width, height=self.image.height)}\n"
-            f"{crop_text}"
-        )
-
-    @discord.ui.button(label="Close", style=ButtonStyle.red, row=2)
-    async def close(self, interaction: Interaction, button: Button):
-        await interaction.response.defer()
-        await self.stop_view()
-
-    async def on_timeout(self):
-        await self.stop_view()
-
-    async def stop_view(self):
-        while self.children:
-            self.remove_item(self.children[0])
-        await self.message.edit(content=None, view=self)
-        self.image = None
-        self.stop()
-
-    async def interaction_check(self, interaction: Interaction) -> bool:
-        return (
-            interaction.user == self.ctx.author
-            and interaction.channel == self.ctx.channel
-        )
-
-    async def on_error(
-        self, interaction: Interaction, error: Exception, item: Button
-    ) -> None:
-        self.ctx.bot.logger.error("Error in CropView", exc_info=error)
+from rbb_bot.infrastructure.media.images import crop_image
+from rbb_bot.views.media import CropView
 
 
 class MediaCog(Cog):
@@ -236,7 +78,7 @@ class MediaCog(Cog):
                     image_bytes = arr
             except Exception as e:
                 await ctx.send(f"Could not send image {filename}")
-                self.bot.send_error(
+                await self.bot.send_error(
                     ctx,
                     e,
                     comment="Error sending cropped image",
@@ -249,17 +91,13 @@ class MediaCog(Cog):
         try:
             image_bytes.seek(0)
             image = Image.open(image_bytes)
-            init_text = CropView.init_message.format(
-                width=image.size[0], height=image.size[1]
-            )
             image_bytes.seek(0)
             filename = images_and_names[0][1]
             discord_file = discord.File(image_bytes, filename=filename)
-            view = CropView(ctx, filename)
-            view.message = await ctx.send(init_text, view=view, file=discord_file)
-            view.image = image
+            view = CropView(ctx, filename, image)
+            await view.send(discord_file)
         except Exception as e:
-            self.bot.logger.error(exc_info=e, comment="Error on followup crop")
+            self.bot.logger.error("Error on followup crop", exc_info=e)
 
     @crop.command(name="adjust", brief="Make adjustments to a cropped image")
     @commands.cooldown(2, 5, commands.BucketType.user)
@@ -288,15 +126,10 @@ class MediaCog(Cog):
         img.save(
             image_bytes, format=img.format, save_all=getattr(img, "is_animated", False)
         )
-        image = img
-        init_text = CropView.init_message.format(
-            width=image.size[0], height=image.size[1]
-        )
-        view = CropView(ctx, filename)
+        view = CropView(ctx, filename, img)
         image_bytes.seek(0)
         discord_file = discord.File(image_bytes, filename=filename)
-        view.message = await ctx.send(init_text, view=view, file=discord_file)
-        view.image = image
+        await view.send(discord_file)
 
     async def get_image(self, url: str) -> Image.Image | None:
         try:
@@ -493,103 +326,3 @@ class MediaCog(Cog):
 
 async def setup(bot):
     await bot.add_cog(MediaCog(bot))
-
-
-def normalize_image(image):
-    """Cropping needs color channels; retain transparency from palette and grayscale inputs."""
-    return image.convert(
-        "RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB"
-    )
-
-
-def crop_image(img: Image.Image, threshold: int = 10) -> Image.Image:
-    """
-    Take an image and crop the solid line borders around it
-
-    Parameters
-    ----------
-    img : Image.Image
-        The image to crop
-    threshold : int
-        The threshold for considering 2 pixels to be the same color
-    """
-    img_data = np.asarray(normalize_image(img))
-    mid_height = img_data.shape[0] // 2
-    height = img_data.shape[0]
-    width = img_data.shape[1]
-
-    top_y = 0
-    bottom_y = height
-    threshold = 15
-    GRAD_STEP = 20
-
-    def is_close(pixel1: list[int], pixel2: list[int], threshold: int):
-        for i in range(3):
-            if abs(pixel1[i] - pixel2[i]) > threshold:
-                return False
-        return True
-
-    def calc_top_y(img_data: np.ndarray, mid_height: int, additional_crop: int = 5):
-        """
-        Additional crop is to account for the noise in images esp jpg
-        """
-        top_y = 0
-        for y in range(mid_height, 0, -1):
-            top_y = y + additional_crop
-            r_std = np.std(img_data[y, :, 0])
-            g_std = np.std(img_data[y, :, 1])
-            b_std = np.std(img_data[y, :, 2])
-            if r_std < threshold and g_std < threshold and b_std < threshold:
-                break
-        return top_y
-
-    def calc_bottom_y(img_data: np.ndarray, mid_height: int, additional_crop: int = 5):
-        bottom_y = height
-        for y in range(mid_height, height):
-            bottom_y = y - additional_crop
-            r_std = np.std(img_data[y, :, 0])
-            g_std = np.std(img_data[y, :, 1])
-            b_std = np.std(img_data[y, :, 2])
-            if r_std < threshold and g_std < threshold and b_std < threshold:
-                break
-        return bottom_y
-
-    def calc_left_x(
-        img_data: np.ndarray, width: int, step: int, additional_crop: int = 5
-    ):
-        left_x = width - 2
-        for y in range(top_y, bottom_y, step):
-            x = 0
-            while x < width - 2 and x < left_x:
-                # if not np.allclose(img_data[y, 0, :], img_data[y, x+1, :], atol=threshold):
-                if not is_close(
-                    img_data[y, 0].tolist(), img_data[y, x + 1].tolist(), threshold
-                ):
-                    left_x = x
-                    break
-                x += 1
-        return 0 if left_x == width - 2 else left_x + additional_crop
-
-    def calc_right_x(
-        img_data: np.ndarray, width: int, step: int, additional_crop: int = 5
-    ):
-        right_x = 0
-        for y in range(top_y, bottom_y, step):
-            x = width - 1
-            while x > 2 and x > right_x:
-                # if not np.allclose(img_data[y, width-1, :], img_data[y, x-1, :], atol=threshold):
-                if not is_close(
-                    img_data[y, width - 1].tolist(),
-                    img_data[y, x - 1].tolist(),
-                    threshold,
-                ):
-                    right_x = x
-                    break
-                x -= 1
-        return width - 1 if right_x == 0 else right_x - additional_crop
-
-    top_y = calc_top_y(img_data, mid_height)
-    bottom_y = calc_bottom_y(img_data, mid_height)
-    left_x = calc_left_x(img_data, width, GRAD_STEP)
-    right_x = calc_right_x(img_data, width, GRAD_STEP)
-    return Image.fromarray(img_data[top_y:bottom_y, left_x:right_x, :])

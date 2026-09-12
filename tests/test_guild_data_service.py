@@ -19,7 +19,7 @@ from rbb_bot.models import (
     SourceEntry,
     Tag,
 )
-from rbb_bot.services.guild_data_service import GuildDataService
+from rbb_bot.infrastructure.guild_lifecycle.guild_data import GuildDataService
 from tests._database import get_test_database_url
 
 

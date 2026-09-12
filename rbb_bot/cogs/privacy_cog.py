@@ -8,8 +8,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from rbb_bot.settings.const import PRIVACY_POLICY_URL
-from rbb_bot.services.source_confirmation_service import SourceConfirmationService
-from rbb_bot.services.user_data_service import UserDataService
+from rbb_bot.infrastructure.sources.confirmation import SourceConfirmationService
+from rbb_bot.infrastructure.privacy.user_data import UserDataService
 
 
 class PrivacyDeleteView(discord.ui.View):

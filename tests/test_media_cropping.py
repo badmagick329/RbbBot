@@ -1,7 +1,7 @@
 import pytest
 from PIL import Image, ImageDraw
 
-from rbb_bot.cogs.media_cog import crop_image, normalize_image
+from rbb_bot.infrastructure.media.images import crop_image, normalize_image
 
 
 @pytest.mark.parametrize("mode", ["L", "P", "RGB", "RGBA", "LA"])
@@ -23,3 +23,10 @@ def test_palette_transparency_is_preserved_for_manual_cropping():
     result = normalize_image(image)
     assert result.mode == "RGBA"
     assert result.getpixel((0, 0))[3] == 0
+
+
+@pytest.mark.parametrize("size", [(1, 1), (5, 5), (200, 200)])
+def test_tiny_and_uniform_images_remain_valid(size):
+    image = Image.new("L", size, 0)
+    cropped = crop_image(image)
+    assert cropped.size == size

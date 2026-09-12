@@ -83,6 +83,8 @@ class EmojisCog(Cog):
             await ctx.send_help(ctx.command)
 
     @emote.command(brief="Add an emote to the server")
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def add(self, ctx: Context, name: str, url: Optional[str] = None):
         """
         Add an emote to the server
@@ -133,6 +135,8 @@ class EmojisCog(Cog):
         await ctx.send(f"Added emote {added_emoji}")
 
     @emote.command(brief="Remove one or more emotes from the server")
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def remove(self, ctx: Context, *, emotes: str):
         """
         Remove one or more emotes from the server
@@ -171,6 +175,8 @@ class EmojisCog(Cog):
             await ctx.send("\n".join(final_message))
 
     @emote.command(brief="Rename an emote")
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def rename(self, ctx: Context, new_name: str, emote: Emoji):
         """
         Rename an emote
@@ -198,6 +204,8 @@ class EmojisCog(Cog):
         await ctx.send(f"Changed name of emote {new_emote} to {new_name}")
 
     @emote.command(brief="List available number of slots for emotes")
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def slots(self, ctx: Context):
         """
         List available number of slots for emotes
@@ -213,6 +221,8 @@ class EmojisCog(Cog):
         )
 
     @emote.group(brief="Manage posting emotes in a channel")
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def post(self, ctx: Context):
         """
         Manage posting emotes in a channel
@@ -224,6 +234,8 @@ class EmojisCog(Cog):
         brief="Assign a channel to post emotes in. "
         "I need manage messages and read message history permission"
     )
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def assign(
         self, ctx: Context, channel: TextChannel, delete_previous: bool = True
     ):
@@ -251,9 +263,11 @@ class EmojisCog(Cog):
         await guild.save()
         if tag_catalog := getattr(self.bot, "tag_catalog", None):
             tag_catalog.invalidate(guild.id)
-        await ctx.send(f"Assigned {guild.emojis_channel.mention} to post emotes in")
+        await ctx.send(f"Assigned {channel.mention} to post emotes in")
 
     @post.command(brief="Unassign the channel emotes are posted in")
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def unassign(self, ctx: Context):
         """
         Unassign the channel emotes are posted in
@@ -272,7 +286,9 @@ class EmojisCog(Cog):
         name="message",
         brief="Include a message after posting emotes. Set to clear to remove",
     )
-    async def set_message(self, ctx: Context, *, message: Optional[str]):
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
+    async def set_message(self, ctx: Context, *, message: str):
         """
         Include a message after posting emotes. Set to clear to remove
 
@@ -299,6 +315,8 @@ class EmojisCog(Cog):
 
     @post.command(name="now", brief="Post emotes in the assigned channel now")
     @commands.cooldown(2, 10, commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.has_permissions(manage_emojis=True)
     async def post_now(self, ctx: Context):
         """
         Post emotes in the assigned channel now
@@ -307,21 +325,30 @@ class EmojisCog(Cog):
             await ctx.interaction.response.defer()
 
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if not guild.emojis_channel:
+        if guild.emojis_channel_id is None:
             return await ctx.send("No channel assigned to post emotes in")
-        if not guild.emojis_channel.permissions_for(ctx.guild.me).manage_messages:
+        channel = self.bot.get_channel(guild.emojis_channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(guild.emojis_channel_id)
+        if (
+            guild.delete_emoji_messages
+            and not channel.permissions_for(ctx.guild.me).manage_messages
+        ):
             return await ctx.send(
                 "I don't have manage messages permission in the emotes channel"
             )
-        if not guild.emojis_channel.permissions_for(ctx.guild.me).read_message_history:
+        if (
+            guild.delete_emoji_messages
+            and not channel.permissions_for(ctx.guild.me).read_message_history
+        ):
             return await ctx.send(
                 "I don't have read message history permission in the emotes channel"
             )
 
-        await ctx.send(f"Posting emotes in {guild.emojis_channel.mention}")
+        await ctx.send(f"Posting emotes in {channel.mention}")
         try:
             await self.post_emojis(
-                guild.emojis_channel,
+                channel,
                 ctx.guild,
                 guild.emojis_channel_message,
                 guild.delete_emoji_messages,
@@ -334,24 +361,27 @@ class EmojisCog(Cog):
             await self.bot.send_error(ctx, e, comment="Error posting emotes")
 
     async def post_updated_emojis(self, guild: Guild, discord_guild):
-        if guild.id not in self.post_datetimes:
-            await self.bot.send_error(
-                comment="Post-updated-emojis called without a schedule entry"
+        guild_id = guild.id
+        while guild_id in self.post_datetimes:
+            deadline = self.post_datetimes[guild_id]
+            if deadline > utcnow():
+                await sleep_until(deadline)
+                continue
+            del self.post_datetimes[guild_id]
+            # Configuration may change while the debounce timer is waiting.
+            settings = await Guild.get_or_none(id=guild_id)
+            if settings is None or settings.emojis_channel_id is None:
+                return
+            channel = self.bot.get_channel(settings.emojis_channel_id)
+            if channel is None:
+                channel = await self.bot.fetch_channel(settings.emojis_channel_id)
+            await self.post_emojis(
+                channel,
+                discord_guild,
+                settings.emojis_channel_message,
+                settings.delete_emoji_messages,
             )
             return
-
-        if self.post_datetimes[guild.id] <= utcnow():
-            del self.post_datetimes[guild.id]
-            await self.post_emojis(
-                guild.emojis_channel,
-                discord_guild,
-                guild.emojis_channel_message,
-                guild.delete_emoji_messages,
-            )
-        else:
-            # await asyncio.sleep((self.post_datetimes[guild.id] - utcnow()).total_seconds())
-            await sleep_until(self.post_datetimes[guild.id])
-            await self.post_updated_emojis(guild, discord_guild)
 
     def post_finished(self, task):
         self.post_tasks.discard(task)
@@ -363,7 +393,7 @@ class EmojisCog(Cog):
         self, guild: Guild, before: list[Emoji], after: list[Emoji]
     ):
         guild_settings = await Guild.get_or_none(id=guild.id)
-        if guild_settings is None or guild_settings.emojis_channel is None:
+        if guild_settings is None or guild_settings.emojis_channel_id is None:
             return
 
         if self.post_datetimes.get(guild.id) is None:

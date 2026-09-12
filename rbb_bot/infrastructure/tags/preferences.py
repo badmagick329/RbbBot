@@ -1,4 +1,4 @@
-from rbb_bot.services.user_data_service import UserDataService
+from rbb_bot.infrastructure.privacy.user_data import UserDataService
 
 
 class StoredTagPreferences:

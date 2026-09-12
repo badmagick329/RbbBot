@@ -18,8 +18,8 @@ from discord.ext.commands.errors import (
 from rbb_bot.models import DiskCache
 
 from rbb_bot.settings.const import BotEmojis
-from rbb_bot.services.guild_data_service import GuildDataService
-from rbb_bot.services.user_data_service import UserDataService
+from rbb_bot.infrastructure.guild_lifecycle.guild_data import GuildDataService
+from rbb_bot.infrastructure.privacy.user_data import UserDataService
 from rbb_bot.utils.error_logging import format_error_context
 
 
@@ -48,7 +48,7 @@ class AdminCog(Cog):
             await self.bot.load_extension(f"rbb_bot.cogs.{ext}")
             await ctx.message.add_reaction(BotEmojis.TICK)
         except commands.ExtensionNotFound as e:
-            await ctx.message.send(f"{BotEmojis.CROSS} {e}")
+            await ctx.send(f"{BotEmojis.CROSS} {e}")
         except commands.ExtensionFailed as e:
             await ctx.send(f"{BotEmojis.CROSS} {e}")
 
@@ -248,6 +248,7 @@ class AdminCog(Cog):
             BadArgument,
             MissingRequiredArgument,
             commands.MaxConcurrencyReached,
+            commands.NoPrivateMessage,
         )
         if isinstance(error, errors):
             return await ctx.send(f"{BotEmojis.CROSS} {error}")

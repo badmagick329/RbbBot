@@ -2,10 +2,9 @@ from pathlib import Path
 
 import pendulum
 
-from rbb_bot.utils.scraper import Scraper
+from rbb_bot.infrastructure.releases.scraper import Scraper
 
 FIXTURE_PATH = Path(__file__).parents[1] / "fixtures" / "release_table.html"
-
 
 
 def test_parser_parses_release_rows_and_inherits_the_previous_date():

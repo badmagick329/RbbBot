@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "rbb_bot"))
 from rbb_bot.cogs.kpop_cog import KpopCog
 from rbb_bot.cogs.kpop_cog import Release as KpopRelease
 from rbb_bot.models import Release
-from rbb_bot.utils.scraper import Scraper
+from rbb_bot.infrastructure.releases.scraper import Scraper
 
 
 def test_scraper_uses_the_canonical_tortoise_release_model():
@@ -38,8 +39,11 @@ async def test_scraper_logs_failure_before_first_source_log(monkeypatch):
     async def fail_to_load_releases():
         raise RuntimeError("db down")
 
-    monkeypatch.setattr(scraper, "cbs_from_db", fail_to_load_releases)
+    scraper.repository = SimpleNamespace(read=fail_to_load_releases)
+    scraper.refresh_lock = asyncio.Lock()
 
     await scraper.scrape(urls=["https://example.invalid/releases"])
 
-    logger.exception.assert_called_once_with("Unable to load releases before scraping")
+    logger.exception.assert_called_once_with(
+        "Release refresh failed; stored releases were preserved"
+    )

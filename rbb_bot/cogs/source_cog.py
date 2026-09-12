@@ -1,3 +1,4 @@
+import discord
 from rbb_bot.settings.config import get_discord_settings
 import re
 from datetime import date as Date
@@ -10,7 +11,7 @@ from discord.ext.commands import Cog, Context
 from rbb_bot.models import DiscordUser, SourceEntry
 
 from rbb_bot.settings.const import BotEmojis
-from rbb_bot.services.data_encryption_service import get_data_encryption_service
+from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
 from rbb_bot.utils.helpers import emoji_regex
 from rbb_bot.utils.views import ListView
 
@@ -97,6 +98,7 @@ class SourceCog(Cog):
         name="add",
         brief="Add a source for an emote (Incorrect entries will be removed)",
     )
+    @commands.guild_only()
     async def add_source(
         self,
         ctx: Context,
@@ -126,6 +128,7 @@ class SourceCog(Cog):
         )
 
     @source.command(name="edit", brief="Edit source data for an emote")
+    @commands.guild_only()
     async def source_edit(
         self,
         ctx: Context,
@@ -294,6 +297,8 @@ class SourceCog(Cog):
         username_count = sorted(
             username_count.items(), key=lambda x: x[1], reverse=True
         )
+        if not username_count:
+            return await ctx.send("No source submissions yet")
         view = SubmissionsView(ctx, username_count, chunk_size=8)
         embed = view.create_embed(view.current_chunk)
         view.message = await ctx.send(embed=embed, view=view)
@@ -301,24 +306,40 @@ class SourceCog(Cog):
 
     async def send_conf_message(self, se: SourceEntry):
         """Sends a confirmation message for a source entry."""
-        conf_msg_str = (
-            f"Emote: `{se.emoji_string[0]} {se.emoji_string[1:]}`\n"
-            f"Emoji url: {se.emoji_url}\n"
-            f"Jump url: {se.jump_url}\n"
-            f"Source link: {se.source_url}\n"
-            f"Event: {se.event}\n"
-            f"Date: {se.source_date}\n"
-            f"User ID: {se.user.id}\n"
-            f"Message ID: {se.message_id}\n"
-            f"User name: {se.user.cached_username}\n"
+        fields = {
+            "Emote": f"`{se.emoji_string[0]} {se.emoji_string[1:]}`",
+            "Emoji url": se.emoji_url,
+            "Jump url": se.jump_url,
+            "Source link": se.source_url,
+            "Event": se.event,
+            "Date": se.source_date,
+            "User ID": se.user.id,
+            "Message ID": se.message_id,
+            "User name": se.user.cached_username,
+        }
+        # User-supplied fields must not introduce moderation metadata lines.
+        conf_msg_str = "\n".join(
+            f"{key}: {' '.join(str(value).splitlines())}"
+            for key, value in fields.items()
         )
-        conf_ch = self.bot.get_guild(se.conf_guild_id).get_channel(se.conf_channel_id)
+        conf_ch = self.bot.get_channel(se.conf_channel_id)
+        if conf_ch is None:
+            conf_ch = await self.bot.fetch_channel(se.conf_channel_id)
         conf_msg = await conf_ch.send(conf_msg_str)
-        await conf_msg.add_reaction(BotEmojis.CROSS)
-        await conf_msg.add_reaction(BotEmojis.HAMMER)
         se.conf_message_id = conf_msg.id
         se.conf_jump_url = conf_msg.jump_url
-        await se.save()
+        try:
+            await se.save()
+        except Exception:
+            await conf_msg.delete()
+            raise
+        try:
+            await conf_msg.add_reaction(BotEmojis.CROSS)
+            await conf_msg.add_reaction(BotEmojis.HAMMER)
+        except discord.HTTPException:
+            self.bot.logger.exception(
+                "Source saved but moderation reactions could not be added"
+            )
 
     def validate_source_date(self, date_str: str) -> Date | None:
         date = None
@@ -344,9 +365,13 @@ class SourceCog(Cog):
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
-        if payload.member.bot:
+        if payload.member is None or payload.member.bot:
             return
-        if payload.channel_id != get_discord_settings().confirmation_channel_id:
+        settings = get_discord_settings()
+        if (
+            payload.channel_id != settings.confirmation_channel_id
+            or payload.user_id != settings.owner_id
+        ):
             return
         if payload.emoji.name == BotEmojis.CROSS:
             await self.delete_via_reaction(payload)
@@ -356,25 +381,38 @@ class SourceCog(Cog):
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
-        if payload.channel_id != get_discord_settings().confirmation_channel_id:
+        settings = get_discord_settings()
+        if (
+            payload.channel_id != settings.confirmation_channel_id
+            or payload.user_id != settings.owner_id
+        ):
             return
         if payload.emoji.name == BotEmojis.HAMMER:
             await self.ban_via_reaction(payload, undo=True)
 
-    async def ban_via_reaction(self, payload: RawReactionActionEvent, undo=False):
-        message = await self.bot.get_channel(payload.channel_id).fetch_message(
-            payload.message_id
-        )
-        user_id = self.get_from_lines(message.content.splitlines(), "user id")
-        user = self.bot.get_user(int(user_id))
-        if not user:
-            return
+    async def _confirmation_message(self, payload):
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel is None:
+            channel = await self.bot.fetch_channel(payload.channel_id)
+        return await channel.fetch_message(payload.message_id)
 
-        discord_user = await DiscordUser.get(id=user.id)
+    async def ban_via_reaction(self, payload: RawReactionActionEvent, undo=False):
+        message = await self._confirmation_message(payload)
+        if message.author.id != self.bot.user.id:
+            return
+        user_id = self.get_from_lines(message.content.splitlines(), "user id")
+        if user_id is None or not user_id.isdecimal():
+            return
+        discord_user = await DiscordUser.get_or_none(id=int(user_id))
+        if discord_user is None:
+            return
+        user = discord_user
 
         if undo:
-            if "source" in discord_user.blacklist:
-                discord_user.blacklist.pop("source")
+            blacklist = dict(discord_user.blacklist or {})
+            if "source" in blacklist:
+                blacklist.pop("source")
+                discord_user.blacklist = blacklist
                 await discord_user.save()
                 self.bot.logger.info(
                     f"User no longer blacklisted from adding sources {user} ({user.id})"
@@ -387,31 +425,33 @@ class SourceCog(Cog):
                 self.bot.logger.info("User already blacklisted from adding sources")
                 return
 
-            discord_user.blacklist["source"] = "blacklist"
+            discord_user.blacklist = {
+                **(discord_user.blacklist or {}),
+                "source": "blacklist",
+            }
             await discord_user.save()
             self.bot.logger.info(
                 f"User blacklisted from adding sources {user} ({user.id})"
             )
 
     async def delete_via_reaction(self, payload: RawReactionActionEvent):
-        message = await self.bot.get_channel(payload.channel_id).fetch_message(
-            payload.message_id
-        )
-        original_message_id = self.get_from_lines(
-            message.content.splitlines(), "message id"
-        )
-        source_entry = await SourceEntry.filter(message_id=int(original_message_id))
+        message = await self._confirmation_message(payload)
+        if message.author.id != self.bot.user.id:
+            return
+        source_entry = await SourceEntry.filter(conf_message_id=payload.message_id)
         if source_entry:
             await source_entry[0].delete()
-        last_line = [line for line in message.content.splitlines()][-1]
-        if last_line != "DELETED":
+        if not message.content.rstrip().endswith("\nDELETED"):
             await message.edit(content=f"{message.content}\n\nDELETED")
 
     def get_from_lines(self, lines: list[str], key: str) -> str | None:
+        values = []
         for line in lines:
-            if line.lower().startswith(key):
-                return line.split(":")[1].strip()
-        return None
+            label, separator, value = line.partition(":")
+            if separator and label.lower() == key:
+                values.append(value.strip())
+        # Old confirmation posts can contain untrusted multiline text.
+        return values[0] if len(values) == 1 else None
 
 
 async def setup(bot):

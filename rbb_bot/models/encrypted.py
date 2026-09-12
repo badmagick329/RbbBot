@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from rbb_bot.services.data_encryption_service import get_data_encryption_service
+from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
 
 
 _MISSING = object()

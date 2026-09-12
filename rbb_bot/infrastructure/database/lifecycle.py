@@ -6,7 +6,7 @@ from pathlib import Path
 from tortoise import Tortoise
 from tortoise.transactions import in_transaction
 
-from rbb_bot.services.data_encryption_service import get_data_encryption_service
+from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
 
 ASSETS = Path(__file__).parent
 MIGRATIONS = Path(__file__).resolve().parents[3] / "migrations"

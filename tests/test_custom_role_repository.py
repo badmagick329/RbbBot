@@ -4,7 +4,7 @@ from tortoise import Tortoise
 from rbb_bot.infrastructure.custom_roles.repository import CustomRoleRepository
 from rbb_bot.domain.custom_roles import RoleOwnership
 from rbb_bot.models import CustomRole, DiscordUser, Guild
-from rbb_bot.services.user_data_service import UserDataService
+from rbb_bot.infrastructure.privacy.user_data import UserDataService
 from rbb_bot.infrastructure.database.lifecycle import initialize_empty_database
 from rbb_bot.upgrade_database import upgrade
 from tests.test_database_lifecycle import config, empty_schema

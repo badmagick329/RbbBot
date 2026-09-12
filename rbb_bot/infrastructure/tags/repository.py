@@ -10,7 +10,7 @@ from rbb_bot.domain.tags.rules import (
     TagInputError,
 )
 from rbb_bot.models import Guild, Response, Tag
-from rbb_bot.services.data_encryption_service import get_data_encryption_service
+from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
 
 
 class TortoiseTagRepository:

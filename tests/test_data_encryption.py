@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from tortoise import Tortoise
-from rbb_bot.services.data_encryption_service import (
+from rbb_bot.infrastructure.encryption.codec import (
     DataEncryptionError,
     DataEncryptionService,
 )

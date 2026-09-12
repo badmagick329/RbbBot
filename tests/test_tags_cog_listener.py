@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from rbb_bot.domain.tags.rules import TagDefinition, TagResponse, GuildTags
-from rbb_bot.services.user_data_service import UserDataService
+from rbb_bot.infrastructure.privacy.user_data import UserDataService
 
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "rbb_bot"))

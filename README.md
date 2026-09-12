@@ -168,3 +168,26 @@ normalizes grayscale and palette images while preserving transparency.
 
 After deployment, create and remove a new custom role, verify an existing untracked
 role is preserved, check cleanup on member departure, and crop a grayscale image.
+
+## Continued feature cleanup
+
+Logging configuration, rendering, media processing, hangman state, and release
+refreshes now have separate feature modules. Persistence and external-system code
+lives under `infrastructure/`; obsolete service wrappers and duplicate utilities
+have been removed. These changes introduce no migration beyond migration 54.
+
+Administrative emoji and logging subcommands enforce permissions directly.
+Global source moderation is restricted to the configured bot owner. Failed source
+recording removes its confirmation post; adding moderation reactions cannot undo
+a successful save. Logging supports long Unicode messages as binary attachments.
+
+Release refreshes combine all requested sources before an atomic database write.
+Failures preserve the previous database contents. Hangman completion, cancellation,
+and extension unloading release active views; failed meme sends remove generated
+files. Delayed emoji posts reload current channel settings before delivery.
+
+The integration suite loads, reloads, and unloads every enabled extension without
+connecting to Discord. Before production promotion, exercise logging setup and a
+long edited message, emoji configuration, source moderation, image cropping,
+hangman start/end, and one release refresh on a test server. These external-service
+checks are separate from the local test and migration checks.

@@ -1,11 +1,11 @@
 import pendulum
 
-from rbb_bot.utils.scraper import Scraper
+from rbb_bot.infrastructure.releases.scraper import Scraper
 
 
 def test_urls_include_every_month_from_january_2018_to_the_current_month(monkeypatch):
     monkeypatch.setattr(
-        "rbb_bot.utils.scraper.pendulum.now",
+        "rbb_bot.infrastructure.releases.scraper.pendulum.now",
         lambda: pendulum.datetime(2024, 3, 15, tz="UTC"),
     )
 

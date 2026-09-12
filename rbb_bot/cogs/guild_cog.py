@@ -5,8 +5,8 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
 
 from rbb_bot.models import Guild
-from rbb_bot.services.guild_data_service import GuildDataService
-from rbb_bot.services.source_confirmation_service import SourceConfirmationService
+from rbb_bot.infrastructure.guild_lifecycle.guild_data import GuildDataService
+from rbb_bot.infrastructure.sources.confirmation import SourceConfirmationService
 from rbb_bot.settings.const import BOT_MAX_PREFIX, DISCORD_MAX_MESSAGE
 
 

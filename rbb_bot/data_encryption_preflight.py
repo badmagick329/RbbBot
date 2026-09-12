@@ -5,7 +5,7 @@ import asyncio
 from tortoise import Tortoise
 
 from rbb_bot.data_encryption_migration import verify_encryption_ready
-from rbb_bot.services.data_encryption_service import get_data_encryption_service
+from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
 
 
 class DataEncryptionPreflightError(RuntimeError):
