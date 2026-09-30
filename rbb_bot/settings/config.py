@@ -37,6 +37,7 @@ class Config(BaseModel):
     kprofiles_url: str
     wiki_url: str
     google_url: str
+    privacy_policy_url: str
 
 
 class DiscordSettings(BaseSettings):
@@ -58,6 +59,7 @@ def get_config():
     for field, variable in (
         ("debug", "RBB_DEBUG"),
         ("default_prefix", "RBB_DEFAULT_PREFIX"),
+        ("privacy_policy_url", "RBB_PRIVACY_POLICY_URL"),
     ):
         if variable in os.environ:
             config[field] = os.environ[variable]

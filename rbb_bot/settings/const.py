@@ -8,9 +8,6 @@ DISCORD_MAX_FILE_SIZE = 20 * 1024 * 1024
 MAX_ATTACHMENTS = 10
 BOT_MAX_PREFIX = 10
 MAX_EMBED_FIELD_VALUE = 1024
-PRIVACY_POLICY_URL = (
-    "https://mgck.ink/uploads/fileuploader/admin/13850d52496c47b998fb2d8154c2befa.html"
-)
 
 
 @dataclass

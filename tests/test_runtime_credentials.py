@@ -50,3 +50,5 @@ def test_discord_destinations_and_config_follow_runtime_environment(monkeypatch)
     monkeypatch.setenv("RBB_DEFAULT_PREFIX", "?")
     assert get_config().debug is False
     assert get_config().default_prefix == "?"
+    monkeypatch.setenv("RBB_PRIVACY_POLICY_URL", "https://example.test/policy")
+    assert get_config().privacy_policy_url == "https://example.test/policy"

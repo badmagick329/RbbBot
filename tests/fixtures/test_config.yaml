@@ -1,5 +1,6 @@
 debug: true
 default_prefix: "!"
+privacy_policy_url: "https://example.test/privacy"
 headers: {}
 ig_headers: {}
 kprofiles_url: "https://example.test/kprofiles"

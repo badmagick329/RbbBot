@@ -7,7 +7,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from rbb_bot.settings.const import PRIVACY_POLICY_URL
 from rbb_bot.infrastructure.sources.confirmation import SourceConfirmationService
 from rbb_bot.infrastructure.privacy.user_data import UserDataService
 
@@ -86,7 +85,8 @@ class PrivacyCog(
     @app_commands.command(name="policy", description="View RBB's Privacy Policy.")
     async def policy(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            f"RBB's Privacy Policy: {PRIVACY_POLICY_URL}", ephemeral=True
+            f"RBB's Privacy Policy: {self.bot.config.privacy_policy_url}",
+            ephemeral=True,
         )
 
     @app_commands.command(

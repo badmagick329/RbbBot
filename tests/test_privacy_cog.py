@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from rbb_bot.cogs.privacy_cog import PrivacyCog, PrivacyDeleteView
-from rbb_bot.settings.const import PRIVACY_POLICY_URL
 
 
 @pytest.mark.asyncio
@@ -52,12 +51,13 @@ async def test_privacy_tags_updates_the_cached_global_preference():
 @pytest.mark.asyncio
 async def test_privacy_policy_returns_the_public_link_ephemerally():
     interaction = SimpleNamespace(response=SimpleNamespace(send_message=AsyncMock()))
-    cog = PrivacyCog(SimpleNamespace(logger=Mock()))
+    config = SimpleNamespace(privacy_policy_url="https://example.test/privacy")
+    cog = PrivacyCog(SimpleNamespace(logger=Mock(), config=config))
 
     await PrivacyCog.policy.callback(cog, interaction)
 
     interaction.response.send_message.assert_awaited_once_with(
-        f"RBB's Privacy Policy: {PRIVACY_POLICY_URL}", ephemeral=True
+        "RBB's Privacy Policy: https://example.test/privacy", ephemeral=True
     )
 
 

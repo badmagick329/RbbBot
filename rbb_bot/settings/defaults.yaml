@@ -1,5 +1,6 @@
 debug: False
 default_prefix: "."
+privacy_policy_url: https://github.com/badmagick329/RbbBot/blob/master/PRIVACY_POLICY.md
 headers:
   User-Agent: "Mozilla/5.0 (X11; Linux x86_64; rv:67.0) Gecko/20100101 Firefox/67.0"
   Accept-Language: "en-US,en;q=0.9,en-GB;q=0.8"
