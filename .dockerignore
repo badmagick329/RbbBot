@@ -6,7 +6,7 @@ __pycache__
 dbdata
 test_dbdata
 .env
-notes
+.ignore
 tests
 rbb_bot/settings/creds*.yaml
 rbb_bot/data/rbb_bot.log*
