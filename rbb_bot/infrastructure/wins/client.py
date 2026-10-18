@@ -4,8 +4,15 @@ import re
 from datetime import date
 
 import aiohttp
-from pydantic import (BaseModel, Field, StrictStr, ValidationError, conint,
-                      conlist, validator)
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictStr,
+    ValidationError,
+    conint,
+    conlist,
+    validator,
+)
 
 from rbb_bot.application.wins.latest import RecordedWin, WinsUnavailable
 from rbb_bot.settings.config import KpopWinsSettings
