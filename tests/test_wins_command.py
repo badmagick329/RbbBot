@@ -101,6 +101,24 @@ def test_empty_unavailable_and_filter_titles():
     assert "https://kpopwins.info/wins" in failed.description
 
 
+@pytest.mark.parametrize("artist", ["Artist", "An artist alias"])
+def test_filtered_title_links_to_resolved_artist(artist):
+    embed = wins_embed((WIN,), artist=artist)
+    assert embed.url == "https://kpopwins.info/artists/artist"
+    assert "[Browse the wins archive](https://kpopwins.info/wins)" in embed.description
+
+
+def test_title_keeps_archive_for_unfiltered_empty_or_ambiguous_results():
+    other = RecordedWin(2, WIN.date, "The Show", 4, "Song", 5, "other", "Other")
+    for embed in (
+        wins_embed((WIN,)),
+        wins_embed(artist="Unknown"),
+        wins_embed(artist="Artist", unavailable=True),
+        wins_embed((WIN, other), artist="Shared alias"),
+    ):
+        assert embed.url == "https://kpopwins.info/wins"
+
+
 def test_renderer_bounds_and_escapes_untrusted_text():
     text = "**[link](https://evil.test) @everyone <@123> \\" * 200
     win = RecordedWin(1, WIN.date, text, 2, text, 3, "safe-slug", text)

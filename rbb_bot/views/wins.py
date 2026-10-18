@@ -34,7 +34,12 @@ def wins_embed(
         )
     elif not wins:
         description = "No recorded wins matched.\n\n" + ARCHIVE_LINK
-    embed = Embed(title=title, url=PUBLIC_SITE + "/wins", description=description)
+    title_url = PUBLIC_SITE + "/wins"
+    # Resolve aliases from returned records; a name/alias collision can match
+    # multiple artists, so only a single resolved artist gets the title link.
+    if artist is not None and wins and len({win.artist_id for win in wins}) == 1:
+        title_url = f"{PUBLIC_SITE}/artists/{wins[0].artist_slug}"
+    embed = Embed(title=title, url=title_url, description=description)
     for win in wins[:5]:
         embed.add_field(
             name=f"{win.date.isoformat()} · {display_text(win.show, 80)}",
