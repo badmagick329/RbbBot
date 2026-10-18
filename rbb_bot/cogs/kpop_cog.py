@@ -6,7 +6,7 @@ from typing import List, Optional
 import dateparser
 import pendulum
 from bs4 import BeautifulSoup
-from discord import Embed
+from discord import AllowedMentions, Embed
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
 from discord.utils import format_dt
@@ -15,6 +15,12 @@ from tortoise.expressions import Q
 from rbb_bot.utils.helpers import http_get, truncate
 from rbb_bot.infrastructure.releases.scraper import Scraper
 from rbb_bot.utils.views import ListView, SearchResult, SearchResultsView
+from rbb_bot.application.wins.latest import (
+    InvalidArtist,
+    WinsUnavailable,
+    normalize_artist,
+)
+from rbb_bot.views.wins import wins_embed
 
 
 class VideoList(ListView):
@@ -79,7 +85,10 @@ class ReleasesView(ListView):
                         value_ += f"\n{url}"
             return release_time, value_
 
-        embed = Embed(title=f"Page {self.current_page + 1} of {len(self.view_chunks)}")
+        embed = Embed(
+            title=f"Page {self.current_page + 1} of {len(self.view_chunks)}",
+            description="[Browse comebacks on the web](https://mgck.ink/kpop)",
+        )
         header_name = f"{len(self.list_items)} {'releases' if len(self.list_items) > 1 else 'release'}"
         header_value = "Times displayed in your local timezone"
         embed.add_field(name=header_name, value=header_value, inline=False)
@@ -353,6 +362,34 @@ class KpopCog(Cog):
         else:
             await ctx.send("No recent releases found. Showing older releases")
             return await send_releases(ctx, releases)
+
+    @commands.hybrid_command(brief="Show the latest recorded music-show wins")
+    @commands.cooldown(2, 5, commands.BucketType.user)
+    async def wins(self, ctx: Context, *, artist: Optional[str] = None) -> None:
+        """Show five latest recorded wins, optionally by exact artist name or alias.
+
+        Parameters
+        ----------
+        artist: Optional[str]
+            Exact artist name or known alias (up to 100 characters).
+        """
+        if ctx.interaction is not None:
+            await ctx.defer()
+        try:
+            artist = normalize_artist(artist)
+        except InvalidArtist as error:
+            await ctx.send(
+                f"{error}\nhttps://kpopwins.info/wins",
+                allowed_mentions=AllowedMentions.none(),
+            )
+            return
+        try:
+            wins = await self.bot.latest_wins.execute(artist)
+        except WinsUnavailable:
+            embed = wins_embed(artist=artist, unavailable=True)
+        else:
+            embed = wins_embed(wins, artist=artist)
+        await ctx.send(embed=embed, allowed_mentions=AllowedMentions.none())
 
     @commands.hybrid_command(
         brief="Post a random YouTube comment from a kpop music video",
