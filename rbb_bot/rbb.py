@@ -14,6 +14,9 @@ from rbb_bot.utils.views import ConfirmView
 
 from rbb_bot.settings.config import Config, Creds
 from rbb_bot.settings.config import get_discord_settings
+from rbb_bot.settings.config import get_kpopwins_settings
+from rbb_bot.application.wins.latest import LatestWins
+from rbb_bot.infrastructure.wins.client import KpopWinsClient
 from rbb_bot.utils.error_logging import format_error_context
 from rbb_bot.utils.mixins import ClientMixin
 
@@ -27,6 +30,7 @@ class RbbBot(commands.Bot):
         self.creds = creds
         self.logger = logger
         self.web_client = web_client
+        self.latest_wins = LatestWins(KpopWinsClient(web_client, get_kpopwins_settings()))
         self.load_cogs = [
             c.stem
             for c in (Path(__file__).parent / "cogs").glob("*.py")

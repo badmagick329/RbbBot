@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic import BaseModel, BaseSettings, Field, SecretStr, validator
 
 CONFIG_FILE = Path(
     os.environ.get("RBB_CONFIG_FILE", Path(__file__).parent / "defaults.yaml")
@@ -47,6 +48,49 @@ class DiscordSettings(BaseSettings):
     logger_channel_id: int = Field(..., gt=0, env="RBB_LOGGER_CHANNEL_ID")
     confirmation_channel_id: int = Field(..., gt=0, env="RBB_CONFIRMATION_CHANNEL_ID")
     confirmation_guild_id: int = Field(..., gt=0, env="RBB_CONFIRMATION_GUILD_ID")
+
+
+class KpopWinsSettings(BaseSettings):
+    api_base_url: str = Field(
+        "https://api.kpopwins.info/api/v1", env="RBB_KPOPWINS_API_BASE_URL"
+    )
+    internal_key: SecretStr = Field("", env="RBB_KPOPWINS_INTERNAL_KEY", repr=False)
+
+    @validator("api_base_url")
+    def trusted_api_origin(cls, value):
+        try:
+            parts = urlsplit(value)
+            port = parts.port
+            valid = (
+                parts.scheme in ("http", "https")
+                and parts.hostname
+                and not parts.username
+                and not parts.password
+                and not parts.query
+                and not parts.fragment
+                and parts.path.rstrip("/") == "/api/v1"
+                and (port is None or port > 0)
+                and not any(char.isspace() or ord(char) < 32 for char in value)
+            )
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValueError(
+                "Use an HTTP(S) API base ending in /api/v1, without credentials, query or fragment"
+            )
+        return value.rstrip("/")
+
+    @validator("internal_key")
+    def header_secret(cls, value):
+        if any(not 33 <= ord(char) <= 126 for char in value.get_secret_value()):
+            raise ValueError(
+                "Internal key must contain printable ASCII without whitespace"
+            )
+        return value
+
+
+def get_kpopwins_settings() -> KpopWinsSettings:
+    return KpopWinsSettings()
 
 
 def get_discord_settings() -> DiscordSettings:
@@ -99,3 +143,4 @@ def validate_runtime_settings() -> None:
     get_creds()
     get_discord_settings()
     get_data_encryption_key()
+    get_kpopwins_settings()

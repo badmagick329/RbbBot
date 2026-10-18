@@ -43,6 +43,8 @@ RBB checks messages sent in a server against that server's configured tag trigge
 
 When a user explicitly uses a command that accepts text, a URL, or an image attachment, RBB processes that input to provide the requested result. RBB does not store those inputs unless they are saved as a reminder, source submission, or server configuration described above.
 
+For music-show wins lookup, RBB sends the requested artist name or alias to the owner's Kpop Wins API. It sends no Discord user, server or channel identifiers. Artist filters and public results are held in a bounded memory cache, reused for 60 seconds and removed on eviction or bot restart.
+
 ### Welcome-message URL imports
 
 When a server administrator asks RBB to import URLs from a selected channel for welcome messages, RBB reads message text and attachment URLs in that channel to extract and store the URLs as welcome-message configuration.
@@ -99,4 +101,4 @@ Discord user ID: `221379755830804480`
 
 ---
 
-RBB Privacy Policy · Effective 18 July 2026 · Last updated 8 August 2026
+RBB Privacy Policy · Effective 18 July 2026 · Last updated 18 October 2026
