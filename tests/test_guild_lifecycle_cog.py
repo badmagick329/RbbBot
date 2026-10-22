@@ -134,7 +134,7 @@ async def test_reconcile_guilds_command_uses_ready_guild_ids():
         await AdminCog.reconcile_guilds.callback(cog, ctx)
 
     reconcile_departed_guilds.assert_awaited_once_with([1, 2])
-    ctx.send.assert_awaited_once_with("Marked 1 legacy departed guild.")
+    ctx.send.assert_awaited_once_with("Marked 1 legacy departed server.")
     bot.logger.info.assert_called_once_with(
         "Legacy guild reconciliation complete count=%s guild_ids=%s", 1, "3"
     )

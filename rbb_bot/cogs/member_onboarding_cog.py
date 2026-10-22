@@ -248,7 +248,7 @@ class MemberOnboardingCog(Cog):
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
-    @autorole.command(name="add", brief="Add an automatic role")
+    @autorole.command(name="add", brief="Add an auto role")
     @configuration_command("manage_roles")
     async def add_role(self, ctx: Context, role: Role):
         if ctx.author.id != ctx.guild.owner_id and role >= ctx.author.top_role:
@@ -279,7 +279,7 @@ class MemberOnboardingCog(Cog):
             )
         await ctx.send(assignment_summary(result))
 
-    @autorole.command(name="remove", brief="Remove an automatic role")
+    @autorole.command(name="remove", brief="Remove an auto role")
     @configuration_command("manage_roles")
     async def remove_role(self, ctx: Context, role: Role):
         count = await self.roles.remove(ctx.guild.id, (role.id,))
@@ -289,7 +289,7 @@ class MemberOnboardingCog(Cog):
             else "Role not found in auto role list"
         )
 
-    @autorole.command(name="list", brief="List automatic roles")
+    @autorole.command(name="list", brief="List auto roles")
     @configuration_command("manage_roles")
     async def list_roles(self, ctx: Context):
         roles = await self.roles.available(ctx.guild.id)
@@ -297,7 +297,7 @@ class MemberOnboardingCog(Cog):
             return await ctx.send("No auto roles set for this server")
         await ctx.send(embed=role_embed(roles))
 
-    @autorole.command(brief="Remove all automatic roles")
+    @autorole.command(brief="Remove all auto roles")
     @configuration_command("manage_roles")
     async def remove_all(self, ctx: Context):
         await self.roles.clear(ctx.guild.id)

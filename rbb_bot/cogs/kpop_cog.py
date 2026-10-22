@@ -87,7 +87,7 @@ class ReleasesView(ListView):
 
         embed = Embed(
             title=f"Page {self.current_page + 1} of {len(self.view_chunks)}",
-            description="[Browse comebacks on the web](https://mgck.ink/kpop)",
+            description="[Browse releases on the web](https://mgck.ink/kpop)",
         )
         header_name = f"{len(self.list_items)} {'releases' if len(self.list_items) > 1 else 'release'}"
         header_value = "Times displayed in your local timezone"
@@ -288,7 +288,7 @@ class KpopCog(Cog):
         release_type: str
             Filter by this release type (Optional) - Partial match
         start_date: str
-             Show comebacks from this date onwards. Earliest=2018-01-01 (Optional)
+             Show releases from this date onwards. Earliest=2018-01-01 (Optional)
         """
         waited = 0
         async with ctx.typing():

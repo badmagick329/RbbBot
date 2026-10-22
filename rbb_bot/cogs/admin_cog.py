@@ -89,10 +89,10 @@ class AdminCog(Cog):
     ) -> None:
         """
         sync -> global sync
-        sync ~ -> sync current guild
-        sync * -> copies all global app commands to current guild and syncs
-        sync ^ -> clears all commands from the current guild target and syncs (removes guild commands)
-        sync id_1 id_2 -> syncs guilds with id 1 and 2
+        sync ~ -> sync current server
+        sync * -> copies all global app commands to current server and syncs
+        sync ^ -> clears all commands from the current server target and syncs (removes server commands)
+        sync id_1 id_2 -> syncs servers with id 1 and 2
         """
         if not guilds:
             if spec == "~":
@@ -108,7 +108,7 @@ class AdminCog(Cog):
                 synced = await ctx.bot.tree.sync()
 
             await ctx.send(
-                f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}"
+                f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current server.'}"
             )
             return
 
@@ -146,7 +146,7 @@ class AdminCog(Cog):
             )
         except Exception:
             self.bot.logger.exception("Legacy guild reconciliation failed")
-            await ctx.send(f"{BotEmojis.CROSS} Guild reconciliation failed.")
+            await ctx.send(f"{BotEmojis.CROSS} Server reconciliation failed.")
             return
 
         self.bot.logger.info(
@@ -155,7 +155,7 @@ class AdminCog(Cog):
             ",".join(str(guild_id) for guild_id in guild_ids),
         )
         await ctx.send(
-            f"Marked {len(guild_ids)} legacy departed guild"
+            f"Marked {len(guild_ids)} legacy departed server"
             f"{'s' if len(guild_ids) != 1 else ''}."
         )
 

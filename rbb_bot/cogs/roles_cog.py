@@ -32,13 +32,13 @@ class RolesCog(Cog):
     async def cog_unload(self):
         self.bot.logger.debug("RolesCog unloaded!")
 
-    @commands.hybrid_group(brief="Manage unique roles for this server")
+    @commands.hybrid_group(brief="Manage custom roles for this server")
     @commands.guild_only()
     async def roles(self, ctx):
         """
-        Manage unique roles for this server
+        Manage custom roles for this server
 
-        When enabled, users can create unique custom roles for themselves.
+        When enabled, users can create custom roles for themselves.
         Only roles recorded as created by this bot can be removed, and only when
         they are not manually assigned to more than one user.
         I will need `manage roles` permission for this.
@@ -54,7 +54,7 @@ class RolesCog(Cog):
         Information about this command
         """
         info = (
-            "When enabled, users can create unique custom roles for themselves. "
+            "When enabled, users can create custom roles for themselves. "
             "Only roles recorded as created by this bot can be removed, and only when "
             "they are not manually assigned to more than one user. "
         )
@@ -66,17 +66,17 @@ class RolesCog(Cog):
         )
         await ctx.send(embed=embed)
 
-    @roles.command(brief="Enable unique roles for this server")
+    @roles.command(brief="Enable custom roles for this server")
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
     async def enable(self, ctx: Context, enabled: bool):
         """
-        Enable unique roles for this server
+        Enable custom roles for this server
 
         Parameters
         ----------
         enabled : bool
-            Whether to enable or disable unique roles (True/False)
+            Whether to enable or disable custom roles (True/False)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -90,18 +90,18 @@ class RolesCog(Cog):
             "The role assigned to me will also need to be above all other members."
         )
 
-    @roles.command(name="max", brief="Set maximum number of unique roles per user")
+    @roles.command(name="max", brief="Set maximum number of custom roles per user")
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
     async def max_(self, ctx: Context, max_roles: Literal[1, 2, 3, 4, 5]):
         """
-        Set maximum number of unique roles per user
+        Set maximum number of custom roles per user
 
 
         Parameters
         ----------
         max_roles : Literal[1, 2, 3, 4, 5]
-            Maximum number of unique roles per user (1-5) (Required)
+            Maximum number of custom roles per user (1-5) (Required)
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
@@ -112,7 +112,7 @@ class RolesCog(Cog):
         guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         guild.max_custom_roles = max_roles
         await guild.save()
-        await ctx.send(f"Maximum number of unique roles per user is now {max_roles}")
+        await ctx.send(f"Maximum number of custom roles per user is now {max_roles}")
 
     @roles.command(brief="Remove unused roles")
     @commands.guild_only()
@@ -215,13 +215,13 @@ class RolesCog(Cog):
         view.embed = view.create_embed(view.current_chunk)
         view.message = await ctx.send(embed=view.embed, view=view)
 
-    @roles.command(brief="Create a unique role for yourself")
+    @roles.command(brief="Create a custom role for yourself")
     @commands.guild_only()
     @commands.cooldown(2, 5, commands.BucketType.user)
     @commands.max_concurrency(1, per=commands.BucketType.member, wait=False)
     async def add(self, ctx: Context, color: str, *, name: str):
         """
-        Create a unique role for yourself
+        Create a custom role for yourself
 
         Parameters
         ----------
@@ -245,7 +245,7 @@ class RolesCog(Cog):
         }
         if len(unique_ids) >= guild.max_custom_roles:
             return await ctx.send(
-                f"You already have {guild.max_custom_roles} unique roles. Remove one or ask a server administrator for help."
+                f"You already have {guild.max_custom_roles} custom roles. Remove one or ask a server administrator for help."
             )
 
         name = name.strip()
@@ -298,11 +298,11 @@ class RolesCog(Cog):
                 "Please move my role above others so I can do this in the future."
             )
 
-    @roles.command(brief="Remove a unique role")
+    @roles.command(brief="Remove a custom role")
     @commands.guild_only()
     async def remove(self, ctx: Context, *, role: Role):
         """
-        Remove a unique role
+        Remove a custom role
 
         Parameters
         ----------

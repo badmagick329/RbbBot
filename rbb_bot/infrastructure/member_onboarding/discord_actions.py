@@ -43,7 +43,7 @@ class DiscordOnboarding:
     async def roles(self, guild_id, ids):
         guild = self.bot.get_guild(guild_id)
         if guild is None:
-            raise OnboardingInputError("Guild is unavailable")
+            raise OnboardingInputError("Server is unavailable")
         roles = {role.id: role for role in guild.roles}
         if any(role_id not in roles for role_id in ids):
             roles = {role.id: role for role in await guild.fetch_roles()}

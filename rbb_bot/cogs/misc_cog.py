@@ -40,12 +40,12 @@ class MiscCog(Cog):
     async def snowflake(self, ctx, snowflakes: str):
         """
         Get create date for discord snowflakes separated by spaces.
-        These can also be emojis, user mentions, channel mentions, or role mentions.
+        These can also be emotes, user mentions, channel mentions, or role mentions.
 
         Parameters
         ----------
         snowflakes: str
-            Discord snowflakes to get create date for. These can also be emojis (Required)
+            Discord snowflakes to get create date for. These can also be emotes (Required)
         """
         results = list()
         for arg in snowflakes.split(" "):
@@ -262,7 +262,7 @@ def get_snowflake_data(string: str, bot: commands.Bot) -> Optional[dict]:
             return None
 
     if match := emoji_regex.search(string):
-        result["type"] = "Emoji"
+        result["type"] = "Emote"
         result["created"] = discord.Object(int(match.group(3))).created_at
         result["str"] = match.group(2)
         # discord.get_emoji returns None

@@ -308,7 +308,7 @@ class SourceCog(Cog):
         """Sends a confirmation message for a source entry."""
         fields = {
             "Emote": f"`{se.emoji_string[0]} {se.emoji_string[1:]}`",
-            "Emoji url": se.emoji_url,
+            "Emote url": se.emoji_url,
             "Jump url": se.jump_url,
             "Source link": se.source_url,
             "Event": se.event,

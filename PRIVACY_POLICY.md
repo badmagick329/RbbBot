@@ -2,7 +2,7 @@
 
 This policy explains what the RBB Discord bot processes, what it stores, and the controls available to you.
 
-Effective 18 July 2026 · Last updated 8 August 2026
+Effective 18 July 2026 · Last updated 22 October 2026
 
 ## Contents
 
@@ -27,13 +27,13 @@ _02 / Data used_
 
 ## Information RBB uses
 
-### Guild configuration
+### Server configuration
 
-RBB stores guild and channel IDs, configured prefixes, role IDs, welcome/join settings, logging settings, tags, tag responses, and administrator-configured welcome-response text or URLs. These settings allow each server to configure the bot's features.
+RBB stores server and channel IDs, configured prefixes, role IDs, welcome/join settings, logging settings, tags, tag responses, and administrator-configured welcome-response text or URLs. These settings allow each server to configure the bot's features.
 
 ### Reminders and source submissions
 
-For reminders, RBB stores the Discord user ID, relevant guild/channel IDs, reminder text, and timing information. For emoji source submissions, it stores the submitting user's Discord ID, a cached username, source metadata, URLs, and relevant Discord message/channel identifiers needed for moderation and attribution.
+For reminders, RBB stores the Discord user ID, relevant server/channel IDs, reminder text, and timing information. For emote source submissions, it stores the submitting user's Discord ID, a cached username, source metadata, URLs, and relevant Discord message/channel identifiers needed for moderation and attribution.
 
 ### Automatic tag responses
 
@@ -49,7 +49,7 @@ For music-show wins lookup, RBB sends the requested artist name or alias to the 
 
 When a server administrator asks RBB to import URLs from a selected channel for welcome messages, RBB reads message text and attachment URLs in that channel to extract and store the URLs as welcome-message configuration.
 
-### Optional guild logging
+### Optional server logging
 
 If a server administrator enables message edit or deletion logging, RBB copies the relevant message text, author information, channel, message ID, and timestamps to that server's chosen Discord log channel.
 
@@ -59,10 +59,10 @@ _03 / Retention_
 
 ## How long information is kept
 
-- **Guild configuration:** kept while RBB is installed. When RBB leaves a configured server, the data is kept for a 7-day re-invite grace period. Re-inviting RBB in that period cancels the deletion; otherwise the guild-scoped configuration is deleted.
-- **Reminders:** deleted after successful delivery, manual removal, user deletion, or applicable guild cleanup. A reminder that cannot be delivered can remain pending until it is delivered or removed.
-- **Source submissions and user state:** retained while needed for the source-submission and moderation features, unless deleted through the controls below or applicable guild cleanup.
-- **Tags and responses:** treated as guild configuration and deleted under the same guild-departure rule.
+- **Server configuration:** kept while RBB is installed. When RBB leaves a configured server, the data is kept for a 7-day re-invite grace period. Re-inviting RBB in that period cancels the deletion; otherwise the server's configuration is deleted.
+- **Reminders:** deleted after successful delivery, manual removal, user deletion, or applicable server cleanup. A reminder that cannot be delivered can remain pending until it is delivered or removed.
+- **Source submissions and user state:** retained while needed for the source-submission and moderation features, unless deleted through the controls below or applicable server cleanup.
+- **Tags and responses:** treated as server configuration and deleted under the same server departure rule.
 
 <a id="your-controls"></a>
 
@@ -101,4 +101,4 @@ Discord user ID: `221379755830804480`
 
 ---
 
-RBB Privacy Policy · Effective 18 July 2026 · Last updated 18 October 2026
+RBB Privacy Policy · Effective 18 July 2026 · Last updated 22 October 2026

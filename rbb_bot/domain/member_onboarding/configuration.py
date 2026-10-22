@@ -40,5 +40,5 @@ def welcome_message(value: str) -> str:
 def check_role_capacity(count: int) -> None:
     if count >= MAX_AUTO_ROLES:
         raise OnboardingInputError(
-            f"You can only have a maximum of {MAX_AUTO_ROLES} auto roles per guild"
+            f"You can only have a maximum of {MAX_AUTO_ROLES} auto roles per server"
         )
