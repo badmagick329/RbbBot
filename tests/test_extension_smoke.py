@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
@@ -13,6 +14,23 @@ from rbb_bot.settings.config import get_config
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_every_enabled_extension_loads_reloads_and_unloads(test_database):
+    # Extension loading swaps fresh cog modules into sys.modules and unloading
+    # evicts them. Later tests hold classes from the original modules, and
+    # mock.patch now resolves targets through sys.modules, so restore them.
+    original_cog_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name.startswith("rbb_bot.cogs.")
+    }
+    try:
+        await _load_reload_and_unload_every_extension()
+    finally:
+        for name in [n for n in sys.modules if n.startswith("rbb_bot.cogs.")]:
+            del sys.modules[name]
+        sys.modules.update(original_cog_modules)
+
+
+async def _load_reload_and_unload_every_extension():
     async with commands.Bot(command_prefix=".", intents=discord.Intents.all()) as bot:
         bot.config = get_config()
         bot.creds = SimpleNamespace(search_key="unused")
