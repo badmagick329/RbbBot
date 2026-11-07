@@ -8,11 +8,11 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-
 DEFAULT_TEST_DATABASE_URL = "postgres://rbb_test:rbb_test@127.0.0.1:5433/rbb_test"
 
 os.environ.setdefault(
-    "RBB_CONFIG_FILE", str(Path(__file__).parent / "tests" / "fixtures" / "test_config.yaml")
+    "RBB_CONFIG_FILE",
+    str(Path(__file__).parent / "tests" / "fixtures" / "test_config.yaml"),
 )
 
 database_url = os.environ.get("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL)

@@ -7,7 +7,6 @@ from rbb_bot.models import DiscordUser, Reminder, SourceEntry
 from rbb_bot.infrastructure.privacy.user_data import UserDataService
 from tests._database import get_test_database_url
 
-
 pytestmark = pytest.mark.integration
 
 

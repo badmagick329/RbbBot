@@ -12,7 +12,6 @@ from rbb_bot.infrastructure.encryption.codec import (
     DataEncryptionService,
 )
 
-
 RELEASE_B_MIGRATION_PATH = (
     Path(__file__).parents[1]
     / "migrations"
@@ -34,8 +33,7 @@ def load_release_b_migration():
 
 async def add_release_a_plaintext_columns(connection):
     """Make the final-schema fixture look like the completed Release A schema."""
-    await connection.execute_script(
-        """
+    await connection.execute_script("""
         ALTER TABLE "guild" ADD COLUMN "prefix" VARCHAR(10);
         ALTER TABLE "guild" ADD COLUMN "emojis_channel_message" VARCHAR(2000);
         ALTER TABLE "greeting" ADD COLUMN "title" VARCHAR(256);
@@ -54,8 +52,7 @@ async def add_release_a_plaintext_columns(connection):
         ALTER TABLE "sourceentry" ADD COLUMN "conf_jump_url" VARCHAR(255);
         ALTER TABLE "botupdate" ADD COLUMN "message" TEXT;
         ALTER TABLE "botissue" ADD COLUMN "message" TEXT;
-        """
-    )
+        """)
 
 
 def test_aes_gcm_ciphertexts_are_authenticated_and_randomised():
@@ -94,12 +91,10 @@ async def test_new_writes_store_ciphertext_and_preserve_model_behaviour(test_dat
     )
     assert "private response" not in rows[0]["content_ciphertext"]
 
-    _, rows = await connection.execute_query(
-        """
+    _, rows = await connection.execute_query("""
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'guild' AND column_name = 'prefix';
-        """
-    )
+        """)
     assert rows == []
 
     loaded_tag = await TortoiseTagRepository().find_tag(
@@ -117,13 +112,11 @@ async def test_release_b_migration_rejects_unverified_plaintext(test_database):
     migration = load_release_b_migration()
 
     await add_release_a_plaintext_columns(connection)
-    await connection.execute_script(
-        """
+    await connection.execute_script("""
         INSERT INTO "guild" ("id", "prefix") VALUES (456, '$');
         INSERT INTO "encryptionmetadata" ("id", "sentinel", "state", "format_version")
         VALUES (1, 'test', 'complete', 1);
-        """
-    )
+        """)
 
     with pytest.raises(Exception, match="Encryption verification failed"):
         await connection.execute_script(await migration.upgrade(connection))
@@ -146,19 +139,15 @@ async def test_release_b_migration_removes_verified_plaintext(test_database):
         """,
         [456, "$", service.encrypt("$")],
     )
-    await connection.execute_query(
-        """
+    await connection.execute_query("""
         INSERT INTO "encryptionmetadata" ("id", "sentinel", "state", "format_version")
         VALUES (1, 'test', 'complete', 1);
-        """
-    )
+        """)
 
     await connection.execute_script(await migration.upgrade(connection))
 
-    _, rows = await connection.execute_query(
-        """
+    _, rows = await connection.execute_query("""
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'guild' AND column_name = 'prefix';
-        """
-    )
+        """)
     assert rows == []

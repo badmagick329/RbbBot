@@ -73,8 +73,10 @@ def member_event(member, joined):
     if not joined:
         embed.add_field(
             name="Joined At",
-            value=f"{timestamps.joined_at} ~ {timestamps.joined_at_relative}"
-            if member.joined_at
-            else "Unknown",
+            value=(
+                f"{timestamps.joined_at} ~ {timestamps.joined_at_relative}"
+                if member.joined_at
+                else "Unknown"
+            ),
         )
     return {"embed": embed}

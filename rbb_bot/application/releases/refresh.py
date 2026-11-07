@@ -2,16 +2,13 @@ from typing import Protocol
 
 
 class ReleaseSource(Protocol):
-    async def read(self, url: str, saved: list[dict]) -> list[dict]:
-        ...
+    async def read(self, url: str, saved: list[dict]) -> list[dict]: ...
 
 
 class ReleaseStore(Protocol):
-    async def read(self) -> list[dict]:
-        ...
+    async def read(self) -> list[dict]: ...
 
-    async def save(self, releases: list[dict]) -> None:
-        ...
+    async def save(self, releases: list[dict]) -> None: ...
 
 
 class RefreshReleases:

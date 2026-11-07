@@ -2,7 +2,6 @@ import pytest
 
 from rbb_bot.application.member_onboarding import HandleMemberJoin, MemberJoinAction
 
-
 pytestmark = pytest.mark.asyncio
 
 

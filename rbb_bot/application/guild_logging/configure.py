@@ -12,11 +12,9 @@ class LoggingSettings:
 
 
 class LoggingRepository(Protocol):
-    async def read(self, guild_id: int) -> LoggingSettings:
-        ...
+    async def read(self, guild_id: int) -> LoggingSettings: ...
 
-    async def update(self, guild_id: int, changes: dict) -> LoggingSettings:
-        ...
+    async def update(self, guild_id: int, changes: dict) -> LoggingSettings: ...
 
 
 class ConfigureLogging:

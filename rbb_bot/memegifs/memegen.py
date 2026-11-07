@@ -99,6 +99,7 @@ class IreneTweeting(VideoGenerator):
         image = self.image_with_text(text, 38, 3, 120, 100)
         return await self.generate_video(image, 3)
 
+
 class ElijahTerrific(VideoGenerator):
     IMAGE_FILE = DATA_DIR / "elijah.png"
     VIDEO_FILE = DATA_DIR / "elijah.mp4"
@@ -111,13 +112,14 @@ class ElijahTerrific(VideoGenerator):
             video_file=self.VIDEO_FILE,
             font_file=self.FONT_FILE,
             font_size=font_size,
-            rgb_color=(184,97,255),
+            rgb_color=(184, 97, 255),
         )
         super().__init__(config)
 
     async def create(self, text: str) -> bytes:
         image = self.image_with_text(text, 14, 4, 12, 20)
         return await self.generate_video(image, 5)
+
 
 def text_to_lines(text: str, line_max: int = 40) -> list[str]:
     lines = list()

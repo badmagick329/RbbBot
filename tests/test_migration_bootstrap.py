@@ -14,7 +14,6 @@ from rbb_bot.migration_bootstrap import (
 )
 from tests._database import get_test_database_url
 
-
 pytestmark = pytest.mark.integration
 
 ENCRYPTION_MIGRATION_PATH = (
@@ -38,8 +37,7 @@ def load_encryption_migration():
 
 async def create_legacy_command_log_table():
     connection = Tortoise.get_connection("default")
-    await connection.execute_script(
-        """
+    await connection.execute_script("""
         CREATE TABLE "commandlog" (
             "id" SERIAL NOT NULL PRIMARY KEY,
             "command_name" VARCHAR(255) NOT NULL,
@@ -52,18 +50,15 @@ async def create_legacy_command_log_table():
             "args" JSONB,
             "kwargs" JSONB
         );
-        """
-    )
+        """)
 
 
 async def add_legacy_discord_user_columns():
     connection = Tortoise.get_connection("default")
-    await connection.execute_script(
-        '''
+    await connection.execute_script("""
         ALTER TABLE "discorduser" ADD COLUMN "cached_username" VARCHAR(32);
         ALTER TABLE "discorduser" ADD COLUMN "blacklist" JSONB;
-        '''
-    )
+        """)
 
 
 @pytest.mark.asyncio
@@ -155,19 +150,15 @@ async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
         "SELECT to_regclass('public.commandlog') AS table_name;"
     )
     assert rows[0]["table_name"] is None
-    _, rows = await connection.execute_query(
-        """
+    _, rows = await connection.execute_query("""
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'guild'
           AND column_name = 'departed_at';
-        """
-    )
+        """)
     assert [row["column_name"] for row in rows] == ["departed_at"]
-    _, rows = await connection.execute_query(
-        """
+    _, rows = await connection.execute_query("""
         SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'discorduser'
           AND column_name = 'tag_opt_out';
-        """
-    )
+        """)
     assert [row["column_name"] for row in rows] == ["tag_opt_out"]

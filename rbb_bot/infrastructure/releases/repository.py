@@ -67,9 +67,11 @@ class ReleaseRepository:
                     album_title=cb["album_title"],
                     title=cb["title"],
                     release_date=cb["release_date"],
-                    release_time=pendulum.parse(cb["release_time"])
-                    if cb["release_time"]
-                    else None,
+                    release_time=(
+                        pendulum.parse(cb["release_time"])
+                        if cb["release_time"]
+                        else None
+                    ),
                     release_type=release_type,
                     urls=cb["urls"],
                     reddit_urls=cb["reddit_urls"],

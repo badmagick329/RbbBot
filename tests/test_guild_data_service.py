@@ -22,7 +22,6 @@ from rbb_bot.models import (
 from rbb_bot.infrastructure.guild_lifecycle.guild_data import GuildDataService
 from tests._database import get_test_database_url
 
-
 pytestmark = pytest.mark.integration
 
 

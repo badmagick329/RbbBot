@@ -10,7 +10,7 @@ class DiskCache(Model):
 
     MAX_SIZE = 512
 
-    class Meta: # type: ignore
+    class Meta:  # type: ignore
         unique_together = ["key"]
 
     def __repr__(self):

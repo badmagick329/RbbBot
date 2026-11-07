@@ -8,7 +8,6 @@ from tortoise import Tortoise
 from tortoise.backends.base.client import BaseDBAsyncClient
 from tortoise.transactions import in_transaction
 
-
 BASELINE_VERSIONS = (
     "43_20221227113530_None.py",
     "44_20221227113844_command_log.py",
@@ -64,13 +63,11 @@ async def _get_table_names(connection: BaseDBAsyncClient) -> set[str]:
 
 
 async def _get_discord_user_columns(connection: BaseDBAsyncClient) -> set[str]:
-    _, rows = await connection.execute_query(
-        """
+    _, rows = await connection.execute_query("""
         SELECT column_name
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'discorduser';
-        """
-    )
+        """)
     return {row["column_name"] for row in rows}
 
 

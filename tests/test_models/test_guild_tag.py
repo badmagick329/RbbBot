@@ -2,7 +2,6 @@ from rbb_bot.application.tags.contracts import TagSelector
 from rbb_bot.infrastructure.tags.repository import TortoiseTagRepository
 import pytest
 
-
 pytestmark = pytest.mark.integration
 
 

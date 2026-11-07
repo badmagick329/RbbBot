@@ -12,8 +12,7 @@ GENERATION_FAILED = "Couldn't generate that meme. Try again later."
 
 
 class MemeGenerator(Protocol):
-    async def create(self, text: str) -> bytes:
-        ...
+    async def create(self, text: str) -> bytes: ...
 
 
 class MemeCog(Cog):

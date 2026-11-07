@@ -6,7 +6,6 @@ from typing import Any, Callable
 
 from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
 
-
 _MISSING = object()
 
 

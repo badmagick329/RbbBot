@@ -30,7 +30,9 @@ class RbbBot(commands.Bot):
         self.creds = creds
         self.logger = logger
         self.web_client = web_client
-        self.latest_wins = LatestWins(KpopWinsClient(web_client, get_kpopwins_settings()))
+        self.latest_wins = LatestWins(
+            KpopWinsClient(web_client, get_kpopwins_settings())
+        )
         self.load_cogs = [
             c.stem
             for c in (Path(__file__).parent / "cogs").glob("*.py")

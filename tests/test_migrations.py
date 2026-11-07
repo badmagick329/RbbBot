@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 from tortoise import Tortoise
 
-
 pytestmark = pytest.mark.integration
 
 MIGRATION_PATH = (
@@ -40,8 +39,7 @@ async def test_command_log_migration_drops_the_legacy_table(test_database):
     # schema is generated for a fresh database.
     assert not await command_log_table_exists()
 
-    await connection.execute_script(
-        """
+    await connection.execute_script("""
         CREATE TABLE "commandlog" (
             "id" SERIAL NOT NULL PRIMARY KEY,
             "command_name" VARCHAR(255) NOT NULL,
@@ -54,8 +52,7 @@ async def test_command_log_migration_drops_the_legacy_table(test_database):
             "args" JSONB,
             "kwargs" JSONB
         );
-        """
-    )
+        """)
     migration = load_remove_command_log_migration()
 
     assert await command_log_table_exists()
@@ -80,5 +77,5 @@ async def test_command_log_migration_downgrade_only_recreates_an_empty_table(
     await connection.execute_script(await migration.downgrade(connection))
 
     assert await command_log_table_exists()
-    _, rows = await connection.execute_query("SELECT * FROM \"commandlog\";")
+    _, rows = await connection.execute_query('SELECT * FROM "commandlog";')
     assert rows == []
