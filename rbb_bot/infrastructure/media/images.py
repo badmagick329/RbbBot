@@ -1,5 +1,66 @@
+from io import BytesIO
+
 import numpy as np
 from PIL import Image
+
+# Image tools decode untrusted downloads inside the single bot process. A file
+# under the download cap can still declare huge dimensions or frame counts, so
+# these bounds are checked from the header before any pixel data is decoded.
+
+# One RGBA frame of this size is ~100 MB once decoded; cropping copies it a few
+# times more, which is as much as one command may hold.
+MAX_FRAME_PIXELS = 25_000_000
+# Animated GIF/WebP/APNG frames are decoded one by one when re-encoded; more than
+# this is a stress test, not a reaction image.
+MAX_FRAMES = 100
+# Re-encoding with save_all walks every frame, so total work scales with
+# width × height × frames even when each frame is within MAX_FRAME_PIXELS.
+MAX_TOTAL_PIXEL_FRAMES = 100_000_000
+
+
+class ImageTooLarge(Exception):
+    """An image exceeds the decode bounds; `reason` is safe to show to the user."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def open_bounded(data: bytes) -> Image.Image:
+    """
+    Decode a downloaded image only after its header proves it fits the bounds.
+
+    Pillow's own decompression-bomb limit is global and far looser than what one
+    bot command should hold, so the limits are enforced here instead; Pillow's
+    `DecompressionBombError` is still mapped to `ImageTooLarge` so it never
+    surfaces as an unexpected failure. Blocking: run it off the event loop.
+    """
+    try:
+        image = Image.open(BytesIO(data))
+    except Image.DecompressionBombError as e:
+        raise ImageTooLarge("its dimensions exceed the decoder's safety limit") from e
+    try:
+        width, height = image.size
+        frames = getattr(image, "n_frames", 1)
+        if width * height > MAX_FRAME_PIXELS:
+            raise ImageTooLarge(
+                f"{width}×{height} is more than {MAX_FRAME_PIXELS:,} pixels"
+            )
+        if frames > MAX_FRAMES:
+            raise ImageTooLarge(f"{frames} frames is more than {MAX_FRAMES}")
+        if width * height * frames > MAX_TOTAL_PIXEL_FRAMES:
+            raise ImageTooLarge(
+                f"{width}×{height} across {frames} frames is more than "
+                f"{MAX_TOTAL_PIXEL_FRAMES:,} pixels in total"
+            )
+        image.load()
+    except Image.DecompressionBombError as e:
+        image.close()
+        raise ImageTooLarge("its dimensions exceed the decoder's safety limit") from e
+    except BaseException:
+        image.close()
+        raise
+    return image
 
 
 def normalize_image(image):

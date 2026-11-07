@@ -6,6 +6,7 @@ import discord
 from discord import ButtonStyle, Interaction
 from discord.ext.commands import Context
 from discord.ui import Button, View
+from PIL import Image
 from rbb_bot.infrastructure.media.images import normalize_image
 
 SMALL = 5
@@ -18,6 +19,23 @@ LEFT = ".. from the left"
 RIGHT = ".. from the right"
 TOP = ".. from the top"
 BOTTOM = ".. from the bottom"
+
+
+def _crop_and_encode(image: Image.Image, box) -> tuple[Image.Image, bytes]:
+    """Blocking Pillow work for CropView.crop, kept apart so it can run in a thread."""
+    normalized = normalize_image(image)
+    try:
+        new_image = normalized.crop(box)
+    finally:
+        normalized.close()
+    new_image.format = image.format
+    try:
+        with BytesIO() as buffer:
+            new_image.save(buffer, format=new_image.format)
+            return new_image, buffer.getvalue()
+    except BaseException:
+        new_image.close()
+        raise
 
 
 class CropSizeButton(Button):
@@ -94,13 +112,13 @@ class CropView(View):
                 BOTTOM: (0, 0, width, height - size),
                 LEFT: (size, 0, width, height),
             }
-            with normalize_image(self.image) as normalized:
-                new_image = normalized.crop(bounds[direction])
-            new_image.format = self.image.format
+            # Pillow work runs in a thread while the lock is held, so close cannot
+            # release self.image underneath it.
+            new_image, data = await asyncio.to_thread(
+                _crop_and_encode, self.image, bounds[direction]
+            )
             try:
-                with BytesIO() as buffer:
-                    new_image.save(buffer, format=new_image.format)
-                    buffer.seek(0)
+                with BytesIO(data) as buffer:
                     with closing(discord.File(buffer, filename=self.filename)) as file:
                         await self.message.edit(attachments=[file])
             except Exception:

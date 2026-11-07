@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Awaitable, Callable
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, Optional
@@ -10,8 +12,36 @@ from PIL import Image, UnidentifiedImageError
 from rbb_bot.utils.exceptions import TimeoutError
 from rbb_bot.infrastructure.http.public_download import UnsafeDownload
 from rbb_bot.utils.helpers import http_get, url_to_filename
-from rbb_bot.infrastructure.media.images import crop_image
+from rbb_bot.infrastructure.media.images import ImageTooLarge, crop_image, open_bounded
 from rbb_bot.views.media import CropView
+
+# Each source is downloaded and decoded in turn inside the one bot process; a
+# message with dozens of links would tie a command up for minutes.
+MAX_SOURCES = 5
+
+
+def _encode(image: Image.Image, format: str | None, **params) -> bytes:
+    with BytesIO() as buffer:
+        image.save(buffer, format=format, **params)
+        return buffer.getvalue()
+
+
+# Pillow's `with image:` only closes the file pointer, not the decoded pixels, so
+# the helpers below release intermediate images with explicit close() calls.
+def _crop_to_bytes(image: Image.Image) -> bytes:
+    cropped = crop_image(image)
+    try:
+        return _encode(cropped, str(image.format))
+    finally:
+        cropped.close()
+
+
+def _transpose_to_bytes(image: Image.Image, method: Image.Transpose) -> bytes:
+    transposed = image.transpose(method)
+    try:
+        return _encode(transposed, str(image.format))
+    finally:
+        transposed.close()
 
 
 class MediaCog(Cog):
@@ -56,46 +86,31 @@ class MediaCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        images_and_names = await self.get_images_and_names(ctx, urls)
-        if not images_and_names:
-            return await ctx.send("No images found")
-        sent_message = None
-        image_bytes = None
-        for image, filename in images_and_names:
+        sent: list[tuple[bytes, str]] = []
+
+        async def crop_and_send(image: Image.Image, filename: str):
             try:
-                new_image = crop_image(image)
+                data = await asyncio.to_thread(_crop_to_bytes, image)
             except Exception as e:
                 await ctx.send(f"Could not crop image {filename}")
                 await self.bot.send_error(ctx, e, comment="Error in crop_image()")
-                continue
-            arr = BytesIO()
-            new_image.save(arr, format=str(image.format))
-            arr.seek(0)
-            try:
-                image_file = discord.File(arr, filename=filename)
-                sent_message = await ctx.send(file=image_file)
-                if len(images_and_names) == 1:
-                    image_bytes = arr
-            except Exception as e:
-                await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(
-                    ctx,
-                    e,
-                    comment="Error sending cropped image",
-                )
-        if len(images_and_names) != 1 or sent_message is None:
+                return
+            if await self.send_image(
+                ctx, data, filename, comment="Error sending cropped image"
+            ):
+                sent.append((data, filename))
+
+        processed = await self.process_sources(ctx, urls, crop_and_send)
+        if processed != 1 or not sent:
             return
         prompt = "Would you like to crop more?"
         if not (await self.bot.get_confirmation(ctx, prompt)):
             return
+        data, filename = sent[0]
         try:
-            image_bytes.seek(0)
-            image = Image.open(image_bytes)
-            image_bytes.seek(0)
-            filename = images_and_names[0][1]
-            discord_file = discord.File(image_bytes, filename=filename)
+            image = await asyncio.to_thread(open_bounded, data)
             view = CropView(ctx, filename, image)
-            await view.send(discord_file)
+            await view.send(discord.File(BytesIO(data), filename=filename))
         except Exception as e:
             self.bot.logger.error("Error on followup crop", exc_info=e)
 
@@ -118,29 +133,99 @@ class MediaCog(Cog):
             else:
                 return await ctx.send("No image source found")
 
-        img = await self.get_image(url)
+        filename = url_to_filename(url)
+        try:
+            img = await self.get_image(url)
+        except ImageTooLarge as e:
+            return await self.send_too_large(ctx, filename, e)
         if not img:
             return await ctx.send("No image found")
-        filename = url_to_filename(url)
-        image_bytes = BytesIO()
-        img.save(
-            image_bytes, format=img.format, save_all=getattr(img, "is_animated", False)
-        )
+        try:
+            data = await asyncio.to_thread(
+                _encode,
+                img,
+                img.format,
+                save_all=getattr(img, "is_animated", False),
+            )
+        except BaseException:
+            img.close()
+            raise
         view = CropView(ctx, filename, img)
-        image_bytes.seek(0)
-        discord_file = discord.File(image_bytes, filename=filename)
-        await view.send(discord_file)
+        await view.send(discord.File(BytesIO(data), filename=filename))
 
     async def get_image(self, url: str) -> Image.Image | None:
+        """
+        Download and decode one source, or None when it is not a usable image.
+
+        `ImageTooLarge` propagates so the caller can tell the user which file was
+        refused; other expected download/decode failures are skipped silently.
+        """
         try:
-            img = Image.open(BytesIO(await http_get(url)))
-            img.load()
-            return img
+            return await asyncio.to_thread(open_bounded, await http_get(url))
         except (InvalidURL, UnidentifiedImageError, TimeoutError, UnsafeDownload):
             return None
+        except ImageTooLarge:
+            raise
         except Exception as e:
             await self.bot.send_error(exc=e, comment="Error fetching image")
             return None
+
+    async def send_too_large(self, ctx: Context, filename: str, error: ImageTooLarge):
+        await ctx.send(f"Image {filename} is too large to process: {error.reason}")
+
+    async def send_image(
+        self, ctx: Context, data: bytes, filename: str, comment: str
+    ) -> bool:
+        try:
+            await ctx.send(file=discord.File(BytesIO(data), filename=filename))
+            return True
+        except Exception as e:
+            await ctx.send(f"Could not send image {filename}")
+            await self.bot.send_error(ctx, e, comment=comment)
+            return False
+
+    async def process_sources(
+        self,
+        ctx: Context,
+        urls: str | None,
+        process: Callable[[Image.Image, str], Awaitable[None]],
+    ) -> int:
+        """
+        Run `process` on each source image in turn and return how many decoded.
+
+        Each image is fetched, processed and closed before the next is fetched, so
+        a command holds at most one decoded source at a time.
+        """
+        sources = [url.strip() for url in (urls or "").split(" ") if url.strip()]
+        sources.extend(attachment.url for attachment in ctx.message.attachments)
+        if len(sources) > MAX_SOURCES:
+            ignored = len(sources) - MAX_SOURCES
+            await ctx.send(
+                f"Only the first {MAX_SOURCES} images are processed; "
+                f"ignored the other {ignored}."
+            )
+            sources = sources[:MAX_SOURCES]
+
+        processed = 0
+        refused = 0
+        for url in sources:
+            filename = url_to_filename(url)
+            try:
+                image = await self.get_image(url)
+            except ImageTooLarge as e:
+                refused += 1
+                await self.send_too_large(ctx, filename, e)
+                continue
+            if image is None:
+                continue
+            processed += 1
+            try:
+                await process(image, filename)
+            finally:
+                image.close()
+        if not processed and not refused:
+            await ctx.send("No images found")
+        return processed
 
     @commands.hybrid_group(name="image", brief="Rotate or flip images")
     async def edit_image(self, ctx: Context):
@@ -181,33 +266,22 @@ class MediaCog(Cog):
         if rotate_by not in [90, 180, 270]:
             return await ctx.send("Invalid rotation amount")
 
-        if rotate_by == 90:
-            rotate_by = Image.ROTATE_90
-        elif rotate_by == 180:
-            rotate_by = Image.ROTATE_180
-        elif rotate_by == 270:
-            rotate_by = Image.ROTATE_270
+        method = {
+            90: Image.Transpose.ROTATE_90,
+            180: Image.Transpose.ROTATE_180,
+            270: Image.Transpose.ROTATE_270,
+        }[rotate_by]
 
-        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
-
-        if not images_and_names:
-            return await ctx.send("No images found")
-
-        for image, filename in images_and_names:
+        async def rotate_and_send(image: Image.Image, filename: str):
             try:
-                new_image = image.transpose(rotate_by)
+                data = await asyncio.to_thread(_transpose_to_bytes, image, method)
             except Exception as e:
                 await ctx.send(f"Could not rotate image {filename}")
                 await self.bot.send_error(ctx, e, comment="Error rotating")
-                continue
-            arr = BytesIO()
-            new_image.save(arr, format=str(image.format))
-            arr.seek(0)
-            try:
-                await ctx.send(file=discord.File(arr, filename=filename))
-            except Exception as e:
-                await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(ctx, e, comment="Error while sending")
+                return
+            await self.send_image(ctx, data, filename, comment="Error while sending")
+
+        await self.process_sources(ctx, urls, rotate_and_send)
 
     @edit_image.command(name="flip", brief="Flip images horizontally or vertically")
     @commands.cooldown(2, 5, commands.BucketType.user)
@@ -235,30 +309,22 @@ class MediaCog(Cog):
         if not urls and not ctx.message.attachments:
             return await ctx.send("No image source found")
 
-        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
+        method = (
+            Image.Transpose.FLIP_LEFT_RIGHT
+            if flip_direction == "h"
+            else Image.Transpose.FLIP_TOP_BOTTOM
+        )
 
-        if not images_and_names:
-            return await ctx.send("No images found")
-
-        for image, filename in images_and_names:
+        async def flip_and_send(image: Image.Image, filename: str):
             try:
-                new_image = image.transpose(
-                    Image.FLIP_LEFT_RIGHT
-                    if flip_direction == "h"
-                    else Image.FLIP_TOP_BOTTOM
-                )
+                data = await asyncio.to_thread(_transpose_to_bytes, image, method)
             except Exception as e:
                 await ctx.send(f"Could not flip image {filename}")
                 await self.bot.send_error(ctx, e, comment="Error flipping")
-                continue
-            arr = BytesIO()
-            new_image.save(arr, format=str(image.format))
-            arr.seek(0)
-            try:
-                await ctx.send(file=discord.File(arr, filename=filename))
-            except Exception as e:
-                await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(ctx, e, comment="Error while sending")
+                return
+            await self.send_image(ctx, data, filename, comment="Error while sending")
+
+        await self.process_sources(ctx, urls, flip_and_send)
 
     @edit_image.command(name="webp", brief="Convert images from webp to png")
     @commands.cooldown(2, 5, commands.BucketType.user)
@@ -282,46 +348,19 @@ class MediaCog(Cog):
         if not urls and not ctx.message.attachments:
             return await ctx.send("No image source found")
 
-        images_and_names = await self.get_images_and_names(ctx, urls, check_ig=True)
-
-        if not images_and_names:
-            return await ctx.send("No images found")
-
-        for image, filename in images_and_names:
-            arr = BytesIO()
-            output_name = Path(filename).stem + ".png"
-            image.save(arr, format="PNG", save_all=True, optimize=True, background=0)
-            arr.seek(0)
-            discord_file = discord.File(arr, filename=output_name)
+        async def convert_and_send(image: Image.Image, filename: str):
             try:
-                await ctx.send(file=discord_file)
+                data = await asyncio.to_thread(
+                    _encode, image, "PNG", save_all=True, optimize=True, background=0
+                )
             except Exception as e:
-                await ctx.send(f"Could not send image {filename}")
-                await self.bot.send_error(ctx, e, comment="Error while sending")
-                continue
+                await ctx.send(f"Could not convert image {filename}")
+                await self.bot.send_error(ctx, e, comment="Error converting")
+                return
+            output_name = Path(filename).stem + ".png"
+            await self.send_image(ctx, data, output_name, comment="Error while sending")
 
-    async def get_images_and_names(
-        self, ctx: Context, urls: str | None, check_ig=False
-    ) -> list[tuple[Image.Image, str]]:
-        """
-        Get images and their filenames from urls or attachments
-        """
-
-        if not urls:
-            image_urls = []
-        else:
-            image_urls = [url.strip() for url in urls.split(" ") if url.strip()]
-        images_and_names = list()
-
-        image_urls.extend([attachment.url for attachment in ctx.message.attachments])
-
-        for url in image_urls:
-            img = await self.get_image(url)
-            if not img:
-                continue
-            images_and_names.append((img, url_to_filename(url)))
-
-        return images_and_names
+        await self.process_sources(ctx, urls, convert_and_send)
 
 
 async def setup(bot):
