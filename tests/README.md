@@ -6,6 +6,8 @@ Run the fast unit suite without Postgres:
 poetry run pytest
 ```
 
+GitHub Actions (`.github/workflows/ci.yml`) runs `poetry check --lock`, `poetry run black --check .` and this fast suite, with FFmpeg installed, on every push and pull request to `master`. Run `poetry run black .` before pushing. The Postgres suite and the ignored `test_release_workflow.py` run only locally.
+
 Run the full suite against the dedicated local Postgres database:
 
 ```powershell
