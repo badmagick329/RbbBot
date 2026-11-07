@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      # Same Poetry as the Dockerfile, so CI and the image read the lock the same way.
+      - name: Install Poetry
+        run: pip install poetry==1.8.5
+
+      - name: Check lock matches pyproject
+        run: poetry check --lock
+
+      # Meme rendering tests skip without FFmpeg; install it so they run.
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Check formatting
+        run: poetry run black --check .
+
+      # Fast suite only; Postgres integration tests need --integration and stay local.
+      - name: Run tests
+        run: poetry run pytest -q

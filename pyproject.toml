@@ -26,7 +26,7 @@ asyncpraw = "^7.6.0"
 lxml = "^6.1.0"
 python-rapidjson = "^1.8"
 dateparser = "^1.1.2"
-discord-ext-menus = { git = "https://github.com/Rapptz/discord-ext-menus" }
+discord-ext-menus = { git = "https://github.com/Rapptz/discord-ext-menus", rev = "8686b5d1bbc1d3c862292eb436ab630d6e9c9b53" }
 jishaku = "^2.5.1"
 httpx = "^0.28.1"
 certifi = ">=2024.7.4"
