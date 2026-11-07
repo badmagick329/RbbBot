@@ -22,9 +22,6 @@ docker-compose*
 !docker-compose-test.yml
 .env
 rbb_bot.log*
-**/temp/*.mp4
-**/temp/*.gif
-**/temp/*.png
 
 tests/test_release_workflow.py
 .release/

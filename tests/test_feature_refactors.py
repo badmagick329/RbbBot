@@ -10,9 +10,10 @@ from discord.ext import commands
 from rbb_bot.cogs.emojis_cog import EmojisCog
 from rbb_bot.cogs.logging_cog import LoggingCog
 from rbb_bot.cogs.hangman_cog import HangmanCog
-from rbb_bot.cogs.meme_cog import MemeCog
+from rbb_bot.cogs.meme_cog import GENERATION_FAILED, MemeCog
 from rbb_bot.cogs.source_cog import SourceCog
 from rbb_bot.domain.hangman import HangmanGame
+from rbb_bot.memegifs.ffmpeg import FFmpegError
 from rbb_bot.views.guild_logging import message_event
 from rbb_bot.views.hangman import HangmanView
 from rbb_bot.settings.const import BotEmojis
@@ -119,20 +120,31 @@ async def test_failed_hangman_send_does_not_leave_channel_occupied():
     assert cog.ongoing_games == {}
 
 
-@pytest.mark.asyncio
-async def test_meme_file_is_removed_when_discord_send_fails(tmp_path):
-    path = tmp_path / "meme.gif"
-    path.write_bytes(b"GIF89a")
-    ctx = SimpleNamespace(
-        typing=Mock(), send=AsyncMock(side_effect=RuntimeError("send failed"))
-    )
+def _meme_ctx():
+    ctx = SimpleNamespace(typing=Mock(), send=AsyncMock())
     ctx.typing.return_value.__aenter__ = AsyncMock()
     ctx.typing.return_value.__aexit__ = AsyncMock(return_value=False)
-    with pytest.raises(RuntimeError):
-        await MemeCog(Mock()).create_and_send(
-            ctx, SimpleNamespace(create=AsyncMock(return_value=path)), "text"
-        )
-    assert not path.exists()
+    return ctx
+
+
+@pytest.mark.asyncio
+async def test_meme_is_sent_as_gif_attachment_from_bytes():
+    ctx = _meme_ctx()
+    await MemeCog(Mock()).create_and_send(
+        ctx, SimpleNamespace(create=AsyncMock(return_value=b"GIF89a")), "text"
+    )
+    attachment = ctx.send.await_args.kwargs["file"]
+    assert attachment.filename == "meme.gif"
+    assert attachment.fp.read() == b"GIF89a"
+
+
+@pytest.mark.asyncio
+async def test_meme_ffmpeg_failure_tells_user_generation_failed():
+    ctx = _meme_ctx()
+    failing = SimpleNamespace(create=AsyncMock(side_effect=FFmpegError("boom")))
+    with patch("rbb_bot.cogs.meme_cog.IreneTweeting", return_value=failing):
+        await MemeCog.tweet.callback(MemeCog(Mock()), ctx, text="hello")
+    ctx.send.assert_awaited_once_with(GENERATION_FAILED)
 
 
 @pytest.mark.asyncio

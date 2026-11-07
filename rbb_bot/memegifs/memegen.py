@@ -1,15 +1,12 @@
-import asyncio
+import tempfile
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 from rbb_bot.memegifs.ffmpeg import concat_clips, create_image_clip
-from rbb_bot.memegifs.utils import remove_files
 
 DATA_DIR = Path(__file__).parent / "data"
-TEMP_DIR = Path(__file__).parent / "temp"
 
 
 @dataclass
@@ -54,7 +51,6 @@ class VideoGenerator:
     video_file: Path
 
     def __init__(self, config: Config) -> None:
-        TEMP_DIR.mkdir(exist_ok=True)
         self.image_frame = ImageFrame(config)
         self.video_file = config.video_file
 
@@ -63,23 +59,24 @@ class VideoGenerator:
     ) -> Image.Image:
         return self.image_frame.draw_text(text, max_chars, max_lines, x, y)
 
-    async def generate_video(
-        self, image: Image.Image, image_duration: int
-    ) -> Path:
-        tmp_name = str(TEMP_DIR / f"tmp_{datetime.now().timestamp()}")
-        tmp_image, tmp_video = f"{tmp_name}.png", f"{tmp_name}.mp4"
-        list_file = f"{tmp_name}.txt"
-        output = f"{tmp_name}_final"
-        image.save(tmp_image)
-        width, height = image.size
-        await create_image_clip(
-            tmp_image, tmp_video, image_duration, width, height
-        )
-        final_name = await concat_clips(
-            [str(self.video_file), tmp_video], list_file, output, width, height
-        )
-        remove_files([tmp_image, tmp_video])
-        return TEMP_DIR / final_name
+    async def generate_video(self, image: Image.Image, image_duration: int) -> bytes:
+        """Render the source clip followed by `image` as a GIF.
+
+        Each call gets its own temp directory so concurrent renders cannot
+        collide and every intermediate is removed even when FFmpeg fails. The GIF
+        is returned as bytes because nothing on disk outlives the directory.
+        """
+        with tempfile.TemporaryDirectory(prefix="rbb-meme-") as tmp:
+            tmp_dir = Path(tmp)
+            frame, clip = tmp_dir / "frame.png", tmp_dir / "frame.mp4"
+            output = tmp_dir / "meme.gif"
+            image.save(frame)
+            width, height = image.size
+            await create_image_clip(frame, clip, image_duration, width, height)
+            await concat_clips(
+                [self.video_file, clip], tmp_dir / "list.txt", output, width, height
+            )
+            return output.read_bytes()
 
 
 class IreneTweeting(VideoGenerator):
@@ -98,10 +95,9 @@ class IreneTweeting(VideoGenerator):
         )
         super().__init__(config)
 
-    async def create(self, text: str) -> Path:
+    async def create(self, text: str) -> bytes:
         image = self.image_with_text(text, 38, 3, 120, 100)
-        video = await self.generate_video(image, 3)
-        return video
+        return await self.generate_video(image, 3)
 
 class ElijahTerrific(VideoGenerator):
     IMAGE_FILE = DATA_DIR / "elijah.png"
@@ -119,10 +115,9 @@ class ElijahTerrific(VideoGenerator):
         )
         super().__init__(config)
 
-    async def create(self, text: str) -> Path:
+    async def create(self, text: str) -> bytes:
         image = self.image_with_text(text, 14, 4, 12, 20)
-        video = await self.generate_video(image, 5)
-        return video
+        return await self.generate_video(image, 5)
 
 def text_to_lines(text: str, line_max: int = 40) -> list[str]:
     lines = list()
@@ -160,17 +155,3 @@ def split_word(word: str, max_word: int) -> list[str]:
         if last_word != "":
             words.append(last_word)
     return words
-
-
-def main():
-    asyncio.run(run())
-
-
-async def run():
-    meme = IreneTweeting()
-    video = await meme.create("ABC1ABC2ABC3ABC4ABC5ABC6ABC7ABC8 🤔")
-    print(video)
-
-
-if __name__ == "__main__":
-    main()

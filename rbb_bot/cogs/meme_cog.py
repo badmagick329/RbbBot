@@ -1,16 +1,18 @@
-from contextlib import closing
-from pathlib import Path
+import io
 from typing import Protocol
 
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 
+from rbb_bot.memegifs.ffmpeg import FFmpegError
 from rbb_bot.memegifs.memegen import ElijahTerrific, IreneTweeting
+
+GENERATION_FAILED = "Couldn't generate that meme. Try again later."
 
 
 class MemeGenerator(Protocol):
-    async def create(self, text: str) -> Path:
+    async def create(self, text: str) -> bytes:
         ...
 
 
@@ -41,6 +43,9 @@ class MemeCog(Cog):
         try:
             irene_tweeting = IreneTweeting()
             await self.create_and_send(ctx, irene_tweeting, text.upper())
+        except FFmpegError as e:
+            self.bot.logger.warning(f"FFmpeg failed in meme tweet. {e}")
+            return await ctx.send(GENERATION_FAILED)
         except Exception as e:
             self.bot.logger.error(f"Error in meme tweet. {e}", exc_info=e)
             return await ctx.send("Something went wrong 😕")
@@ -53,18 +58,17 @@ class MemeCog(Cog):
         try:
             elijah = ElijahTerrific()
             await self.create_and_send(ctx, elijah, text.upper())
+        except FFmpegError as e:
+            self.bot.logger.warning(f"FFmpeg failed in meme elijah. {e}")
+            return await ctx.send(GENERATION_FAILED)
         except Exception as e:
             self.bot.logger.error(f"Error in meme elijah. {e}", exc_info=e)
             return await ctx.send("Something went wrong 😕")
 
     async def create_and_send(self, ctx: Context, memegen: MemeGenerator, text: str):
         async with ctx.typing():
-            meme_file = await memegen.create(text)
-            try:
-                with closing(discord.File(meme_file)) as attachment:
-                    await ctx.send(file=attachment)
-            finally:
-                meme_file.unlink(missing_ok=True)
+            data = await memegen.create(text)
+            await ctx.send(file=discord.File(io.BytesIO(data), filename="meme.gif"))
 
 
 async def setup(bot):
