@@ -52,17 +52,18 @@ class DiscordLogHandler(logging.Handler):
         while True:
             try:
                 msg, level = await self.message_queue.get()
-                msg = f"```\n{msg}\n```"
                 if level == logging.ERROR or level == logging.CRITICAL:
                     if not self.owner_ch and self.log_ch:
                         await large_send(
-                            self.log_ch, f"Could not get DM channel\n{msg}"
+                            self.log_ch,
+                            f"Could not get DM channel\n{msg}",
+                            code_block=True,
                         )
                     elif self.owner_ch:
-                        await large_send(self.owner_ch, msg)
+                        await large_send(self.owner_ch, msg, code_block=True)
 
                 elif self.log_ch:
-                    await large_send(self.log_ch, msg)
+                    await large_send(self.log_ch, msg, code_block=True)
                 else:
                     print("Error in logger: No logging channel available")
                     print(msg)

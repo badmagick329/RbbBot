@@ -79,13 +79,31 @@ def chunker(seq: Iterable, size: int, max_len_per_chunk: int = None) -> Iterable
         yield chunk
 
 
-async def large_send(channel: discord.TextChannel | discord.DMChannel, msg: str):
-    """Sends a message to a channel, splitting it up if it's too long"""
-    if len(msg) > DISCORD_MAX_MESSAGE:
-        for chunk in chunker(msg, DISCORD_MAX_MESSAGE):
-            await channel.send(chunk)
-    else:
-        await channel.send(msg)
+_CODE_FENCE_OPEN = "```\n"
+_CODE_FENCE_CLOSE = "\n```"
+
+
+async def large_send(
+    channel: discord.TextChannel | discord.DMChannel,
+    msg: str,
+    *,
+    code_block: bool = False,
+):
+    """Send text of any length as consecutive messages Discord will accept.
+
+    Discord rejects a message over DISCORD_MAX_MESSAGE outright, so an unsplit
+    long traceback would be lost rather than truncated. With `code_block`, each
+    part gets its own fence, counted against the limit: a fence wrapped around
+    the whole text would be cut apart and only the first part would render as
+    a code block.
+    """
+    fence = len(_CODE_FENCE_OPEN) + len(_CODE_FENCE_CLOSE) if code_block else 0
+    size = DISCORD_MAX_MESSAGE - fence
+    for start in range(0, len(msg), size):
+        part = msg[start : start + size]
+        if code_block:
+            part = f"{_CODE_FENCE_OPEN}{part}{_CODE_FENCE_CLOSE}"
+        await channel.send(part)
 
 
 async def http_get(url: str, timeout: float = 5.0, as_text=False, as_json=False):
