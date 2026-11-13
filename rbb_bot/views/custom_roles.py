@@ -1,6 +1,10 @@
 from discord import Embed
 
-from rbb_bot.application.custom_roles.contracts import CustomRoleRefused, Refusal
+from rbb_bot.application.custom_roles.contracts import (
+    ColourPlacement,
+    CustomRoleRefused,
+    Refusal,
+)
 from rbb_bot.utils.views import ListView
 
 REFUSAL_MESSAGES = {
@@ -32,6 +36,22 @@ def refusal_reply(refusal: CustomRoleRefused, prefix: str) -> dict:
         )
         return {"embed": embed}
     return {"content": REFUSAL_MESSAGES[refusal.refusal]}
+
+
+def placement_reply(placement: ColourPlacement) -> str | None:
+    """What the member must hear when their new role's colour may not show, if anything."""
+    if placement.blocked_by is not None:
+        return (
+            f"Its colour won't show yet: your role <@&{placement.blocked_by}> is coloured "
+            "and sits at or above my highest role. Once an admin moves my role above it, "
+            "new custom roles will show their colour."
+        )
+    if placement.forbidden:
+        return (
+            "I couldn't position the role because I'm missing the `manage roles` "
+            "permission, so its colour may not show."
+        )
+    return None
 
 
 class ColorsList(ListView):

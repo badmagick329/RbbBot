@@ -23,6 +23,19 @@ class GuildRole:
     default: bool = False
 
 
+@dataclass(frozen=True)
+class ColourPlacement:
+    """Whether a new custom role's colour can show on its owner.
+
+    Discord shows the colour of a member's highest coloured role, and a bot can only
+    move roles below its own top role. So the one thing a guild may have to fix is a
+    coloured role the member holds at or above the bot's: `blocked_by` is that role.
+    """
+
+    blocked_by: int | None = None
+    forbidden: bool = False
+
+
 class Refusal(Enum):
     DISABLED = "disabled"
     LIMIT_REACHED = "limit_reached"
@@ -87,3 +100,5 @@ class CustomRoleGuild(Protocol):
     async def assign(self, member_id: int, role_id: int) -> None: ...
 
     async def delete_role(self, role_id: int, reason: str) -> None: ...
+
+    async def show_colour(self, role_id: int) -> ColourPlacement: ...

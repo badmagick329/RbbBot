@@ -2,7 +2,7 @@ import json
 import re
 from typing import Literal
 
-from discord import Embed, Role
+from discord import AllowedMentions, Embed, Role
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 
@@ -20,7 +20,7 @@ from rbb_bot.infrastructure.custom_roles.discord_guild import DiscordCustomRoles
 from rbb_bot.infrastructure.custom_roles.repository import (
     TortoiseCustomRoleRepository,
 )
-from rbb_bot.views.custom_roles import ColorsList, refusal_reply
+from rbb_bot.views.custom_roles import ColorsList, placement_reply, refusal_reply
 
 from rbb_bot.settings.const import FilePaths
 
@@ -55,7 +55,8 @@ class RolesCog(Cog):
         Only roles recorded as created by this bot can be removed, and only when
         they are not manually assigned to more than one user.
         I will need `manage roles` permission for this.
-        The role assigned to me will also need to be positioned above other users' roles.
+        A custom role's colour shows only when my role is above the member's other
+        coloured roles.
         """
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
@@ -75,7 +76,7 @@ class RolesCog(Cog):
         embed.add_field(name="Required Permissions", value="Manage Roles")
         embed.add_field(
             name="Additional Requirements",
-            value="My role position above other members",
+            value="My role above the coloured roles that custom roles should override",
         )
         await ctx.send(embed=embed)
 
@@ -95,10 +96,12 @@ class RolesCog(Cog):
             await ctx.interaction.response.defer()
 
         await self.configure.enable(ctx.guild.id, enabled)
+        if not enabled:
+            return await ctx.send("Custom roles are now disabled.")
         await ctx.send(
-            f"Custom roles are now {'enabled' if enabled else 'disabled'}. "
-            f"I will need `manage roles` permission. "
-            "The role assigned to me will also need to be above all other members."
+            "Custom roles are now enabled. I will need `manage roles` permission. "
+            "For a custom role's colour to show, my role must be above the member's "
+            "other coloured roles."
         )
 
     @roles.command(name="max", brief="Set maximum number of custom roles per user")
@@ -220,11 +223,10 @@ class RolesCog(Cog):
             return await ctx.send(**refusal_reply(refusal, ctx.prefix))
         await ctx.send(f"Created role <@&{role_id}>")
 
-        if not await guild.place_on_top(role_id):
-            await ctx.send(
-                "I don't have permission to reposition roles. "
-                "Please move my role above others so I can do this in the future."
-            )
+        reply = placement_reply(await guild.show_colour(role_id))
+        if reply:
+            # The reply mentions the blocking role by ID; it must not ping its holders.
+            await ctx.send(reply, allowed_mentions=AllowedMentions.none())
 
     @roles.command(brief="Remove a custom role")
     @commands.guild_only()

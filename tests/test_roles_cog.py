@@ -115,14 +115,34 @@ async def test_member_leave_deletes_their_roles_and_logs_refusals():
     assert isinstance(logged.kwargs["exc_info"], RoleDeletionFailed)
 
 
-async def test_add_creates_assigns_and_reports_a_refused_reposition():
-    everyone, top = discord_role(1), discord_role(5)
-    top.edit.side_effect = http_error(discord.Forbidden, 403)
-    created = discord_role(42)
-    guild = discord_guild([everyone, top])
+class PlacedRole(SimpleNamespace):
+    # Role positions are sent to Discord as a mapping keyed by role.
+    __hash__ = object.__hash__
+
+
+def placed_role(role_id, position, colour=0):
+    return PlacedRole(
+        id=role_id,
+        name=f"role-{role_id}",
+        members=[],
+        position=position,
+        colour=discord.Colour(colour),
+    )
+
+
+async def add_role(member_roles, bot_top, others=(), move_error=None):
+    """Run `roles add` for a member; role 42 is the one Discord creates at the bottom.
+
+    Returns the bot's replies and the role positions it asked Discord to set.
+    """
+    everyone, created = placed_role(1, 0), placed_role(42, 1, 0xFF0000)
+    roles = [everyone, created, *member_roles, bot_top, *others]
+    guild = discord_guild(roles)
     guild.create_role = AsyncMock(return_value=created)
+    guild.me = SimpleNamespace(roles=[everyone, bot_top])
+    guild.edit_role_positions = AsyncMock(side_effect=move_error)
     author = SimpleNamespace(
-        id=2, roles=[everyone, top], top_role=top, add_roles=AsyncMock()
+        id=2, roles=[everyone, *member_roles], add_roles=AsyncMock()
     )
     repository = FakeRepository()
     ctx = context(guild, author)
@@ -132,9 +152,70 @@ async def test_add_creates_assigns_and_reports_a_refused_reposition():
     assert guild.create_role.call_args.kwargs["color"] == discord.Color(0xFF0000)
     author.add_roles.assert_awaited_once_with(created)
     assert repository.records == [RoleOwnership(42, 2)]
-    sent = [call.args[0] for call in ctx.send.await_args_list]
+    moves = [
+        {role.id: position for role, position in call.args[0].items()}
+        for call in guild.edit_role_positions.await_args_list
+    ]
+    return [call.args[0] for call in ctx.send.await_args_list], moves
+
+
+async def test_add_moves_nothing_for_a_member_with_no_coloured_role():
+    # An uncoloured role above the bot (an admin's) cannot hide the new colour.
+    admin = placed_role(5, 9)
+
+    sent, moves = await add_role([admin], bot_top=placed_role(6, 4))
+
+    assert sent == ["Created role <@&42>"]
+    assert moves == []
+
+
+async def test_add_places_the_role_directly_above_the_members_highest_coloured_role():
+    low, high = placed_role(5, 2, 0x00FF00), placed_role(6, 4, 0x0000FF)
+    plain_above = placed_role(7, 5)
+    unrelated = placed_role(8, 3)
+
+    sent, moves = await add_role(
+        [low, high, plain_above], bot_top=placed_role(9, 6), others=[unrelated]
+    )
+
+    assert sent == ["Created role <@&42>"]
+    # The passed roles keep their order one place down; nothing above is touched.
+    assert moves == [{5: 1, 8: 2, 6: 3, 42: 4}]
+
+
+async def test_add_keeps_the_role_and_names_a_coloured_role_the_bot_cannot_pass():
+    blocking = placed_role(5, 6, 0x00FF00)
+
+    sent, moves = await add_role([blocking], bot_top=placed_role(6, 4))
+
     assert sent[0] == "Created role <@&42>"
-    assert "permission to reposition" in sent[1]
+    assert "<@&5>" in sent[1] and "above" in sent[1]
+    assert moves == []
+
+
+async def test_add_reports_a_missing_permission_only_when_discord_forbids_the_move():
+    coloured = placed_role(5, 2, 0x00FF00)
+
+    sent, _ = await add_role(
+        [coloured],
+        bot_top=placed_role(6, 4),
+        move_error=http_error(discord.Forbidden, 403),
+    )
+
+    assert "`manage roles`" in sent[1]
+
+
+async def test_add_leaves_other_discord_failures_to_the_error_handler():
+    coloured = placed_role(5, 2, 0x00FF00)
+
+    with pytest.raises(discord.HTTPException) as raised:
+        await add_role(
+            [coloured],
+            bot_top=placed_role(6, 4),
+            move_error=http_error(discord.HTTPException, 500),
+        )
+
+    assert not isinstance(raised.value, discord.Forbidden)
 
 
 async def test_add_with_an_unknown_color_replies_with_the_color_help_embed():

@@ -1,6 +1,10 @@
 import discord
 
-from rbb_bot.application.custom_roles.contracts import GuildRole, RoleDeletionFailed
+from rbb_bot.application.custom_roles.contracts import (
+    ColourPlacement,
+    GuildRole,
+    RoleDeletionFailed,
+)
 
 
 class DiscordCustomRoles:
@@ -76,14 +80,51 @@ class DiscordCustomRoles:
         except discord.HTTPException as error:
             raise RoleDeletionFailed(role_id) from error
 
-    async def place_on_top(self, role_id) -> bool:
-        """Move a new role to the member's top position; False when Discord refuses."""
-        if len(self.member.roles) == 1:
-            return True
+    async def show_colour(self, role_id) -> ColourPlacement:
+        """Move a new role directly above the member's highest coloured role.
+
+        A custom role carries a colour and nothing else, so its position matters only
+        relative to the member's other coloured roles; uncoloured roles above it are
+        harmless and stay untouched. The roles between keep their order and slide down
+        one place, which is how Discord represents an insertion.
+
+        Positions come from a fresh fetch: creating the role just shifted the guild's
+        other roles, and the cache may not have caught up.
+        """
+        fresh = {role.id: role for role in await self.guild.fetch_roles()}
+        new = fresh[role_id]
+        held = {role.id for role in self.member.roles} - {role_id}
+        coloured = [
+            role for role in fresh.values() if role.id in held and role.colour.value
+        ]
+        if not coloured:
+            return ColourPlacement()
+        highest = max(coloured, key=_rank)
+        if _rank(highest) < _rank(new):
+            return ColourPlacement()
+        bot_top = max(
+            (fresh[role.id] for role in self.guild.me.roles if role.id in fresh),
+            key=_rank,
+        )
+        if highest.position >= bot_top.position:
+            return ColourPlacement(blocked_by=highest.id)
+        passed = sorted(
+            (
+                role
+                for role in fresh.values()
+                if _rank(new) < _rank(role) <= _rank(highest)
+            ),
+            key=_rank,
+        )
+        positions = {role: new.position + i for i, role in enumerate(passed)}
+        positions[new] = new.position + len(passed)
         try:
-            top_pos = self.member.top_role.position
-            await self.member.top_role.edit(position=top_pos - 1)
-            await self._role(role_id).edit(position=top_pos)
-        except discord.HTTPException:
-            return False
-        return True
+            await self.guild.edit_role_positions(positions)
+        except discord.Forbidden:
+            return ColourPlacement(forbidden=True)
+        return ColourPlacement()
+
+
+def _rank(role):
+    # Discord breaks position ties by ID, as discord.py's own role ordering does.
+    return role.position, role.id
