@@ -54,11 +54,18 @@ class ReportGuildNotice:
         settings = await self.repository.read(guild_id)
         # Check suppression only once a channel exists, so a guild that sets one
         # right after a failure still hears about the next occurrence.
-        if settings.channel_id is None or not self._due((guild_id, notice.key)):
+        slot = (guild_id, notice.key)
+        if settings.channel_id is None or not self._due(slot):
             return
         try:
             await self.channel.post(settings.channel_id, notice)
-        except LogChannelUnavailable:
+        except BaseException as error:
+            # A notice nobody saw must not count as sent: once the guild repairs its
+            # log channel, the next occurrence has to reach it rather than wait out
+            # the hour.
+            self._last_sent.pop(slot, None)
+            if not isinstance(error, LogChannelUnavailable):
+                raise
             self.log_channel_unavailable(guild_id, settings.channel_id)
 
     def log_channel_unavailable(self, guild_id: int, channel_id: int) -> None:

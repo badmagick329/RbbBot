@@ -239,6 +239,17 @@ async def test_inaccessible_log_channel_logs_ids_once_and_does_not_raise(failure
     assert logger.warnings == ["Guild log channel unavailable guild_id=1 channel_id=77"]
 
 
+async def test_notice_lost_to_a_broken_log_channel_is_sent_once_the_channel_works():
+    channel = RecordingNoticeChannel(unavailable=True)
+    report = reporter(77, channel)
+
+    await report.execute(1, notice())
+    channel.unavailable = False
+    await report.execute(1, notice())
+
+    assert channel.posts == [(77, notice())]
+
+
 async def test_notice_renders_ids_and_remedy_into_the_log_channel():
     channel = SimpleNamespace(send=AsyncMock())
     bot = SimpleNamespace(get_channel=lambda _: channel)
