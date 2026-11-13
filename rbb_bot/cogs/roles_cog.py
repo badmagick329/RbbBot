@@ -2,13 +2,25 @@ import json
 import re
 from typing import Literal
 
-import discord
-from discord import Color, Embed, Role
+from discord import Embed, Role
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from rbb_bot.models import Guild
-from rbb_bot.infrastructure.custom_roles.repository import CustomRoleRepository
-from rbb_bot.views.custom_roles import ColorsList
+
+from rbb_bot.application.custom_roles.configure import ConfigureCustomRoles
+from rbb_bot.application.custom_roles.contracts import (
+    CustomRoleRefused,
+    RoleDeletionFailed,
+)
+from rbb_bot.application.custom_roles.manage_roles import (
+    CreateCustomRole,
+    DeleteCustomRoles,
+    RemoveCustomRole,
+)
+from rbb_bot.infrastructure.custom_roles.discord_guild import DiscordCustomRoles
+from rbb_bot.infrastructure.custom_roles.repository import (
+    TortoiseCustomRoleRepository,
+)
+from rbb_bot.views.custom_roles import ColorsList, refusal_reply
 
 from rbb_bot.settings.const import FilePaths
 
@@ -16,7 +28,8 @@ from rbb_bot.settings.const import FilePaths
 class RolesCog(Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ownership = CustomRoleRepository()
+        self.repository = TortoiseCustomRoleRepository()
+        self.configure = ConfigureCustomRoles(self.repository)
         with open(FilePaths.COLORS_FILE, "r", encoding="utf-8") as f:
             self.colors_dict = json.load(f)
 
@@ -81,9 +94,7 @@ class RolesCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        guild.custom_roles_enabled = enabled
-        await guild.save()
+        await self.configure.enable(ctx.guild.id, enabled)
         await ctx.send(
             f"Custom roles are now {'enabled' if enabled else 'disabled'}. "
             f"I will need `manage roles` permission. "
@@ -106,12 +117,10 @@ class RolesCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        if max_roles < 1 or max_roles > 5:
-            return await ctx.send("Max roles must be between 1 and 5")
-
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        guild.max_custom_roles = max_roles
-        await guild.save()
+        try:
+            await self.configure.set_max_roles(ctx.guild.id, max_roles)
+        except CustomRoleRefused as refusal:
+            return await ctx.send(**refusal_reply(refusal, ctx.prefix))
         await ctx.send(f"Maximum number of custom roles per user is now {max_roles}")
 
     @roles.command(brief="Remove unused roles")
@@ -125,7 +134,7 @@ class RolesCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        deleted = await self._delete_tracked_roles(ctx.guild, unused_only=True)
+        deleted = await self._cleanup(ctx.guild, unused_only=True)
         await ctx.send(f"Deleted {deleted} unused bot-created roles")
 
     @roles.command(brief="Clear bot-created custom roles")
@@ -141,68 +150,37 @@ class RolesCog(Cog):
         )
         if not await self.bot.get_confirmation(ctx, prompt):
             return await ctx.send("Cancelled")
-        deleted = await self._delete_tracked_roles(ctx.guild)
+        deleted = await self._cleanup(ctx.guild)
         await ctx.send(f"Deleted {deleted} bot-created roles")
 
-    async def _tracked_roles(self, guild, owner_id=None):
-        # Role.members is derived from the member cache, not a Discord API count.
-        if not guild.chunked:
-            await guild.chunk()
-        records = await self.ownership.list(guild.id, owner_id)
-        roles = {role.id: role for role in guild.roles}
-        if any(record.role_id not in roles for record in records):
-            roles = {role.id: role for role in await guild.fetch_roles()}
-        result = []
-        for record in records:
-            role = roles.get(record.role_id)
-            if role is None:
-                await self.ownership.forget(guild.id, record.role_id)
-            else:
-                result.append((record, role))
-        return result
+    async def _cleanup(self, guild, **options):
+        cleanup = await DeleteCustomRoles(
+            self.repository, DiscordCustomRoles(guild)
+        ).execute(**options)
+        self._log_failures(guild.id, cleanup)
+        return cleanup.deleted
 
-    async def _delete_recorded_role(self, guild, role):
-        try:
-            await role.delete(reason="Removing recorded bot-created custom role")
-        except discord.NotFound:
-            pass
-        await self.ownership.forget(guild.id, role.id)
+    def _log_failures(self, guild_id, cleanup):
+        for failure in cleanup.failures:
+            self.bot.logger.error(
+                "Custom role deletion failed guild_id=%s role_id=%s",
+                guild_id,
+                failure.role_id,
+                exc_info=failure,
+            )
 
-    async def _delete_tracked_roles(self, guild, owner_id=None, unused_only=False):
-        deleted = 0
-        for record, role in await self._tracked_roles(guild, owner_id):
-            if not record.permits_deletion(
-                (member.id for member in role.members),
-                managed=role.managed,
-                default=role.is_default(),
-            ):
-                continue
-            if unused_only and role.members:
-                continue
-            try:
-                await self._delete_recorded_role(guild, role)
-                deleted += 1
-            except discord.HTTPException:
-                # Preserve ownership so a later prune can retry failed deletions.
-                self.bot.logger.exception(
-                    "Custom role deletion failed guild_id=%s role_id=%s",
-                    guild.id,
-                    role.id,
-                )
-        return deleted
-
-    def parse_color_input(self, color_input: str):
+    def parse_color_input(self, color_input: str) -> int | None:
         """
-        Parse color string input by the user and return a discord Color object
+        Parse color string input by the user and return its RGB value
 
         Return None if the color is invalid
         """
         if re.match(r"^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$", color_input):
-            return Color(int(color_input.replace("#", ""), 16))
+            return int(color_input.replace("#", ""), 16)
         color_input = color_input.strip().lower()
         for name, hex_code in self.colors_map.items():
             if color_input == name.lower():
-                return discord.Color(int(hex_code[1:], 16))
+                return int(hex_code[1:], 16)
 
     @roles.command(brief="Show a list of available colors")
     @commands.guild_only()
@@ -233,66 +211,16 @@ class RolesCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if not guild.custom_roles_enabled:
-            return await ctx.send("Custom roles are not enabled for this server")
-
-        tracked = await self._tracked_roles(ctx.guild, ctx.author.id)
-        # Count untracked sole-holder roles too: erasing ownership data must not
-        # let a member bypass the server's role limit.
-        unique_ids = {record.role_id for record, _ in tracked} | {
-            role.id for role in ctx.author.roles if len(role.members) == 1
-        }
-        if len(unique_ids) >= guild.max_custom_roles:
-            return await ctx.send(
-                f"You already have {guild.max_custom_roles} custom roles. Remove one or ask a server administrator for help."
-            )
-
-        name = name.strip()
-        if len(name) > 100:
-            return await ctx.send(
-                "Role name is too long. It must be 100 characters or less."
-            )
-        if name in [r.name for r in ctx.guild.roles]:
-            return await ctx.send("Role name is already in use")
-
-        discord_color = self.parse_color_input(color)
-
-        if not discord_color:
-            embed = Embed(
-                title="Color must be a hex code or a valid color name",
-                description="You can use google's color picker to get a hex code. "
-                f"Alternatively you can use the `{ctx.prefix}roles colors` to "
-                "see a list of valid color names",
-            )
-            embed.add_field(
-                name="Hex color picker",
-                value="https://www.google.com/search?q=color+picker",
-            )
-            return await ctx.send(embed=embed)
-
-        role = await ctx.guild.create_role(
-            name=name,
-            color=discord_color,
-            reason=f"Created by {ctx.author} ({ctx.author.id})",
-        )
-
+        guild = DiscordCustomRoles(ctx.guild, ctx.author)
         try:
-            await self.ownership.record(ctx.guild.id, ctx.author.id, role.id)
-        except Exception:
-            await role.delete(reason="Could not record custom role ownership")
-            raise
-        await ctx.author.add_roles(role)
-        await ctx.send(f"Created role {role.mention}")
+            role_id = await CreateCustomRole(self.repository, guild).execute(
+                ctx.author.id, name, self.parse_color_input(color)
+            )
+        except CustomRoleRefused as refusal:
+            return await ctx.send(**refusal_reply(refusal, ctx.prefix))
+        await ctx.send(f"Created role <@&{role_id}>")
 
-        if len(ctx.author.roles) == 1:
-            return
-
-        try:
-            top_pos = ctx.author.top_role.position
-            await ctx.author.top_role.edit(position=top_pos - 1)
-            await role.edit(position=top_pos)
-        except discord.HTTPException as e:
+        if not await guild.place_on_top(role_id):
             await ctx.send(
                 "I don't have permission to reposition roles. "
                 "Please move my role above others so I can do this in the future."
@@ -312,34 +240,25 @@ class RolesCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if not guild.custom_roles_enabled:
-            return await ctx.send("Custom roles are not enabled for this server")
-
-        tracked = await self._tracked_roles(ctx.guild, ctx.author.id)
-        ownership = next(
-            (record for record, _ in tracked if record.role_id == role.id), None
-        )
-        if ownership is None:
-            return await ctx.send(
-                "You can only remove bot-created roles recorded as yours"
-            )
-        if not ownership.permits_deletion(
-            (member.id for member in role.members),
-            managed=role.managed,
-            default=role.is_default(),
-        ):
-            return await ctx.send(
-                "This role is shared or managed and cannot be deleted automatically"
-            )
-        await self._delete_recorded_role(ctx.guild, role)
+        try:
+            await RemoveCustomRole(
+                self.repository, DiscordCustomRoles(ctx.guild, ctx.author)
+            ).execute(ctx.author.id, role.id)
+        except CustomRoleRefused as refusal:
+            return await ctx.send(**refusal_reply(refusal, ctx.prefix))
+        except RoleDeletionFailed as failure:
+            # Re-raise Discord's own error so the shared command error handler can
+            # show the member why Discord refused (it reports Forbidden reasons).
+            raise failure.__cause__ from None
         await ctx.send("Deleted role")
 
     @Cog.listener()
     async def on_member_remove(self, member):
-        guild = await Guild.get_or_none(id=member.guild.id)
-        if guild is not None and guild.custom_roles_enabled:
-            await self._delete_tracked_roles(member.guild, owner_id=member.id)
+        cleanup = await DeleteCustomRoles(
+            self.repository, DiscordCustomRoles(member.guild)
+        ).departed(member.id)
+        if cleanup is not None:
+            self._log_failures(member.guild.id, cleanup)
 
 
 async def setup(bot):

@@ -1,154 +1,293 @@
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
-
-import discord
 import pytest
 
-from rbb_bot.cogs.roles_cog import RolesCog
+from rbb_bot.application.custom_roles.configure import ConfigureCustomRoles
+from rbb_bot.application.custom_roles.contracts import (
+    CustomRoleRefused,
+    CustomRoleSettings,
+    GuildRole,
+    Refusal,
+    RoleDeletionFailed,
+)
+from rbb_bot.application.custom_roles.manage_roles import (
+    CreateCustomRole,
+    DeleteCustomRoles,
+    RemoveCustomRole,
+)
 from rbb_bot.domain.custom_roles import RoleOwnership
 
+pytestmark = pytest.mark.asyncio
 
-def role(role_id, holders=()):
-    return SimpleNamespace(
-        id=role_id,
-        members=[SimpleNamespace(id=i) for i in holders],
-        managed=False,
-        is_default=lambda: False,
-        delete=AsyncMock(),
-    )
+OWNER = 2
+OTHER = 3
 
 
-def cog_and_guild(records, roles):
-    cog = RolesCog(Mock())
-    cog.ownership = SimpleNamespace(
-        list=AsyncMock(return_value=records), forget=AsyncMock()
-    )
-    guild = SimpleNamespace(
-        id=1, roles=roles, chunked=True, fetch_roles=AsyncMock(return_value=roles)
-    )
-    return cog, guild
+class FakeRepository:
+    def __init__(self, records=(), enabled=True, max_roles=2, fail_record=False):
+        self.stored = CustomRoleSettings(enabled, max_roles)
+        self.records = list(records)
+        self.fail_record = fail_record
+
+    async def settings(self, guild_id):
+        return self.stored
+
+    async def set_enabled(self, guild_id, enabled):
+        self.stored = CustomRoleSettings(enabled, self.stored.max_roles)
+
+    async def set_max_roles(self, guild_id, max_roles):
+        self.stored = CustomRoleSettings(self.stored.enabled, max_roles)
+
+    async def record(self, guild_id, owner_id, role_id):
+        if self.fail_record:
+            raise RuntimeError("database failed")
+        self.records.append(RoleOwnership(role_id, owner_id))
+
+    async def list(self, guild_id, owner_id=None):
+        return tuple(
+            record
+            for record in self.records
+            if owner_id is None or record.owner_id == owner_id
+        )
+
+    async def forget(self, guild_id, role_id):
+        self.records = [r for r in self.records if r.role_id != role_id]
 
 
-@pytest.mark.asyncio
-async def test_member_cannot_delete_untracked_role():
-    manual = role(10, [2])
-    cog, guild = cog_and_guild([], [manual])
-    ctx = SimpleNamespace(
-        interaction=None, guild=guild, author=SimpleNamespace(id=2), send=AsyncMock()
-    )
-    with patch(
-        "rbb_bot.cogs.roles_cog.Guild.get_or_create",
-        new=AsyncMock(return_value=(SimpleNamespace(custom_roles_enabled=True), False)),
-    ):
-        await RolesCog.remove.callback(cog, ctx, role=manual)
-    manual.delete.assert_not_awaited()
-    assert "recorded as yours" in ctx.send.call_args.args[0]
+class FakeGuild:
+    id = 1
+
+    def __init__(self, roles=(), names=(), sole_held=(), refuse=()):
+        self.live = {role.id: role for role in roles}
+        self.names = frozenset(names)
+        self.sole_held = frozenset(sole_held)
+        self.refuse = set(refuse)
+        self.created = []
+        self.assigned = []
+        self.deleted = []
+
+    async def roles(self, ids):
+        return {i: self.live[i] for i in ids if i in self.live}
+
+    def role_names(self):
+        return self.names
+
+    def sole_held_role_ids(self, member_id):
+        return self.sole_held
+
+    async def create_role(self, name, color):
+        role = GuildRole(100 + len(self.created), frozenset())
+        self.created.append((name, color))
+        self.live[role.id] = role
+        return role.id
+
+    async def assign(self, member_id, role_id):
+        self.assigned.append((member_id, role_id))
+
+    async def delete_role(self, role_id, reason):
+        if role_id in self.refuse:
+            raise RoleDeletionFailed(role_id)
+        self.deleted.append(role_id)
+        self.live.pop(role_id, None)
 
 
-@pytest.mark.asyncio
+def role(role_id, *holders):
+    return GuildRole(role_id, frozenset(holders))
+
+
+async def refusal_of(call):
+    with pytest.raises(CustomRoleRefused) as caught:
+        await call
+    return caught.value
+
+
+async def test_member_cannot_remove_a_role_without_their_ownership_record():
+    repository = FakeRepository([RoleOwnership(11, OTHER)])
+    guild = FakeGuild([role(10, OWNER), role(11, OTHER)])
+
+    for role_id in (10, 11):
+        refusal = await refusal_of(
+            RemoveCustomRole(repository, guild).execute(OWNER, role_id)
+        )
+        assert refusal.refusal is Refusal.NOT_OWNED
+    assert guild.deleted == []
+
+
 @pytest.mark.parametrize(
-    "holders,deleted", [([], True), ([2], True), ([3], False), ([2, 3], False)]
+    "holders,deleted", [((), True), ((OWNER,), True), ((OWNER, OTHER), False)]
 )
-async def test_bulk_cleanup_only_deletes_recorded_roles_without_other_holders(
+async def test_owner_removes_only_their_unshared_recorded_role(holders, deleted):
+    repository = FakeRepository([RoleOwnership(10, OWNER)])
+    guild = FakeGuild([role(10, *holders)])
+    remove = RemoveCustomRole(repository, guild).execute(OWNER, 10)
+
+    if deleted:
+        await remove
+        assert guild.deleted == [10]
+        assert repository.records == []
+    else:
+        assert (await refusal_of(remove)).refusal is Refusal.SHARED
+        assert guild.deleted == []
+        assert repository.records == [RoleOwnership(10, OWNER)]
+
+
+async def test_remove_and_create_are_refused_while_disabled():
+    repository = FakeRepository([RoleOwnership(10, OWNER)], enabled=False)
+    guild = FakeGuild([role(10, OWNER)])
+
+    removal = await refusal_of(RemoveCustomRole(repository, guild).execute(OWNER, 10))
+    creation = await refusal_of(
+        CreateCustomRole(repository, guild).execute(OWNER, "Name", 0x123456)
+    )
+
+    assert removal.refusal is creation.refusal is Refusal.DISABLED
+    assert guild.deleted == guild.created == []
+
+
+@pytest.mark.parametrize(
+    "holders,deleted",
+    [((), True), ((OWNER,), True), ((OTHER,), False), ((OWNER, OTHER), False)],
+)
+async def test_cleanup_deletes_only_recorded_roles_without_other_holders(
     holders, deleted
 ):
-    owned, manual = role(10, holders), role(11)
-    cog, guild = cog_and_guild([RoleOwnership(10, 2)], [owned, manual])
-    assert await cog._delete_tracked_roles(guild) == int(deleted)
-    assert owned.delete.await_count == int(deleted)
-    manual.delete.assert_not_awaited()
-    assert cog.ownership.forget.await_count == int(deleted)
+    repository = FakeRepository([RoleOwnership(10, OWNER)])
+    guild = FakeGuild([role(10, *holders), role(11)])
+
+    cleanup = await DeleteCustomRoles(repository, guild).execute()
+
+    assert cleanup.deleted == int(deleted)
+    assert guild.deleted == ([10] if deleted else [])
+    assert len(repository.records) == int(not deleted)
 
 
-@pytest.mark.asyncio
 async def test_prune_keeps_recorded_roles_still_in_use():
-    owned = role(10, [2])
-    cog, guild = cog_and_guild([RoleOwnership(10, 2)], [owned])
-    assert await cog._delete_tracked_roles(guild, unused_only=True) == 0
-    owned.delete.assert_not_awaited()
+    repository = FakeRepository([RoleOwnership(10, OWNER), RoleOwnership(11, OWNER)])
+    guild = FakeGuild([role(10, OWNER), role(11)])
+
+    cleanup = await DeleteCustomRoles(repository, guild).execute(unused_only=True)
+
+    assert cleanup.deleted == 1
+    assert guild.deleted == [11]
 
 
-@pytest.mark.asyncio
-async def test_leave_cleanup_uses_discord_event_and_continues_after_forbidden():
-    failing, working = role(10), role(11)
-    failing.delete.side_effect = discord.Forbidden(
-        SimpleNamespace(status=403, reason="Forbidden"), "Missing permissions"
+async def test_records_of_roles_deleted_in_discord_are_forgotten():
+    repository = FakeRepository([RoleOwnership(10, OWNER), RoleOwnership(11, OWNER)])
+    guild = FakeGuild([role(11, OWNER, OTHER)])
+
+    cleanup = await DeleteCustomRoles(repository, guild).execute()
+
+    assert cleanup.deleted == 0
+    assert repository.records == [RoleOwnership(11, OWNER)]
+
+
+async def test_departed_member_cleanup_continues_after_a_refused_deletion():
+    repository = FakeRepository(
+        [
+            RoleOwnership(10, OWNER),
+            RoleOwnership(11, OWNER),
+            RoleOwnership(12, OTHER),
+        ]
     )
-    cog, guild = cog_and_guild(
-        [RoleOwnership(10, 2), RoleOwnership(11, 2)], [failing, working]
+    guild = FakeGuild([role(10), role(11), role(12)], refuse={10})
+
+    cleanup = await DeleteCustomRoles(repository, guild).departed(OWNER)
+
+    assert cleanup.deleted == 1
+    assert [failure.role_id for failure in cleanup.failures] == [10]
+    assert guild.deleted == [11]
+    # The refused role keeps its record so a later prune can retry.
+    assert repository.records == [RoleOwnership(10, OWNER), RoleOwnership(12, OTHER)]
+
+
+async def test_departed_member_cleanup_does_nothing_while_disabled():
+    repository = FakeRepository([RoleOwnership(10, OWNER)], enabled=False)
+    guild = FakeGuild([role(10)])
+
+    assert await DeleteCustomRoles(repository, guild).departed(OWNER) is None
+    assert guild.deleted == []
+
+
+async def test_creation_records_ownership_then_assigns_the_role():
+    repository = FakeRepository()
+    guild = FakeGuild()
+
+    role_id = await CreateCustomRole(repository, guild).execute(
+        OWNER, "  Custom  ", 0x123456
     )
-    member = SimpleNamespace(id=2, guild=guild)
-    assert ("on_member_remove", "on_member_remove") in cog.__cog_listeners__
-    with patch(
-        "rbb_bot.cogs.roles_cog.Guild.get_or_none",
-        new=AsyncMock(return_value=SimpleNamespace(custom_roles_enabled=True)),
-    ):
-        await cog.on_member_remove(member)
-    cog.ownership.list.assert_awaited_once_with(1, 2)
-    cog.ownership.forget.assert_awaited_once_with(1, 11)
-    working.delete.assert_awaited_once()
+
+    assert guild.created == [("Custom", 0x123456)]
+    assert repository.records == [RoleOwnership(role_id, OWNER)]
+    assert guild.assigned == [(OWNER, role_id)]
 
 
-@pytest.mark.asyncio
-async def test_cache_miss_fetches_roles_and_full_members_before_deletion():
-    owned = role(10, [2, 3])
-    cog, guild = cog_and_guild([RoleOwnership(10, 2)], [])
-    guild.chunked = False
-    guild.chunk = AsyncMock()
-    guild.fetch_roles.return_value = [owned]
-    assert await cog._delete_tracked_roles(guild) == 0
-    guild.chunk.assert_awaited_once()
-    guild.fetch_roles.assert_awaited_once()
-    owned.delete.assert_not_awaited()
-    cog.ownership.forget.assert_not_awaited()
+async def test_creation_deletes_the_role_when_ownership_cannot_be_recorded():
+    repository = FakeRepository(fail_record=True)
+    guild = FakeGuild()
+
+    with pytest.raises(RuntimeError, match="database failed"):
+        await CreateCustomRole(repository, guild).execute(OWNER, "Custom", 0x123456)
+
+    assert len(guild.created) == 1
+    assert guild.deleted == [100]
+    assert guild.assigned == []
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("holders,deleted", [([2], True), ([2, 3], False)])
-async def test_owner_can_remove_only_their_unshared_recorded_role(holders, deleted):
-    owned = role(10, holders)
-    cog, guild = cog_and_guild([RoleOwnership(10, 2)], [owned])
-    ctx = SimpleNamespace(
-        interaction=None, guild=guild, author=SimpleNamespace(id=2), send=AsyncMock()
+async def test_role_limit_counts_untracked_roles_the_member_holds_alone():
+    repository = FakeRepository([RoleOwnership(10, OWNER)], max_roles=2)
+    guild = FakeGuild([role(10, OWNER)], sole_held={10, 20})
+
+    refusal = await refusal_of(
+        CreateCustomRole(repository, guild).execute(OWNER, "Custom", 0x123456)
     )
-    with patch(
-        "rbb_bot.cogs.roles_cog.Guild.get_or_create",
-        new=AsyncMock(return_value=(SimpleNamespace(custom_roles_enabled=True), False)),
-    ):
-        await RolesCog.remove.callback(cog, ctx, role=owned)
-    cog.ownership.list.assert_awaited_once_with(1, 2)
-    assert owned.delete.await_count == int(deleted)
+
+    assert refusal.refusal is Refusal.LIMIT_REACHED
+    assert refusal.max_roles == 2
+    assert guild.created == []
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("record_fails", [False, True])
-async def test_creation_records_ownership_before_assigning_role(record_fails):
-    created = role(10)
-    created.mention = "<@&10>"
-    cog, guild = cog_and_guild([], [])
-    guild.create_role = AsyncMock(return_value=created)
-    cog.ownership.record = AsyncMock(
-        side_effect=RuntimeError("database failed") if record_fails else None
+@pytest.mark.parametrize(
+    "name,color,refusal",
+    [
+        ("x" * 101, None, Refusal.NAME_TOO_LONG),
+        ("Taken", None, Refusal.NAME_IN_USE),
+        ("Custom", None, Refusal.INVALID_COLOR),
+    ],
+)
+async def test_creation_refuses_bad_names_before_bad_colors(name, color, refusal):
+    guild = FakeGuild(names={"Taken"})
+
+    caught = await refusal_of(
+        CreateCustomRole(FakeRepository(), guild).execute(OWNER, name, color)
     )
-    everyone = SimpleNamespace(id=1, members=[1, 2])
-    author = SimpleNamespace(id=2, roles=[everyone], add_roles=AsyncMock())
-    ctx = SimpleNamespace(
-        interaction=None, guild=guild, author=author, send=AsyncMock()
+
+    assert caught.refusal is refusal
+    assert guild.created == []
+
+
+async def test_a_100_character_name_is_accepted():
+    guild = FakeGuild()
+
+    await CreateCustomRole(FakeRepository(), guild).execute(OWNER, "x" * 100, 0)
+
+    assert guild.created == [("x" * 100, 0)]
+
+
+@pytest.mark.parametrize("max_roles", [0, 6])
+async def test_max_roles_outside_one_to_five_is_refused(max_roles):
+    repository = FakeRepository()
+
+    refusal = await refusal_of(
+        ConfigureCustomRoles(repository).set_max_roles(1, max_roles)
     )
-    with patch(
-        "rbb_bot.cogs.roles_cog.Guild.get_or_create",
-        new=AsyncMock(
-            return_value=(
-                SimpleNamespace(custom_roles_enabled=True, max_custom_roles=2),
-                False,
-            )
-        ),
-    ):
-        if record_fails:
-            with pytest.raises(RuntimeError, match="database failed"):
-                await RolesCog.add.callback(cog, ctx, "#123456", name="Custom")
-        else:
-            await RolesCog.add.callback(cog, ctx, "#123456", name="Custom")
-    cog.ownership.record.assert_awaited_once_with(1, 2, 10)
-    assert created.delete.await_count == int(record_fails)
-    assert author.add_roles.await_count == int(not record_fails)
+
+    assert refusal.refusal is Refusal.INVALID_MAX
+    assert repository.stored.max_roles == 2
+
+
+async def test_configuration_stores_enabled_flag_and_limit():
+    repository = FakeRepository(enabled=False)
+    configure = ConfigureCustomRoles(repository)
+
+    await configure.enable(1, True)
+    await configure.set_max_roles(1, 5)
+
+    assert repository.stored == CustomRoleSettings(True, 5)

@@ -1,5 +1,10 @@
 from dataclasses import dataclass
 
+# Discord rejects role names longer than this.
+ROLE_NAME_LIMIT = 100
+# Upper bound administrators may set for custom roles per member.
+MAX_ROLES_LIMIT = 5
+
 
 @dataclass(frozen=True)
 class RoleOwnership:
