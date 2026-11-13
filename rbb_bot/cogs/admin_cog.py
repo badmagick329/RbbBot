@@ -15,8 +15,6 @@ from discord.ext.commands.errors import (
     MissingRequiredArgument,
     RoleNotFound,
 )
-from rbb_bot.models import DiskCache
-
 from rbb_bot.settings.const import BotEmojis
 from rbb_bot.infrastructure.guild_lifecycle.guild_data import GuildDataService
 from rbb_bot.infrastructure.privacy.user_data import UserDataService
@@ -186,16 +184,12 @@ class AdminCog(Cog):
         """
         Admin Commands
 
-        clear cache
         update comebacks [optional list of urls separated by spaces]
         presence [activity] [status]
         """
         clean_text = cmd_text.strip().lower()
         if not clean_text:
             return await ctx.send_help(ctx.command)
-        if clean_text == "clear cache":
-            out = await DiskCache.all().delete()
-            return await ctx.send(out)
         if clean_text.startswith("update comebacks"):
             urls = clean_text.split("update comebacks")[-1].strip()
             if not urls:

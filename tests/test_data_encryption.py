@@ -32,7 +32,11 @@ def load_release_b_migration():
 
 
 async def add_release_a_plaintext_columns(connection):
-    """Make the final-schema fixture look like the completed Release A schema."""
+    """Make the current-model fixture look like the completed Release A schema.
+
+    Release A still had the operator tables that migration 55 later dropped,
+    and migration 53 inspects them, so they are recreated here.
+    """
     await connection.execute_script("""
         ALTER TABLE "guild" ADD COLUMN "prefix" VARCHAR(10);
         ALTER TABLE "guild" ADD COLUMN "emojis_channel_message" VARCHAR(2000);
@@ -50,8 +54,18 @@ async def add_release_a_plaintext_columns(connection):
         ALTER TABLE "sourceentry" ADD COLUMN "event" VARCHAR(255);
         ALTER TABLE "sourceentry" ADD COLUMN "jump_url" VARCHAR(255);
         ALTER TABLE "sourceentry" ADD COLUMN "conf_jump_url" VARCHAR(255);
-        ALTER TABLE "botupdate" ADD COLUMN "message" TEXT;
-        ALTER TABLE "botissue" ADD COLUMN "message" TEXT;
+        CREATE TABLE "botupdate" (
+            "id" SERIAL NOT NULL PRIMARY KEY,
+            "message" TEXT,
+            "message_ciphertext" TEXT,
+            "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE "botissue" (
+            "id" SERIAL NOT NULL PRIMARY KEY,
+            "message" TEXT,
+            "message_ciphertext" TEXT,
+            "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
         """)
 
 

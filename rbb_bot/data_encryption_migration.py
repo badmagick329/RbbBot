@@ -21,8 +21,6 @@ MODEL_NAMES = (
     "Response",
     "Tag",
     "SourceEntry",
-    "BotUpdate",
-    "BotIssue",
 )
 
 

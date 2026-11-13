@@ -6,21 +6,22 @@ from tortoise import Tortoise
 
 pytestmark = pytest.mark.integration
 
-MIGRATION_PATH = (
-    Path(__file__).parents[1]
-    / "migrations"
-    / "models"
-    / "49_20260718_remove_command_log.py"
-)
+MIGRATIONS = Path(__file__).parents[1] / "migrations" / "models"
 
 
-def load_remove_command_log_migration():
-    spec = importlib.util.spec_from_file_location("remove_command_log", MIGRATION_PATH)
+def load_migration(file_name: str):
+    spec = importlib.util.spec_from_file_location(
+        file_name.removesuffix(".py"), MIGRATIONS / file_name
+    )
     if spec is None or spec.loader is None:
-        raise RuntimeError("Could not load the command-log removal migration")
+        raise RuntimeError(f"Could not load migration {file_name}")
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
     return migration
+
+
+def load_remove_command_log_migration():
+    return load_migration("49_20260718_remove_command_log.py")
 
 
 async def command_log_table_exists() -> bool:
@@ -79,3 +80,33 @@ async def test_command_log_migration_downgrade_only_recreates_an_empty_table(
     assert await command_log_table_exists()
     _, rows = await connection.execute_query('SELECT * FROM "commandlog";')
     assert rows == []
+
+
+UNUSED_OPERATOR_TABLES = ("diskcache", "botupdate", "botissue")
+
+
+async def existing_operator_tables() -> list[str]:
+    _, rows = await Tortoise.get_connection("default").execute_query(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' "
+        "AND tablename = ANY($1::text[]) ORDER BY tablename;",
+        [list(UNUSED_OPERATOR_TABLES)],
+    )
+    return [row["tablename"] for row in rows]
+
+
+@pytest.mark.asyncio
+async def test_operator_table_migration_downgrade_recreates_empty_tables(
+    test_database,
+):
+    connection = Tortoise.get_connection("default")
+    migration = load_migration("55_20261113_drop_unused_operator_tables.py")
+    assert await existing_operator_tables() == []
+
+    await connection.execute_script(await migration.downgrade(connection))
+    assert await existing_operator_tables() == sorted(UNUSED_OPERATOR_TABLES)
+    for table in UNUSED_OPERATOR_TABLES:
+        _, rows = await connection.execute_query(f'SELECT * FROM "{table}";')
+        assert rows == []
+
+    await connection.execute_script(await migration.upgrade(connection))
+    assert await existing_operator_tables() == []

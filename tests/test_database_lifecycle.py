@@ -1,7 +1,8 @@
-import json
+import shutil
 from datetime import datetime, timezone
 
 import pytest
+from aerich import Command
 from tortoise import Tortoise
 
 from rbb_bot.infrastructure.database.lifecycle import (
@@ -153,6 +154,33 @@ async def test_upgrade_applies_pending_migration_53_and_preserves_encrypted_remi
     )
     assert columns == []
     await validate_migration_history()
+
+
+async def test_upgrade_drops_unused_operator_tables_without_aerich_drift(
+    test_database, tmp_path
+):
+    await empty_schema()
+    await initialize_empty_database()
+    await upgrade(config())
+    await upgrade(config())
+
+    await Tortoise.init(config=config())
+    await validate_migration_history()
+    await verify_existing_encryption_key()
+    _, rows = await Tortoise.get_connection("default").execute_query(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' "
+        "AND tablename IN ('diskcache', 'botupdate', 'botissue')"
+    )
+    assert rows == []
+    await Tortoise.close_connections()
+
+    # Aerich diffs the models against the snapshot in its newest history row;
+    # an empty diff means a later `aerich migrate` will not regenerate the drops.
+    location = tmp_path / "migrations"
+    shutil.copytree(MIGRATIONS / "models", location / "models")
+    command = Command(tortoise_config=config(), app="models", location=str(location))
+    await command.init()
+    assert await command.migrate("drift") == ""
 
 
 async def test_provisioning_and_upgrade_module_entrypoints(test_database):

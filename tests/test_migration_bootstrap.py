@@ -53,6 +53,29 @@ async def create_legacy_command_log_table():
         """)
 
 
+async def create_legacy_operator_tables():
+    """Recreate the pre-Aerich tables that current models no longer generate."""
+    connection = Tortoise.get_connection("default")
+    await connection.execute_script("""
+        CREATE TABLE "diskcache" (
+            "id" SERIAL NOT NULL PRIMARY KEY,
+            "key" VARCHAR(510) NOT NULL UNIQUE,
+            "value" JSONB,
+            "accessed_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE "botupdate" (
+            "id" SERIAL NOT NULL PRIMARY KEY,
+            "message" TEXT NOT NULL,
+            "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE "botissue" (
+            "id" SERIAL NOT NULL PRIMARY KEY,
+            "message" TEXT NOT NULL,
+            "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+
 async def add_legacy_discord_user_columns():
     connection = Tortoise.get_connection("default")
     await connection.execute_script("""
@@ -64,6 +87,7 @@ async def add_legacy_discord_user_columns():
 @pytest.mark.asyncio
 async def test_bootstrap_records_legacy_migrations_without_running_them(test_database):
     await create_legacy_command_log_table()
+    await create_legacy_operator_tables()
     await add_legacy_discord_user_columns()
 
     await baseline_existing_schema()
@@ -81,6 +105,8 @@ async def test_bootstrap_records_legacy_migrations_without_running_them(test_dat
 
 @pytest.mark.asyncio
 async def test_bootstrap_rejects_an_incomplete_schema(test_database):
+    await create_legacy_command_log_table()
+    await create_legacy_operator_tables()
     await add_legacy_discord_user_columns()
     connection = Tortoise.get_connection("default")
     await connection.execute_script('DROP TABLE "sourceentry";')
@@ -94,6 +120,7 @@ async def test_baseline_makes_aerich_upgrade_apply_pending_migrations(
     test_database, tmp_path
 ):
     await create_legacy_command_log_table()
+    await create_legacy_operator_tables()
     connection = Tortoise.get_connection("default")
     await connection.execute_script('ALTER TABLE "guild" DROP COLUMN "departed_at";')
     await connection.execute_script(
