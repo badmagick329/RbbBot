@@ -1,12 +1,9 @@
 import asyncio
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "rbb_bot"))
 from rbb_bot.cogs.kpop_cog import KpopCog
 from rbb_bot.cogs.kpop_cog import Release as KpopRelease
 from rbb_bot.models import Release

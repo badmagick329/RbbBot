@@ -1,12 +1,9 @@
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "rbb_bot"))
-from rbb import RbbBot
+from rbb_bot.rbb import RbbBot
 
 
 @pytest.mark.asyncio

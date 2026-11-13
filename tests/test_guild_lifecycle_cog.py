@@ -1,12 +1,9 @@
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import discord
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "rbb_bot"))
 from rbb_bot.cogs.guild_cog import GuildCog
 from rbb_bot.cogs.admin_cog import AdminCog
 
