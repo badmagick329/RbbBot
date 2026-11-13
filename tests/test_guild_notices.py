@@ -21,6 +21,7 @@ from rbb_bot.application.member_onboarding.handle_member_join import (
     MemberJoinFailure,
 )
 from rbb_bot.application.member_onboarding.join_notices import join_failure_notice
+from rbb_bot.application.emotes.contracts import EmoteChannelSettings
 from rbb_bot.cogs.emojis_cog import EmojisCog
 from rbb_bot.cogs.logging_cog import LoggingCog
 from rbb_bot.cogs.member_onboarding_cog import MemberOnboardingCog
@@ -29,6 +30,7 @@ from rbb_bot.domain.member_onboarding.configuration import DEFAULT_GREETING
 from rbb_bot.infrastructure.guild_logging.notice_channel import DiscordNoticeChannel
 from rbb_bot.infrastructure.member_onboarding.discord_actions import DiscordOnboarding
 from rbb_bot.views.guild_logging import guild_notice
+from tests.test_emotes import FakeRepository as FakeEmoteRepository
 
 pytestmark = pytest.mark.asyncio
 
@@ -414,21 +416,9 @@ def emote_cog(channel, notices):
         guild_notices=reporter(77, notices),
     )
     cog = EmojisCog(bot)
+    cog.repository = FakeEmoteRepository(EmoteChannelSettings(7, None, True))
     cog.post_datetimes[1] = utcnow()
     return cog
-
-
-def emote_settings():
-    return patch(
-        "rbb_bot.cogs.emojis_cog.Guild.get_or_none",
-        new=AsyncMock(
-            return_value=SimpleNamespace(
-                emojis_channel_id=7,
-                emojis_channel_message=None,
-                delete_emoji_messages=True,
-            )
-        ),
-    )
 
 
 @pytest.mark.parametrize(
@@ -442,8 +432,7 @@ async def test_emote_repost_into_inaccessible_channel_notifies_guild(error, expe
     notices = RecordingNoticeChannel()
     channel = SimpleNamespace(purge=AsyncMock(side_effect=error))
     cog = emote_cog(channel, notices)
-    with emote_settings():
-        await cog.post_updated_emojis(SimpleNamespace(id=1), Mock())
+    await cog.post_updated_emojis(SimpleNamespace(id=1, emojis=[]))
 
     [(channel_id, posted)] = notices.posts
     assert channel_id == 77
@@ -459,6 +448,6 @@ async def test_emote_repost_message_vanishing_mid_purge_is_not_a_guild_notice():
         purge=AsyncMock(side_effect=http_error(discord.NotFound, 10008))
     )
     cog = emote_cog(channel, notices)
-    with emote_settings(), pytest.raises(discord.NotFound):
-        await cog.post_updated_emojis(SimpleNamespace(id=1), Mock())
+    with pytest.raises(discord.NotFound):
+        await cog.post_updated_emojis(SimpleNamespace(id=1, emojis=[]))
     assert notices.posts == []

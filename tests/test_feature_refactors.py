@@ -7,6 +7,7 @@ import discord
 import pytest
 from discord.ext import commands
 
+from rbb_bot.application.emotes.contracts import EmoteChannelSettings
 from rbb_bot.cogs.emojis_cog import EmojisCog
 from rbb_bot.cogs.logging_cog import LoggingCog
 from rbb_bot.cogs.hangman_cog import HangmanCog
@@ -17,6 +18,7 @@ from rbb_bot.memegifs.ffmpeg import FFmpegError
 from rbb_bot.views.guild_logging import message_event
 from rbb_bot.views.hangman import HangmanView
 from rbb_bot.settings.const import BotEmojis
+from tests.test_emotes import FakeRepository as FakeEmoteRepository
 
 
 @pytest.mark.asyncio
@@ -174,13 +176,16 @@ async def test_source_moderation_rejects_nonowners_and_missing_member_payloads()
 async def test_delayed_emoji_post_respects_channel_disabled_during_wait():
     from discord.utils import utcnow
 
-    cog = EmojisCog(Mock())
+    channel = SimpleNamespace(purge=AsyncMock(), send=AsyncMock())
+    cog = EmojisCog(
+        SimpleNamespace(
+            get_channel=lambda _: channel, logger=Mock(), guild_notices=Mock()
+        )
+    )
+    cog.repository = FakeEmoteRepository(EmoteChannelSettings(7, "Enjoy", True))
     cog.post_datetimes[1] = utcnow()
-    cog.post_emojis = AsyncMock()
-    with patch(
-        "rbb_bot.cogs.emojis_cog.Guild.get_or_none",
-        new=AsyncMock(return_value=SimpleNamespace(emojis_channel_id=None)),
-    ):
-        await cog.post_updated_emojis(SimpleNamespace(id=1), Mock())
-    cog.post_emojis.assert_not_awaited()
+    await cog.repository.unassign(1)
+    await cog.post_updated_emojis(SimpleNamespace(id=1, emojis=[]))
+    channel.purge.assert_not_awaited()
+    channel.send.assert_not_awaited()
     assert cog.post_datetimes == {}

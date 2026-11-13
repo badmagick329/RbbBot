@@ -1,50 +1,41 @@
-from rbb_bot.infrastructure.http.public_download import UnsafeDownload
 import asyncio
 from datetime import timedelta
 from typing import Optional
 
 import discord
-from discord import Emoji, Forbidden, NotFound, TextChannel
+from discord import Emoji, TextChannel
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
 from discord.utils import sleep_until, utcnow
-from rbb_bot.domain.guild_logging import GuildNotice
-from rbb_bot.models import Guild
-from rbb_bot.settings.const import DISCORD_MAX_MESSAGE
+
+from rbb_bot.application.emotes.configure import ConfigureEmoteChannel
+from rbb_bot.application.emotes.contracts import (
+    EmoteChannelRefused,
+    EmoteChannelUnavailable,
+)
+from rbb_bot.application.emotes.post_emotes import PostEmotesNow, RepostEmotes
+from rbb_bot.infrastructure.emotes.discord_poster import DiscordEmotePoster
+from rbb_bot.infrastructure.emotes.repository import TortoiseEmoteChannelRepository
+from rbb_bot.infrastructure.http.public_download import UnsafeDownload
 from rbb_bot.utils.exceptions import NotOk, TimeoutError
 from rbb_bot.utils.helpers import emoji_regex, http_get
-
-# Discord JSON error code for "Unknown Channel".
-UNKNOWN_CHANNEL = 10003
-
-
-def emote_channel_notice(channel_id: int, deleted: bool) -> GuildNotice:
-    if deleted:
-        return GuildNotice(
-            key=f"emote-channel-deleted:{channel_id}",
-            problem="Could not repost the server's emotes: the emotes channel no longer exists.",
-            remedy="Assign a new channel with `/emote post assign`, or stop reposting with `/emote post unassign`.",
-            identifiers=(("Channel ID", channel_id),),
-        )
-    return GuildNotice(
-        key=f"emote-channel-forbidden:{channel_id}",
-        problem="Could not repost the server's emotes: the bot cannot manage the emotes channel.",
-        remedy=(
-            f"Give the bot View Channel and Send Messages in <#{channel_id}>, plus Manage Messages "
-            "and Read Message History if previous posts are deleted, or assign another channel "
-            "with `/emote post assign`."
-        ),
-        identifiers=(("Channel ID", channel_id),),
-    )
+from rbb_bot.views.emotes import refusal_reply
 
 
 class EmojisCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.repository = TortoiseEmoteChannelRepository()
+        self.configure = ConfigureEmoteChannel(self.repository, self.channel_changed)
         # Maps guild id to a datetime object of when updated emojis should be posted
         self.post_datetimes = dict()
         self.post_tasks = set()
         self.UPDATE_DELAY = 30
+
+    def channel_changed(self, guild_id: int):
+        # The tags cog may be unloaded; then there is no catalogue to refresh.
+        if tag_catalog := getattr(self.bot, "tag_catalog", None):
+            tag_catalog.invalidate(guild_id)
 
     async def cog_load(self):
         self.bot.logger.debug("EmojisCog loaded!")
@@ -56,45 +47,6 @@ class EmojisCog(Cog):
         await asyncio.gather(*tasks, return_exceptions=True)
         self.post_datetimes.clear()
         self.bot.logger.debug("EmojisCog unloaded!")
-
-    @staticmethod
-    async def post_emojis(
-        channel: TextChannel,
-        guild: discord.Guild,
-        emojis_message: str,
-        delete_previous: bool,
-        emojis_per_message: int = 15,
-    ):
-        """
-        Post emojis to the channel
-        """
-        if delete_previous:
-            await channel.purge(limit=None)
-            async for message in channel.history(limit=100):
-                await message.delete()
-
-        emojis = guild.emojis
-        static_emojis = list()
-        animated_emojis = list()
-        for e in emojis:
-            if e.animated:
-                animated_emojis.append(e)
-            else:
-                static_emojis.append(e)
-
-        send_emojis = list()
-        for to_send in [static_emojis, animated_emojis]:
-            while to_send:
-                send_emojis.append(str(to_send.pop(0)))
-                if len(send_emojis) == emojis_per_message:
-                    await channel.send("".join(send_emojis))
-                    send_emojis = list()
-            if send_emojis:
-                await channel.send("".join(send_emojis))
-                send_emojis = list()
-
-        if emojis_message:
-            await channel.send(emojis_message)
 
     @commands.hybrid_group(brief="Add, remove or rename emotes in the server")
     @commands.guild_only()
@@ -276,17 +228,10 @@ class EmojisCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if guild.emojis_channel_id == channel.id:
-            self.bot.logger.debug(f"Channel already set to {channel}")
-            return await ctx.send(
-                "This channel is already assigned as the emotes channel"
-            )
-        guild.emojis_channel_id = channel.id
-        guild.delete_emoji_messages = delete_previous
-        await guild.save()
-        if tag_catalog := getattr(self.bot, "tag_catalog", None):
-            tag_catalog.invalidate(guild.id)
+        try:
+            await self.configure.assign(ctx.guild.id, channel.id, delete_previous)
+        except EmoteChannelRefused as refusal:
+            return await ctx.send(refusal_reply(refusal))
         await ctx.send(f"Assigned {channel.mention} to post emotes in")
 
     @post.command(brief="Unassign the channel emotes are posted in")
@@ -299,11 +244,7 @@ class EmojisCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        guild.emojis_channel_id = None
-        await guild.save()
-        if tag_catalog := getattr(self.bot, "tag_catalog", None):
-            tag_catalog.invalidate(guild.id)
+        await self.configure.unassign(ctx.guild.id)
         await ctx.send("Unassigned the channel emotes are posted in")
 
     @post.command(
@@ -323,19 +264,14 @@ class EmojisCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
         if message.strip().lower() == "clear":
-            guild.emojis_channel_message = None
-            await guild.save()
-            await ctx.send(f"Cleared the message")
-        else:
-            if len(message) > DISCORD_MAX_MESSAGE:
-                return await ctx.send(
-                    f"Message is too long. Max length is {DISCORD_MAX_MESSAGE}"
-                )
-            guild.emojis_channel_message = message
-            await guild.save()
-            await ctx.send("Message set")
+            await self.configure.clear_message(ctx.guild.id)
+            return await ctx.send("Cleared the message")
+        try:
+            await self.configure.set_message(ctx.guild.id, message)
+        except EmoteChannelRefused as refusal:
+            return await ctx.send(refusal_reply(refusal))
+        await ctx.send("Message set")
 
     @post.command(name="now", brief="Post emotes in the assigned channel now")
     @commands.cooldown(2, 10, commands.BucketType.guild)
@@ -348,80 +284,46 @@ class EmojisCog(Cog):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        guild, _ = await Guild.get_or_create(id=ctx.guild.id)
-        if guild.emojis_channel_id is None:
-            return await ctx.send("No channel assigned to post emotes in")
-        channel = self.bot.get_channel(guild.emojis_channel_id)
-        if channel is None:
-            channel = await self.bot.fetch_channel(guild.emojis_channel_id)
-        if (
-            guild.delete_emoji_messages
-            and not channel.permissions_for(ctx.guild.me).manage_messages
-        ):
-            return await ctx.send(
-                "I don't have manage messages permission in the emotes channel"
-            )
-        if (
-            guild.delete_emoji_messages
-            and not channel.permissions_for(ctx.guild.me).read_message_history
-        ):
-            return await ctx.send(
-                "I don't have read message history permission in the emotes channel"
-            )
+        announced = False
 
-        await ctx.send(f"Posting emotes in {channel.mention}")
+        async def announce(channel_id):
+            nonlocal announced
+            await ctx.send(f"Posting emotes in <#{channel_id}>")
+            announced = True
+
+        post = PostEmotesNow(self.repository, DiscordEmotePoster(self.bot, ctx.guild))
         try:
-            await self.post_emojis(
-                channel,
-                ctx.guild,
-                guild.emojis_channel_message,
-                guild.delete_emoji_messages,
-            )
-        except Forbidden as e:
-            return await ctx.send(
-                f"I do not have permission to post in the assigned channel"
-            )
-        except Exception as e:
-            await self.bot.send_error(ctx, e, comment="Error posting emotes")
+            await post.execute(ctx.guild.id, announce)
+        except EmoteChannelRefused as refusal:
+            return await ctx.send(refusal_reply(refusal))
+        except EmoteChannelUnavailable as error:
+            if not error.deleted:
+                return await ctx.send(
+                    "I do not have permission to post in the assigned channel"
+                )
+            await self.bot.send_error(ctx, error, comment="Error posting emotes")
+        except Exception as error:
+            # Failures before the announcement (reading settings, resolving the
+            # channel) go to the global command error handler; once posting has
+            # started, the requester already has a reply and the owner gets the error.
+            if not announced:
+                raise
+            await self.bot.send_error(ctx, error, comment="Error posting emotes")
 
-    async def post_updated_emojis(self, guild: Guild, discord_guild):
-        guild_id = guild.id
+    async def post_updated_emojis(self, discord_guild: discord.Guild):
+        guild_id = discord_guild.id
         while guild_id in self.post_datetimes:
             deadline = self.post_datetimes[guild_id]
             if deadline > utcnow():
                 await sleep_until(deadline)
                 continue
             del self.post_datetimes[guild_id]
-            # Configuration may change while the debounce timer is waiting.
-            settings = await Guild.get_or_none(id=guild_id)
-            if settings is None or settings.emojis_channel_id is None:
-                return
-            channel_id = settings.emojis_channel_id
-            try:
-                channel = self.bot.get_channel(channel_id)
-                if channel is None:
-                    channel = await self.bot.fetch_channel(channel_id)
-                await self.post_emojis(
-                    channel,
-                    discord_guild,
-                    settings.emojis_channel_message,
-                    settings.delete_emoji_messages,
-                )
-            except (Forbidden, NotFound) as error:
-                # A message deleted mid-purge also yields NotFound; only a missing
-                # channel or permission is the guild's to fix.
-                if isinstance(error, NotFound) and error.code != UNKNOWN_CHANNEL:
-                    raise
-                self.bot.logger.warning(
-                    "Emoji update failed guild_id=%s channel_id=%s",
-                    guild_id,
-                    channel_id,
-                    exc_info=error,
-                )
-                await self.bot.guild_notices.execute(
-                    guild_id,
-                    emote_channel_notice(channel_id, isinstance(error, NotFound)),
-                )
+            await RepostEmotes(
+                self.repository,
+                DiscordEmotePoster(self.bot, discord_guild),
+                self.bot.guild_notices,
+                self.bot.logger,
+            ).execute(guild_id)
             return
 
     def post_finished(self, task):
@@ -431,10 +333,9 @@ class EmojisCog(Cog):
 
     @Cog.listener()
     async def on_guild_emojis_update(
-        self, guild: Guild, before: list[Emoji], after: list[Emoji]
+        self, guild: discord.Guild, before: list[Emoji], after: list[Emoji]
     ):
-        guild_settings = await Guild.get_or_none(id=guild.id)
-        if guild_settings is None or guild_settings.emojis_channel_id is None:
+        if (await self.configure.read(guild.id)).channel_id is None:
             return
 
         if self.post_datetimes.get(guild.id) is None:
@@ -444,7 +345,7 @@ class EmojisCog(Cog):
             self.post_datetimes[guild.id] = utcnow() + timedelta(
                 seconds=self.UPDATE_DELAY
             )
-            task = asyncio.create_task(self.post_updated_emojis(guild_settings, guild))
+            task = asyncio.create_task(self.post_updated_emojis(guild))
             self.post_tasks.add(task)
             task.add_done_callback(self.post_finished)
         else:
