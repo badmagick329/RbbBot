@@ -5,13 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from rbb_bot.cogs.kpop_cog import KpopCog
-from rbb_bot.cogs.kpop_cog import Release as KpopRelease
-from rbb_bot.models import Release
 from rbb_bot.infrastructure.releases.scraper import Scraper
-
-
-def test_scraper_uses_the_canonical_tortoise_release_model():
-    assert KpopRelease is Release
 
 
 @pytest.mark.asyncio

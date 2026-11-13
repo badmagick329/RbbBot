@@ -1,10 +1,60 @@
+from datetime import date
+
 import pendulum
+from tortoise.expressions import Q
 from tortoise.transactions import atomic
+
+from rbb_bot.application.releases.contracts import ReleaseFilter, ReleaseListing
 from rbb_bot.models import Artist, Release, ReleaseType
 from rbb_bot.infrastructure.releases.records import PyRelease
 
 
 class ReleaseRepository:
+    """Keep releases on `Release` rows: the lookup commands search them, the scraper
+    reads and replaces them as plain dicts."""
+
+    async def search(
+        self,
+        criteria: ReleaseFilter,
+        *,
+        on_or_after: date | None = None,
+        before: date | None = None,
+        newest_first: bool,
+    ) -> tuple[ReleaseListing, ...]:
+        filters = []
+        if criteria.artist:
+            filters.append(Q(artist__name__icontains=criteria.artist))
+        if criteria.title:
+            filters.append(Q(title__icontains=criteria.title))
+        if criteria.title_or_album:
+            filters.append(
+                Q(title__icontains=criteria.title_or_album)
+                | Q(album_title__icontains=criteria.title_or_album)
+            )
+        if criteria.release_type:
+            filters.append(Q(release_type__name__icontains=criteria.release_type))
+        if on_or_after is not None:
+            filters.append(Q(release_date__gte=on_or_after))
+        if before is not None:
+            filters.append(Q(release_date__lt=before))
+        rows = (
+            await Release.filter(*filters)
+            .order_by("-release_date" if newest_first else "release_date")
+            .prefetch_related("artist", "release_type")
+        )
+        return tuple(
+            ReleaseListing(
+                artist=row.artist.name,
+                title=row.title,
+                album_title=row.album_title,
+                release_type=row.release_type.name,
+                release_date=row.release_date,
+                release_time=row.release_time,
+                urls=tuple(row.urls or ()),
+            )
+            for row in rows
+        )
+
     @staticmethod
     async def read(recent: bool = True):
         """

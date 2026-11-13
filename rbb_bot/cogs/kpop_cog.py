@@ -1,42 +1,31 @@
 import asyncio
 import re
 import urllib.parse
-from typing import List, Optional
+from typing import Optional
 
 import dateparser
-import pendulum
 from bs4 import BeautifulSoup
-from discord import AllowedMentions, Embed
+from discord import AllowedMentions
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog, Context
-from discord.utils import format_dt
-from rbb_bot.models import Release
-from tortoise.expressions import Q
-from rbb_bot.utils.helpers import http_get, truncate
-from rbb_bot.infrastructure.releases.scraper import Scraper
-from rbb_bot.utils.views import ListView, SearchResult, SearchResultsView
+
+from rbb_bot.application.releases.contracts import ReleaseFilter
+from rbb_bot.application.releases.lookup import (
+    FindVideos,
+    ListReleases,
+    SearchTermMissing,
+)
 from rbb_bot.application.wins.latest import (
     InvalidArtist,
     WinsUnavailable,
     normalize_artist,
 )
+from rbb_bot.infrastructure.releases.repository import ReleaseRepository
+from rbb_bot.infrastructure.releases.scraper import Scraper
+from rbb_bot.utils.helpers import http_get
+from rbb_bot.utils.views import ListView, SearchResult, SearchResultsView
+from rbb_bot.views.releases import ReleasesView, VideoList
 from rbb_bot.views.wins import wins_embed
-
-
-class VideoList(ListView):
-    def create_message(self, current_chunk: list[tuple[str, Release]]) -> str:
-        header = f"Page {self.current_page + 1} of {len(self.view_chunks)}\n"
-        body = list()
-        for chunk in current_chunk:
-            video, release = chunk
-            artist_name = truncate(release.artist.name, 30)
-            title = truncate(release.title, 30)
-            if release.release_time:
-                date_or_time = format_dt(release.release_time, style="f")
-            else:
-                date_or_time = f"**{release.release_date}**"
-            body.append(f"{date_or_time}\n{artist_name} - {title}\n{video}")
-        return header + "\n".join(body)
 
 
 class YoutubeList(ListView):
@@ -48,64 +37,13 @@ class YoutubeList(ListView):
         return header + "\n".join(body)
 
 
-class ReleasesView(ListView):
-    YT_URL = re.compile(
-        r"(?:https?://)?(?:www\.)?youtu(?:be\.com/watch\?v=|\.be/)([\w-]{11})"
-    )
-
-    def create_embed(self, releases: List[Release]) -> Embed:
-        def format_release_field(r: Release) -> tuple[str, str]:
-            release_time = (
-                format_dt(r.release_time, "f") if r.release_time else r.date_string
-            )
-
-            artist_name = truncate(r.artist.name, 80)
-
-            title_and_album = ""
-            if r.title == r.album_title:
-                title_and_album = r.title
-            else:
-                if r.title:
-                    title_and_album += r.title
-                if r.album_title:
-                    title_and_album += (
-                        f" ({r.album_title})" if title_and_album else r.album_title
-                    )
-
-            title_and_album = truncate(title_and_album, 80)
-            release_type = f"*[{r.release_type.name}]*" if r.release_type.name else ""
-            value_ = f"`{artist_name}`\n{title_and_album}"
-            if release_type:
-                value_ += f"\n{release_type}"
-            if r.urls:
-                for url in r.urls[:4]:
-                    if match := self.YT_URL.search(url):
-                        value_ += f"\nhttps://youtu.be/{match.group(1)}"
-                    else:
-                        value_ += f"\n{url}"
-            return release_time, value_
-
-        embed = Embed(
-            title=f"Page {self.current_page + 1} of {len(self.view_chunks)}",
-            description="[Browse releases on the web](https://mgck.ink/kpop)",
-        )
-        header_name = f"{len(self.list_items)} {'releases' if len(self.list_items) > 1 else 'release'}"
-        header_value = "Times displayed in your local timezone"
-        embed.add_field(name=header_name, value=header_value, inline=False)
-        for release in releases:
-            name, value = format_release_field(release)
-            value = f"{value}\n{'-' * 50}"
-            embed.add_field(name=name, value=value, inline=False)
-        embed.set_footer(text="Source: https://www.reddit.com/r/kpop")
-        return embed
-
-
 class KpopCog(Cog):
     def __init__(self, bot):
         self.bot = bot
         self.YT_ID = re.compile(r"v=([a-zA-Z0-9_-]{11})")
         self.kprofiles_url = self.bot.config.kprofiles_url
         self.search_key = self.bot.creds.search_key
+        self.repository = ReleaseRepository()
         self.scraper = Scraper(
             web_client=self.bot.web_client,
             headers=self.bot.config.headers,
@@ -186,31 +124,16 @@ class KpopCog(Cog):
                 if waited > 3:
                     self.bot.logger.error("Scraper is taking too long to update")
                     break
-        if artist is None and release_name is None:
+        try:
+            videos = await FindVideos(self.repository).execute(artist, release_name)
+        except SearchTermMissing:
             return await ctx.send(
                 "Please provide an artist or a release name to search for."
             )
-        filters = list()
-        if artist:
-            filters.append(Q(artist__name__icontains=artist))
-        if release_name:
-            filters.append(Q(title__icontains=release_name))
-
-        releases = (
-            await Release.filter(*filters)
-            .order_by("-release_date")
-            .prefetch_related("artist", "release_type")
-        )
-        releases = [r for r in releases if r.urls]
-        if not releases:
+        if not videos:
             return await ctx.send("No releases found.")
 
-        formatted_results = list()
-        for release in releases:
-            for url in release.urls:
-                formatted_results.append((url, release))
-
-        view = VideoList(ctx, formatted_results, chunk_size=2)
+        view = VideoList(ctx, list(videos), chunk_size=2)
         init_message = view.create_message(view.current_chunk)
         view.message = await ctx.send(init_message, view=view)
 
@@ -299,20 +222,10 @@ class KpopCog(Cog):
                     self.bot.logger.error("Scraper is taking too long to update")
                 break
 
-        self.bot.logger.debug("Adding filters")
-        filters = list()
-        if artist:
-            self.bot.logger.debug(f"Artist filter {artist}")
-            filters.append(Q(artist__name__icontains=artist))
-        if release_name:
-            self.bot.logger.debug(f"Release filter {release_name}")
-            filters.append(
-                Q(title__icontains=release_name)
-                | Q(album_title__icontains=release_name)
-            )
-        if release_type:
-            self.bot.logger.debug(f"Release type filter {release_type}")
-            filters.append(Q(release_type__name__icontains=release_type))
+        criteria = ReleaseFilter(
+            artist=artist, title_or_album=release_name, release_type=release_type
+        )
+        self.bot.logger.debug(f"Release filter {criteria}")
 
         parsed_date = None
         if start_date:
@@ -325,43 +238,20 @@ class KpopCog(Cog):
                     "Looking for releases from 2 days ago"
                 )
 
-        if parsed_date:
-            filters.append(Q(release_date__gte=parsed_date))
-        else:
-            filters.append(Q(release_date__gte=pendulum.today().add(days=-2)))
-
-        releases = (
-            await Release.filter(*filters, join_type="AND")
-            .order_by("release_date")
-            .prefetch_related("artist", "release_type")
+        found = await ListReleases(self.repository).execute(
+            criteria, start=parsed_date, start_requested=bool(start_date)
         )
-
-        async def send_releases(ctx, releases):
-            view = ReleasesView(ctx, releases)
-            embed = view.create_embed(view.current_chunk)
-            view.message = await ctx.send(embed=embed, view=view)
-            return view.message
-
-        if start_date:
-            if releases:
-                return await send_releases(ctx, releases)
-            else:
-                return await ctx.send("No releases found.")
-
-        if releases:
-            return await send_releases(ctx, releases)
-
-        filters[-1] = Q(release_date__lt=pendulum.today())
-        releases = (
-            await Release.filter(*filters, join_type="AND")
-            .order_by("-release_date")
-            .prefetch_related("artist", "release_type")
-        )
-        if not releases:
-            return await ctx.send("No releases found")
-        else:
+        if not found.releases:
+            # The two wordings differ only by the full stop; kept as the command sent them.
+            return await ctx.send(
+                "No releases found" if found.showing_older else "No releases found."
+            )
+        if found.showing_older:
             await ctx.send("No recent releases found. Showing older releases")
-            return await send_releases(ctx, releases)
+        view = ReleasesView(ctx, list(found.releases))
+        embed = view.create_embed(view.current_chunk)
+        view.message = await ctx.send(embed=embed, view=view)
+        return view.message
 
     @commands.hybrid_command(brief="Show the latest recorded music-show wins")
     @commands.cooldown(2, 5, commands.BucketType.user)
