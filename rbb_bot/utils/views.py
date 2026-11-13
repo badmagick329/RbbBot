@@ -216,33 +216,6 @@ class Confirm(menus.Menu):
         return self.result
 
 
-class SnsMenu(menus.Menu):
-    def __init__(self, msg):
-        super().__init__(timeout=60.0, clear_reactions_after=True)
-        self.msg = msg
-        self.result = None
-
-    async def send_initial_message(self, ctx, channel):
-        return self.msg
-
-    @menus.button(BotEmojis.DOWN_ARROW)
-    async def no_text(self, payload):
-        self.result = "no_text"
-        self.stop()
-
-    @menus.button(BotEmojis.TEXT)
-    async def text(self, payload):
-        self.result = "text"
-        self.stop()
-
-    async def prompt(self, ctx):
-        try:
-            await self.start(ctx, wait=True)
-        except menus.CannotAddReactions:
-            pass
-        return self.result
-
-
 @dataclass
 class SearchResult:
     title: str

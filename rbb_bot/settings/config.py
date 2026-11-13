@@ -36,8 +36,6 @@ class Config(BaseModel):
     headers: dict
     ig_headers: dict
     kprofiles_url: str
-    wiki_url: str
-    google_url: str
     privacy_policy_url: str
 
 

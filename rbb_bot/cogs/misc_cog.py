@@ -1,5 +1,4 @@
 import random
-import urllib
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Optional
@@ -18,14 +17,11 @@ from rbb_bot.utils.helpers import (
     truncate,
     user_regex,
 )
-from rbb_bot.utils.views import SearchResult, SearchResultsView
 
 
 class MiscCog(Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.wiki_url = self.bot.config.wiki_url
-        self.search_key = self.bot.creds.search_key
 
     async def cog_load(self):
         self.bot.logger.debug("MiscCog loaded!")
@@ -221,26 +217,6 @@ class MiscCog(Cog):
         if guild.premium_tier:
             embed.add_field(name="Boost Level", value=guild.premium_tier, inline=False)
         await ctx.send(embed=embed)
-
-    # NOTE: Discontinued
-    # @commands.hybrid_command(brief="Search wiki")
-    # @commands.cooldown(3, 10, commands.BucketType.user)
-    # async def wiki(self, ctx: Context, *, query: str):
-    #     """
-    #     Search wiki
-
-    #     Parameters
-    #     ----------
-    #     query: str
-    #         Query to search for (Required)
-    #     """
-    #     query = urllib.parse.quote(query)
-    #     url = self.wiki_url.format(apikey=self.search_key, query=query)
-    #     response = await http_get(url, as_json=True)
-    #     search_results = [SearchResult(item) for item in response["items"][:5]]
-    #     view = SearchResultsView(ctx, search_results, 1)
-    #     view.embed = view.create_embed(view.current_chunk)
-    #     view.message = await ctx.send(embed=view.embed, view=view)
 
 
 async def setup(bot):

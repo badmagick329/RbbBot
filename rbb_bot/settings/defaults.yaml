@@ -11,5 +11,3 @@ ig_headers:
   User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36"
   X-IG-App-ID: "936619743392459"
 kprofiles_url: https://customsearch.googleapis.com/customsearch/v1?key={apikey}&cx=96f6805b9d47943f7&q={query}
-wiki_url: https://customsearch.googleapis.com/customsearch/v1?key={apikey}&cx=03f43755558824d6f&q={query}
-google_url: https://customsearch.googleapis.com/customsearch/v1?key={apikey}&cx=b3de6e1c2b58f4a6e&q={query}

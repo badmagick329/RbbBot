@@ -16,7 +16,6 @@ class BotEmojis:
     CROSS = "❌"
     HAMMER = "🔨"
     DOWN_ARROW = "\N{DOWNWARDS BLACK ARROW}"
-    TEXT = "\N{PAGE FACING UP}"
     IRENE_TIME = "<a:irenetime:766755195451211818>"
     IRENE_WARNING = "<a:irenewarning:1005144902352515092>"
     IRENE_TIME_URL = "https://cdn.discordapp.com/emojis/766755195451211818.gif"
