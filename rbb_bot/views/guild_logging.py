@@ -57,6 +57,22 @@ def message_event(before, after=None):
     return {"embed": embed}
 
 
+def guild_notice(notice):
+    embed = discord.Embed(
+        title="Action needed",
+        description=notice.problem,
+        color=discord.Color.gold(),
+    )
+    # Several roles share one label; group them so the embed stays one field per kind.
+    grouped = {}
+    for label, value in notice.identifiers:
+        grouped.setdefault(label, []).append(str(value))
+    for label, values in grouped.items():
+        embed.add_field(name=label, value=", ".join(values))
+    embed.add_field(name="How to fix", value=notice.remedy, inline=False)
+    return embed
+
+
 def member_event(member, joined):
     timestamps = MemberTimestamps(member)
     embed = discord.Embed(

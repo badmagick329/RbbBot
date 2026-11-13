@@ -17,6 +17,9 @@ from rbb_bot.settings.config import get_discord_settings
 from rbb_bot.settings.config import get_kpopwins_settings
 from rbb_bot.application.wins.latest import LatestWins
 from rbb_bot.infrastructure.wins.client import KpopWinsClient
+from rbb_bot.application.guild_logging.report_notice import ReportGuildNotice
+from rbb_bot.infrastructure.guild_logging.notice_channel import DiscordNoticeChannel
+from rbb_bot.infrastructure.guild_logging.repository import TortoiseLoggingRepository
 from rbb_bot.utils.error_logging import format_error_context
 from rbb_bot.utils.mixins import ClientMixin
 
@@ -32,6 +35,10 @@ class RbbBot(commands.Bot):
         self.web_client = web_client
         self.latest_wins = LatestWins(
             KpopWinsClient(web_client, get_kpopwins_settings())
+        )
+        # One instance for every cog, so repeat suppression spans all notice sources.
+        self.guild_notices = ReportGuildNotice(
+            TortoiseLoggingRepository(), DiscordNoticeChannel(self), logger
         )
         self.load_cogs = [
             c.stem

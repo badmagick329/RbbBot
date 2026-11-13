@@ -11,6 +11,19 @@ class OnboardingInputError(ValueError):
     pass
 
 
+class MissingManageRoles(OnboardingInputError):
+    def __init__(self):
+        super().__init__("I need the Manage Roles permission to apply auto roles")
+
+
+class UnassignableAutoRoles(OnboardingInputError):
+    """Carries the skipped role IDs so the guild can be told exactly which roles to fix."""
+
+    def __init__(self, role_ids: tuple[int, ...]):
+        super().__init__(f"Unassignable auto roles: {role_ids}")
+        self.role_ids = role_ids
+
+
 def greeting_template(
     current: GreetingTemplate,
     title: str | None,

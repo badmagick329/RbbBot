@@ -76,15 +76,20 @@ class LoggingCog(Cog):
         channel_id = await self.configuration.channel_for(guild_id, event)
         if channel_id is None:
             return
-        channel = self.bot.get_channel(channel_id)
-        if channel is None:
-            channel = await self.bot.fetch_channel(channel_id)
-        payload = render()
         try:
-            await channel.send(**payload)
-        finally:
-            if "file" in payload:
-                payload["file"].close()
+            channel = self.bot.get_channel(channel_id)
+            if channel is None:
+                channel = await self.bot.fetch_channel(channel_id)
+            payload = render()
+            try:
+                await channel.send(**payload)
+            finally:
+                if "file" in payload:
+                    payload["file"].close()
+        except (discord.Forbidden, discord.NotFound):
+            # Only the guild can fix its own log channel; escaping the listener would
+            # report it as a bot error on every logged event.
+            self.bot.guild_notices.log_channel_unavailable(guild_id, channel_id)
 
     @Cog.listener()
     async def on_message_delete(self, message: discord.Message):

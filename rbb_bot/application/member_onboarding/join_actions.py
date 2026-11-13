@@ -1,4 +1,4 @@
-from rbb_bot.domain.member_onboarding.configuration import OnboardingInputError
+from rbb_bot.domain.member_onboarding.configuration import UnassignableAutoRoles
 from rbb_bot.application.member_onboarding.contracts import (
     MemberInfo,
     OnboardingRepository,
@@ -46,6 +46,4 @@ class ConfiguredJoinActions:
         if result.failures:
             raise result.failures[0][1]
         if result.skipped_role_ids:
-            raise OnboardingInputError(
-                f"Unassignable auto roles: {result.skipped_role_ids}"
-            )
+            raise UnassignableAutoRoles(result.skipped_role_ids)

@@ -36,6 +36,28 @@ class MemberInfo:
     role_ids: frozenset[int]
 
 
+class JoinChannelUnavailable(Exception):
+    """Discord refused a configured greeting or welcome channel.
+
+    The Discord adapter raises this in place of Discord's own error so the application
+    learns the channel ID and cause without depending on discord.py.
+    """
+
+    def __init__(self, channel_id: int, deleted: bool):
+        super().__init__(f"channel_id={channel_id} deleted={deleted}")
+        self.channel_id = channel_id
+        self.deleted = deleted
+
+
+class AutoRolesRejected(Exception):
+    """Discord refused an auto role change: the role was deleted, or permissions or hierarchy forbid it."""
+
+    def __init__(self, role_ids: tuple[int, ...], deleted: bool):
+        super().__init__(f"role_ids={role_ids} deleted={deleted}")
+        self.role_ids = role_ids
+        self.deleted = deleted
+
+
 class OnboardingRepository(Protocol):
     async def greeting(self, guild_id: int) -> GreetingSettings: ...
 

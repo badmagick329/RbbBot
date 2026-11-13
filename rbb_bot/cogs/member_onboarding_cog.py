@@ -1,3 +1,4 @@
+import logging
 import random
 from functools import wraps
 from typing import Optional
@@ -20,6 +21,7 @@ from rbb_bot.application.member_onboarding.auto_roles import (
     ApplyAutoRoles,
 )
 from rbb_bot.application.member_onboarding.join_actions import ConfiguredJoinActions
+from rbb_bot.application.member_onboarding.join_notices import join_failure_notice
 from rbb_bot.domain.member_onboarding.configuration import (
     DEFAULT_GREETING,
     OnboardingInputError,
@@ -316,14 +318,23 @@ class MemberOnboardingCog(Cog):
             random.choice,
         )
         failures = await HandleMemberJoin(actions).execute()
+        notices = []
         for failure in failures:
-            self.bot.logger.error(
+            notice = join_failure_notice(failure, member.id)
+            # Guild-caused failures go to the guild as a notice; WARNING keeps them
+            # out of the owner's DMs, which are for faults only the owner can fix.
+            self.bot.logger.log(
+                logging.ERROR if notice is None else logging.WARNING,
                 "Member join %s failed guild_id=%s member_id=%s",
                 failure.action.value,
                 member.guild.id,
                 member.id,
                 exc_info=(type(failure.error), failure.error, failure.traceback),
             )
+            if notice is not None:
+                notices.append(notice)
+        for notice in notices:
+            await self.bot.guild_notices.execute(member.guild.id, notice)
 
 
 async def setup(bot):

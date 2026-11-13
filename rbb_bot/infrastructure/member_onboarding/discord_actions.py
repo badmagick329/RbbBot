@@ -2,9 +2,20 @@ import re
 
 import discord
 
-from rbb_bot.application.member_onboarding.contracts import RoleInfo, MemberInfo
-from rbb_bot.domain.member_onboarding.configuration import OnboardingInputError
+from rbb_bot.application.member_onboarding.contracts import (
+    AutoRolesRejected,
+    JoinChannelUnavailable,
+    MemberInfo,
+    RoleInfo,
+)
+from rbb_bot.domain.member_onboarding.configuration import (
+    MissingManageRoles,
+    OnboardingInputError,
+)
 from rbb_bot.views.member_onboarding import create_greeting_embed
+
+# Discord JSON error code for "Unknown Role".
+UNKNOWN_ROLE = 10011
 
 
 class DiscordOnboarding:
@@ -32,13 +43,22 @@ class DiscordOnboarding:
         permissions = channel.permissions_for(self.bot.get_guild(guild_id).me)
         return permissions.view_channel and permissions.send_messages
 
+    async def _deliver(self, channel_id, **payload):
+        try:
+            channel = await self._channel(channel_id)
+            await channel.send(**payload)
+        except discord.Forbidden as error:
+            raise JoinChannelUnavailable(channel_id, deleted=False) from error
+        except discord.NotFound as error:
+            raise JoinChannelUnavailable(channel_id, deleted=True) from error
+
     async def send_greeting(self, channel_id, template):
-        channel = await self._channel(channel_id)
-        await channel.send(embed=create_greeting_embed(template, self.member))
+        await self._deliver(
+            channel_id, embed=create_greeting_embed(template, self.member)
+        )
 
     async def send_welcome(self, channel_id, content):
-        channel = await self._channel(channel_id)
-        await channel.send(content)
+        await self._deliver(channel_id, content=content)
 
     async def roles(self, guild_id, ids):
         guild = self.bot.get_guild(guild_id)
@@ -69,9 +89,7 @@ class DiscordOnboarding:
     async def apply_roles(self, guild_id, member_id, role_ids):
         guild = self.bot.get_guild(guild_id)
         if guild.me is None or not guild.me.guild_permissions.manage_roles:
-            raise OnboardingInputError(
-                "I need the Manage Roles permission to apply auto roles"
-            )
+            raise MissingManageRoles()
         member = (
             self.member
             if self.member is not None and self.member.id == member_id
@@ -79,11 +97,19 @@ class DiscordOnboarding:
         )
         if member is None:
             member = await guild.fetch_member(member_id)
-        # Discord object IDs let the API report a role deleted after resolution.
-        await member.add_roles(
-            *(discord.Object(id=role_id) for role_id in role_ids),
-            reason="Auto role assignment",
-        )
+        try:
+            # Discord object IDs let the API report a role deleted after resolution.
+            await member.add_roles(
+                *(discord.Object(id=role_id) for role_id in role_ids),
+                reason="Auto role assignment",
+            )
+        except discord.Forbidden as error:
+            raise AutoRolesRejected(tuple(role_ids), deleted=False) from error
+        except discord.NotFound as error:
+            # A member who left also yields NotFound; that is not the guild's to fix.
+            if error.code != UNKNOWN_ROLE:
+                raise
+            raise AutoRolesRejected(tuple(role_ids), deleted=True) from error
 
 
 class DiscordWelcomeUrls:

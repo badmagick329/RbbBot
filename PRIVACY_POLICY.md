@@ -53,6 +53,8 @@ When a server administrator asks RBB to import URLs from a selected channel for 
 
 If a server administrator enables message edit or deletion logging, RBB copies the relevant message text, author information, channel, message ID, and timestamps to that server's chosen Discord log channel.
 
+When a server has a log channel set, RBB also posts a short notice there if one of the server's configured actions fails because of the server's own permissions or settings, for example when it cannot give an auto role to a new member. A notice states what failed, how to fix it, and the Discord IDs involved, such as the member, channel or role ID. It never includes message content.
+
 <a id="retention"></a>
 
 _03 / Retention_
