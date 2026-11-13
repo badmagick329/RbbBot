@@ -7,6 +7,12 @@ from tortoise.transactions import in_transaction
 
 
 class GuildDataService:
+    """The Tortoise side of `application/guild_lifecycle`'s `GuildLifecycleRepository`.
+
+    Methods stay classmethods so the admin cog's legacy reconciliation can call them
+    without an instance; the guild cog passes an instance to its use cases.
+    """
+
     GRACE_PERIOD = timedelta(days=7)
 
     @staticmethod
@@ -45,13 +51,14 @@ class GuildDataService:
         return True
 
     @classmethod
-    async def expired_cleanup_candidates(cls, now: datetime | None = None) -> list:
-        """Return configured guilds past the grace period; never delete them."""
+    async def expired_cleanup_candidates(cls, now: datetime | None = None) -> list[int]:
+        """Return IDs of configured guilds past the grace period; never delete them."""
         deadline = cls._now(now) - cls.GRACE_PERIOD
         return (
             await cls._guild_model()
             .filter(departed_at__lte=deadline)
             .order_by("departed_at", "_id")
+            .values_list("id", flat=True)
         )
 
     @classmethod

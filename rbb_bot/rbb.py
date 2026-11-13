@@ -7,7 +7,6 @@ from discord import Activity, ActivityType, Message
 from discord.ext import commands
 from discord.ext.commands import Context
 from rbb_bot.lib.discord_log_handler import DiscordLogHandler
-from rbb_bot.models import Guild
 from tortoise import Tortoise
 from rbb_bot.utils.help_command import EmbedHelpCommand
 from rbb_bot.utils.views import ConfirmView
@@ -17,6 +16,10 @@ from rbb_bot.settings.config import get_discord_settings
 from rbb_bot.settings.config import get_kpopwins_settings
 from rbb_bot.application.wins.latest import LatestWins
 from rbb_bot.infrastructure.wins.client import KpopWinsClient
+from rbb_bot.application.guild_prefixes.prefixes import LoadGuildPrefixes
+from rbb_bot.infrastructure.guild_prefixes.repository import (
+    TortoiseGuildPrefixRepository,
+)
 from rbb_bot.application.guild_logging.report_notice import ReportGuildNotice
 from rbb_bot.infrastructure.guild_logging.notice_channel import DiscordNoticeChannel
 from rbb_bot.infrastructure.guild_logging.repository import TortoiseLoggingRepository
@@ -80,8 +83,9 @@ class RbbBot(commands.Bot):
         )
         ClientMixin.inject_client(self)
 
-        for guild in await Guild.all():
-            self.guild_prefixes[guild.id] = guild.prefix
+        await LoadGuildPrefixes(
+            TortoiseGuildPrefixRepository(), self.guild_prefixes
+        ).execute()
 
         for cog in self.load_cogs:
             self.logger.debug(f"Loading {cog}")

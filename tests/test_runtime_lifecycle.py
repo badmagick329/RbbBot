@@ -108,7 +108,11 @@ async def test_bot_setup_never_creates_schema(bot, monkeypatch):
     monkeypatch.setattr(rbb.Tortoise, "init", AsyncMock())
     generate = AsyncMock()
     monkeypatch.setattr(rbb.Tortoise, "generate_schemas", generate)
-    monkeypatch.setattr(rbb.Guild, "all", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        rbb.TortoiseGuildPrefixRepository,
+        "all_prefixes",
+        AsyncMock(return_value={}),
+    )
     bot.load_cogs = []
     bot.load_extension = AsyncMock()
     bot.wait_until_ready = asyncio.Event().wait

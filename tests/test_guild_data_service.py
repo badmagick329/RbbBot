@@ -92,9 +92,7 @@ async def test_expired_cleanup_candidates_use_the_seven_day_boundary(test_databa
     await GuildDataService.record_departure(expired.id, now - timedelta(days=7))
     await GuildDataService.record_departure(recent.id, now - timedelta(days=6))
 
-    candidates = await GuildDataService.expired_cleanup_candidates(now)
-
-    assert [guild.id for guild in candidates] == [expired.id]
+    assert await GuildDataService.expired_cleanup_candidates(now) == [expired.id]
     await active.refresh_from_db()
     assert active.departed_at is None
 
