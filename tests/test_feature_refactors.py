@@ -151,9 +151,8 @@ async def test_meme_ffmpeg_failure_tells_user_generation_failed():
 
 @pytest.mark.asyncio
 async def test_source_moderation_rejects_nonowners_and_missing_member_payloads():
-    cog = SourceCog(Mock())
-    cog.delete_via_reaction = AsyncMock()
-    cog.ban_via_reaction = AsyncMock()
+    bot = Mock()
+    cog = SourceCog(bot)
     with patch(
         "rbb_bot.cogs.source_cog.get_discord_settings",
         return_value=SimpleNamespace(confirmation_channel_id=3, owner_id=1),
@@ -168,8 +167,9 @@ async def test_source_moderation_rejects_nonowners_and_missing_member_payloads()
             await cog.on_raw_reaction_add(payload)
         payload.emoji.name = BotEmojis.HAMMER
         await cog.on_raw_reaction_remove(payload)
-    cog.delete_via_reaction.assert_not_awaited()
-    cog.ban_via_reaction.assert_not_awaited()
+    # Acting on a reaction starts by reading the confirmation post.
+    bot.get_channel.assert_not_called()
+    bot.fetch_channel.assert_not_called()
 
 
 @pytest.mark.asyncio

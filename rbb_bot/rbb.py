@@ -24,7 +24,6 @@ from rbb_bot.application.guild_logging.report_notice import ReportGuildNotice
 from rbb_bot.infrastructure.guild_logging.notice_channel import DiscordNoticeChannel
 from rbb_bot.infrastructure.guild_logging.repository import TortoiseLoggingRepository
 from rbb_bot.utils.error_logging import format_error_context
-from rbb_bot.utils.mixins import ClientMixin
 
 
 class RbbBot(commands.Bot):
@@ -81,7 +80,6 @@ class RbbBot(commands.Bot):
         await Tortoise.init(
             db_url=self.creds.db_url, modules={"models": ["rbb_bot.models"]}
         )
-        ClientMixin.inject_client(self)
 
         await LoadGuildPrefixes(
             TortoiseGuildPrefixRepository(), self.guild_prefixes
@@ -165,7 +163,6 @@ class RbbBot(commands.Bot):
             # Bot.close unloads cogs before closing Discord's own HTTP client.
             await super().close()
         finally:
-            ClientMixin.inject_client(None)
             await Tortoise.close_connections()
         # The launcher owns web_client and closes it after the bot context exits.
 

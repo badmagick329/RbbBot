@@ -1,17 +1,14 @@
-import discord
-from discord import TextChannel
 from tortoise import fields
 from tortoise.models import Model
 
 from rbb_bot.models.encrypted import EncryptedModelMixin, EncryptedValue
 
 from rbb_bot.settings.config import get_config
-from rbb_bot.utils.mixins import ClientMixin
 
 default_prefix = get_config().default_prefix
 
 
-class Guild(EncryptedModelMixin, Model, ClientMixin):
+class Guild(EncryptedModelMixin, Model):
     _id = fields.IntField(pk=True)
     id = fields.BigIntField(unique=True)
     prefix_ciphertext = fields.TextField(null=True)
@@ -26,24 +23,14 @@ class Guild(EncryptedModelMixin, Model, ClientMixin):
     reminders_enabled = fields.BooleanField(default=False)
     departed_at = fields.DatetimeField(null=True, index=True)
 
-    @property
-    def guild(self) -> discord.Guild | None:
-        return self.client.get_guild(self.id) if self.client else None
-
-    @property
-    def emojis_channel(self) -> TextChannel | None:
-        if self.emojis_channel_id and self.client:
-            return self.client.get_channel(self.emojis_channel_id)
-
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
         return (
             f"Guild<(id={self.id}, "
-            f"{'name=' + self.guild.name + ', ' if self.guild else ''}"
             f"prefix={self.prefix}, "
-            f"emojis_channel={self.emojis_channel}, "
+            f"emojis_channel_id={self.emojis_channel_id}, "
             f"custom_roles_enabled={self.custom_roles_enabled}, "
             f"max_custom_roles={self.max_custom_roles}, "
             f"reminders_enabled={self.reminders_enabled})>"

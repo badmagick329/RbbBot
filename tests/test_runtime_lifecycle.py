@@ -120,7 +120,6 @@ async def test_bot_setup_never_creates_schema(bot, monkeypatch):
     generate.assert_not_awaited()
     bot.logging_task.cancel()
     await asyncio.gather(bot.logging_task, return_exceptions=True)
-    rbb.ClientMixin.inject_client(None)
 
 
 async def test_logging_enqueue_does_not_spawn_a_task(bot, monkeypatch):

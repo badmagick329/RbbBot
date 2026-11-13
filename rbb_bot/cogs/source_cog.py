@@ -1,37 +1,33 @@
-import discord
-from rbb_bot.settings.config import get_discord_settings
-import re
-from datetime import date as Date
-from datetime import datetime
 from typing import Optional
 
-from discord import Embed, Emoji, RawReactionActionEvent
+from discord import RawReactionActionEvent
 from discord.ext import commands
 from discord.ext.commands import Cog, Context
-from rbb_bot.models import DiscordUser, SourceEntry
 
+from rbb_bot.application.sources.contracts import SourceRefused, SourceRequest
+from rbb_bot.application.sources.lookup import CountSubmissions, FindSource
+from rbb_bot.application.sources.moderate import ModerateSubmission
+from rbb_bot.application.sources.submit import SubmitSource
+from rbb_bot.infrastructure.sources.confirmation import (
+    DiscordConfirmationPost,
+    DiscordConfirmationPosts,
+)
+from rbb_bot.infrastructure.sources.emote_images import DiscordEmoteImages
+from rbb_bot.infrastructure.sources.repository import TortoiseSourceRepository
+from rbb_bot.settings.config import get_discord_settings
 from rbb_bot.settings.const import BotEmojis
-from rbb_bot.infrastructure.encryption.codec import get_data_encryption_service
-from rbb_bot.utils.helpers import emoji_regex
-from rbb_bot.utils.views import ListView
-
-
-class SubmissionsView(ListView):
-    def create_embed(self, submissions: list[tuple[str, int]]) -> Embed:
-        page_header = ""
-        if len(self.view_chunks) > 1:
-            page_header = f"\nPage {self.current_page + 1} of {len(self.view_chunks)}"
-        header = f"Source submissions by users{page_header}"
-
-        embed = Embed(title=header)
-        for user, count in submissions:
-            embed.add_field(name=user, value=f"{count} submissions", inline=False)
-        return embed
+from rbb_bot.views.sources import (
+    SubmissionsView,
+    confirmation_prompt,
+    refusal_reply,
+    source_found,
+)
 
 
 class SourceCog(Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.repository = TortoiseSourceRepository()
 
     async def cog_load(self):
         self.bot.logger.debug("SourceCog loaded!")
@@ -59,40 +55,10 @@ class SourceCog(Cog):
         if not emote_string:
             return await ctx.send_help(ctx.command)
 
-        source_entries = (
-            await SourceEntry.filter(
-                emoji_lookup=get_data_encryption_service().lookup_token(emote_string)
-            )
-            .order_by("conf_message_id")
-            .prefetch_related("user")
-        )
-        if not source_entries:
+        lookup = await FindSource(self.repository).execute(emote_string)
+        if lookup is None:
             return await ctx.send(f"Could not find any sources for {emote_string}")
-        source_url = None
-        event = None
-        source_date = None
-        users = list()
-
-        for source_entry in source_entries:
-            if source_entry.source_url:
-                source_url = source_entry.source_url
-            if source_entry.event:
-                event = source_entry.event
-            if source_entry.source_date:
-                source_date = source_entry.source_date
-            if source_entry.user not in users:
-                users.append(source_entry.user)
-
-        message = ""
-        if source_date:
-            message = f"{source_date} "
-        if event:
-            message += f"{event}\n"
-        if source_url:
-            message += f"{source_url}\n"
-        message += f"Submitted by {', '.join([user.cached_username for user in users])}"
-
-        return await ctx.send(message)
+        return await ctx.send(source_found(lookup))
 
     @source.command(
         name="add",
@@ -123,9 +89,7 @@ class SourceCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        await self.process_source_entry(
-            ctx, emote_string, source_url, event, source_date
-        )
+        await self.submit(ctx, emote_string, source_url, event, source_date)
 
     @source.command(name="edit", brief="Edit source data for an emote")
     @commands.guild_only()
@@ -153,305 +117,104 @@ class SourceCog(Cog):
         """
         if ctx.interaction:
             await ctx.interaction.response.defer()
-        await self.process_source_entry(
-            ctx, emote_string, source_url, event, source_date, edit_entry=True
-        )
+        await self.submit(ctx, emote_string, source_url, event, source_date, edit=True)
 
-    async def process_source_entry(
+    async def submit(
         self,
         ctx: Context,
         emote_string: str,
         source_url: Optional[str],
         event: Optional[str],
         source_date: Optional[str],
-        edit_entry: bool = False,
+        edit: bool = False,
     ):
-        # Check if user is blacklisted
-        user, _ = await DiscordUser.get_or_create(
-            id=ctx.author.id, defaults={"cached_username": ctx.author.name}
-        )
-        if not user.cached_username:
-            user.cached_username = ctx.author.name
-            await user.save()
-
-        if user.blacklist and user.blacklist.get("source", None) == "blacklist":
-            return await ctx.send("You are blacklisted from adding sources")
-
-        if not edit_entry:
-            existing_entry = await SourceEntry.filter(
-                emoji_lookup=get_data_encryption_service().lookup_token(emote_string)
-            )
-            if existing_entry:
-                return await ctx.send(
-                    "An entry for this emote already exists. "
-                    f"Use {ctx.prefix}source edit to edit or add more information"
-                )
-
-        if event:
-            event = event.strip()
-
-        # Initial validation
-        if source_url:
-            if len(source_url) > SourceEntry.MAX_CHAR_FIELD:
-                return await ctx.send(
-                    "Source URL is too long. Max "
-                    f"{SourceEntry.MAX_CHAR_FIELD} characters"
-                )
-        if event:
-            if len(event) > SourceEntry.MAX_CHAR_FIELD:
-                return await ctx.send(
-                    f"Event is too long. Max {SourceEntry.MAX_CHAR_FIELD} characters"
-                )
-
-        if edit_entry:
-            if source_url:
-                if not re.search(r"^https?://\S+\.\S+$", source_url):
-                    return await ctx.send("Please provide a valid source URL")
-        else:
-            if not source_url:
-                return await ctx.send("Please provide a source URL")
-            if not re.search(r"^https?://\S+\.\S+$", source_url):
-                return await ctx.send("Please provide a valid source URL")
-
-        if source_date:
-            validated_date = self.validate_source_date(source_date)
-            if not validated_date:
-                return await ctx.send(
-                    (
-                        f"`{source_date}` is not a valid date. Date format is YYMMDD. "
-                        "Future dates are not permitted"
-                    )
-                )
-            source_date = validated_date
-
-        if edit_entry:
-            if not any([source_url, source_date, event]):
-                return await ctx.send(
-                    "At least one of these is required: source_url, source_date, event"
-                )
-
-        emote_url = await self.fetch_emoji_url(emote_string)
-        if not emote_url:
-            return await ctx.send("Could not validate the emote url")
-
-        # Get confirmation
-        conf_prompt = ""
-        if source_url:
-            conf_prompt = f"Source: {source_url}\n"
-        if source_date:
-            conf_prompt += f"Date: {source_date}\n"
-        if event:
-            conf_prompt += f"Event: {event}\n"
-
-        if edit_entry:
-            conf_prompt += "Edit these fields?"
-        else:
-            conf_prompt += "Is this correct?"
-
-        if not (await self.bot.get_confirmation(ctx, conf_prompt)):
-            return
-
-        # Create entry
-        source_entry = SourceEntry(
-            emoji_string=emote_string,
-            emoji_url=emote_url,
+        request = SourceRequest(
+            emote=emote_string,
             source_url=source_url,
-            source_date=source_date,
             event=event,
+            source_date=source_date,
             guild_id=ctx.guild.id,
             channel_id=ctx.channel.id,
             message_id=ctx.message.id,
             jump_url=ctx.message.jump_url,
-            user=user,
+            submitter_id=ctx.author.id,
+            submitter_name=ctx.author.name,
+        )
+        submit = SubmitSource(
+            self.repository,
+            DiscordEmoteImages(self.bot.web_client),
+            DiscordConfirmationPosts(
+                self.bot, get_discord_settings().confirmation_channel_id
+            ),
+            self.bot.logger,
         )
 
-        await self.send_conf_message(source_entry)
-        if edit_entry:
+        async def confirm(details):
+            return await self.bot.get_confirmation(
+                ctx, confirmation_prompt(details, edit)
+            )
+
+        try:
+            submitted = await (submit.edit if edit else submit.add)(request, confirm)
+        except SourceRefused as refusal:
+            return await ctx.send(refusal_reply(refusal, ctx.prefix, source_date))
+        if not submitted:
+            return
+        if edit:
             return await ctx.send("Source edited. Thank you! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧")
-        else:
-            return await ctx.send("Source added. Thank you! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧")
+        return await ctx.send("Source added. Thank you! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧")
 
     @source.command(name="list", brief="List number of submissions by users")
     async def source_list(self, ctx: Context):
         if ctx.interaction:
             await ctx.interaction.response.defer()
 
-        source_entries = await SourceEntry.all().prefetch_related("user")
-        discord_users = [entry.user for entry in source_entries]
-        id_to_username = dict()
-        for discord_user in discord_users:
-            if discord_user.id in id_to_username:
-                continue
-            user = self.bot.get_user(discord_user.id)
-            if user:
-                id_to_username[discord_user.id] = user.name
-            else:
-                id_to_username[discord_user.id] = discord_user.cached_username
-
-        username_count = dict()
-        for discord_user in discord_users:
-            username = id_to_username[discord_user.id]
-            username_count.setdefault(username, 0)
-            username_count[username] += 1
-
-        username_count = sorted(
-            username_count.items(), key=lambda x: x[1], reverse=True
-        )
-        if not username_count:
+        counts = await CountSubmissions(self.repository, self.current_name).execute()
+        if not counts:
             return await ctx.send("No source submissions yet")
-        view = SubmissionsView(ctx, username_count, chunk_size=8)
+        view = SubmissionsView(ctx, list(counts), chunk_size=8)
         embed = view.create_embed(view.current_chunk)
         view.message = await ctx.send(embed=embed, view=view)
         return view.message
 
-    async def send_conf_message(self, se: SourceEntry):
-        """Sends a confirmation message for a source entry."""
-        fields = {
-            "Emote": f"`{se.emoji_string[0]} {se.emoji_string[1:]}`",
-            "Emote url": se.emoji_url,
-            "Jump url": se.jump_url,
-            "Source link": se.source_url,
-            "Event": se.event,
-            "Date": se.source_date,
-            "User ID": se.user.id,
-            "Message ID": se.message_id,
-            "User name": se.user.cached_username,
-        }
-        # User-supplied fields must not introduce moderation metadata lines.
-        conf_msg_str = "\n".join(
-            f"{key}: {' '.join(str(value).splitlines())}"
-            for key, value in fields.items()
+    def current_name(self, user_id: int) -> str | None:
+        user = self.bot.get_user(user_id)
+        return user.name if user else None
+
+    def moderation(self, payload: RawReactionActionEvent) -> ModerateSubmission:
+        return ModerateSubmission(
+            self.repository,
+            DiscordConfirmationPost(self.bot, payload.channel_id, payload.message_id),
+            self.bot.logger,
         )
-        conf_ch = self.bot.get_channel(se.conf_channel_id)
-        if conf_ch is None:
-            conf_ch = await self.bot.fetch_channel(se.conf_channel_id)
-        conf_msg = await conf_ch.send(conf_msg_str)
-        se.conf_message_id = conf_msg.id
-        se.conf_jump_url = conf_msg.jump_url
-        try:
-            await se.save()
-        except Exception:
-            await conf_msg.delete()
-            raise
-        try:
-            await conf_msg.add_reaction(BotEmojis.CROSS)
-            await conf_msg.add_reaction(BotEmojis.HAMMER)
-        except discord.HTTPException:
-            self.bot.logger.exception(
-                "Source saved but moderation reactions could not be added"
-            )
 
-    def validate_source_date(self, date_str: str) -> Date | None:
-        date = None
-        try:
-            date = datetime.strptime(date_str, "%y%m%d").date()
-        except ValueError:
-            pass
-        if date and date > datetime.now().date():
-            return None
-        return date
-
-    async def fetch_emoji_url(self, emoji_string: str) -> str | None:
-        match = emoji_regex.search(emoji_string)
-        if not match:
-            return None
-        emoji_id = match.group(3)
-        params = "?animated=true" if match.group(1) == "a" else ""
-
-        url = f"https://cdn.discordapp.com/emojis/{emoji_id}.webp{params}"
-        async with self.bot.web_client.get(url) as response:
-            if response.status == 200:
-                return url
+    @staticmethod
+    def from_owner_in_confirmation_channel(payload: RawReactionActionEvent) -> bool:
+        settings = get_discord_settings()
+        return (
+            payload.channel_id == settings.confirmation_channel_id
+            and payload.user_id == settings.owner_id
+        )
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent):
         if payload.member is None or payload.member.bot:
             return
-        settings = get_discord_settings()
-        if (
-            payload.channel_id != settings.confirmation_channel_id
-            or payload.user_id != settings.owner_id
-        ):
+        if not self.from_owner_in_confirmation_channel(payload):
             return
         if payload.emoji.name == BotEmojis.CROSS:
-            await self.delete_via_reaction(payload)
+            await self.moderation(payload).remove()
         elif payload.emoji.name == BotEmojis.HAMMER:
-            await self.ban_via_reaction(payload)
-            await self.delete_via_reaction(payload)
+            moderation = self.moderation(payload)
+            await moderation.blacklist_submitter()
+            await moderation.remove()
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload: RawReactionActionEvent):
-        settings = get_discord_settings()
-        if (
-            payload.channel_id != settings.confirmation_channel_id
-            or payload.user_id != settings.owner_id
-        ):
+        if not self.from_owner_in_confirmation_channel(payload):
             return
         if payload.emoji.name == BotEmojis.HAMMER:
-            await self.ban_via_reaction(payload, undo=True)
-
-    async def _confirmation_message(self, payload):
-        channel = self.bot.get_channel(payload.channel_id)
-        if channel is None:
-            channel = await self.bot.fetch_channel(payload.channel_id)
-        return await channel.fetch_message(payload.message_id)
-
-    async def ban_via_reaction(self, payload: RawReactionActionEvent, undo=False):
-        message = await self._confirmation_message(payload)
-        if message.author.id != self.bot.user.id:
-            return
-        user_id = self.get_from_lines(message.content.splitlines(), "user id")
-        if user_id is None or not user_id.isdecimal():
-            return
-        discord_user = await DiscordUser.get_or_none(id=int(user_id))
-        if discord_user is None:
-            return
-        user = discord_user
-
-        if undo:
-            blacklist = dict(discord_user.blacklist or {})
-            if "source" in blacklist:
-                blacklist.pop("source")
-                discord_user.blacklist = blacklist
-                await discord_user.save()
-                self.bot.logger.info(
-                    f"User no longer blacklisted from adding sources {user} ({user.id})"
-                )
-
-        else:
-            if not discord_user.blacklist:
-                discord_user.blacklist = dict()
-            if discord_user.blacklist.get("source", None) == "blacklist":
-                self.bot.logger.info("User already blacklisted from adding sources")
-                return
-
-            discord_user.blacklist = {
-                **(discord_user.blacklist or {}),
-                "source": "blacklist",
-            }
-            await discord_user.save()
-            self.bot.logger.info(
-                f"User blacklisted from adding sources {user} ({user.id})"
-            )
-
-    async def delete_via_reaction(self, payload: RawReactionActionEvent):
-        message = await self._confirmation_message(payload)
-        if message.author.id != self.bot.user.id:
-            return
-        source_entry = await SourceEntry.filter(conf_message_id=payload.message_id)
-        if source_entry:
-            await source_entry[0].delete()
-        if not message.content.rstrip().endswith("\nDELETED"):
-            await message.edit(content=f"{message.content}\n\nDELETED")
-
-    def get_from_lines(self, lines: list[str], key: str) -> str | None:
-        values = []
-        for line in lines:
-            label, separator, value = line.partition(":")
-            if separator and label.lower() == key:
-                values.append(value.strip())
-        # Old confirmation posts can contain untrusted multiline text.
-        return values[0] if len(values) == 1 else None
+            await self.moderation(payload).lift_blacklist()
 
 
 async def setup(bot):

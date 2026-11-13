@@ -1,4 +1,3 @@
-import discord
 from tortoise import fields
 from tortoise.models import Model
 
@@ -8,10 +7,9 @@ from rbb_bot.models.encrypted import (
     decode_json,
     encode_json,
 )
-from rbb_bot.utils.mixins import ClientMixin
 
 
-class DiscordUser(EncryptedModelMixin, Model, ClientMixin):
+class DiscordUser(EncryptedModelMixin, Model):
     _id = fields.IntField(pk=True)
     id = fields.BigIntField(unique=True)
     cached_username_ciphertext = fields.TextField(null=True)
@@ -23,10 +21,6 @@ class DiscordUser(EncryptedModelMixin, Model, ClientMixin):
         decode=decode_json,
     )
     tag_opt_out = fields.BooleanField(default=False, index=True)
-
-    @property
-    def user(self) -> discord.User | None:
-        return self.client.get_user(self.id) if self.client else None
 
     def __repr__(self) -> str:
         return (

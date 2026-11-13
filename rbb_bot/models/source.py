@@ -3,10 +3,9 @@ from tortoise.models import Model
 
 from rbb_bot.models.encrypted import EncryptedModelMixin, EncryptedValue
 from rbb_bot.settings.config import get_discord_settings
-from rbb_bot.utils.mixins import ClientMixin
 
 
-class SourceEntry(EncryptedModelMixin, Model, ClientMixin):
+class SourceEntry(EncryptedModelMixin, Model):
     id = fields.IntField(pk=True)
     emoji_string_ciphertext = fields.TextField(null=True)
     emoji_lookup = fields.CharField(max_length=64, null=True, index=True)
@@ -39,8 +38,6 @@ class SourceEntry(EncryptedModelMixin, Model, ClientMixin):
     @property
     def conf_guild_id(self):
         return get_discord_settings().confirmation_guild_id
-
-    MAX_CHAR_FIELD = 255
 
     def __repr__(self):
         return (
